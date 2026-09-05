@@ -145,6 +145,7 @@ export default function RoomPage() {
                   <Transcript items={items} />
                   <ChatBox disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'} onSend={(m) => send({ type: 'chat', message: m })} />
                 </div>
+                <HealthPanel settings={settings} room={room} />
                 <RoomInfo room={room} log={log} />
               </section>
             </div>
@@ -304,6 +305,67 @@ function ChatBox({ disabled, onSend }: { disabled: boolean; onSend: (m: string) 
       <button disabled={disabled} onClick={submit} className="rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground disabled:opacity-50">
         send
       </button>
+    </div>
+  )
+}
+
+type Health = { ok: boolean; stage: string; checks: { name: string; ok: boolean; detail: string }[] }
+
+function HealthPanel({ settings, room }: { settings: ReturnType<typeof useSettings>[0]; room: RoomSummary }) {
+  const [health, setHealth] = useState<Health | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const run = useCallback(async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      setHealth(await api<Health>(settings, `/api/rooms/${room.id}/health`))
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }, [settings, room.id])
+
+  const retry = async () => {
+    setBusy(true)
+    try {
+      await api(settings, `/api/rooms/${room.id}/retry`, { method: 'POST' })
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-card p-3 text-xs">
+      <div className="flex items-center gap-2">
+        <span className="font-medium">Health</span>
+        {health && <span className={health.ok ? 'text-emerald-600' : 'text-amber-700'}>{health.ok ? 'all good' : 'needs attention'}</span>}
+        <div className="flex-1" />
+        {(room.stage === 'error' || room.stage === 'launching') && (
+          <button disabled={busy} onClick={retry} className="rounded border border-border px-1.5 py-0.5 hover:bg-muted disabled:opacity-50">
+            retry launch
+          </button>
+        )}
+        <button disabled={busy} onClick={run} className="rounded border border-border px-1.5 py-0.5 hover:bg-muted disabled:opacity-50">
+          {busy ? 'checking…' : 'check'}
+        </button>
+      </div>
+      {err && <p className="mt-1 text-red-600">{err}</p>}
+      {health && (
+        <ul className="mt-2 space-y-0.5">
+          {health.checks.map((c) => (
+            <li key={c.name} className="flex gap-2">
+              <span className={c.ok ? 'text-emerald-600' : 'text-red-600'}>{c.ok ? '✓' : '✗'}</span>
+              <span className="w-28 shrink-0 text-muted-foreground">{c.name}</span>
+              <span className="break-all">{c.detail}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
