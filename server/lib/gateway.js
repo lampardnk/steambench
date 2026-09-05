@@ -10,7 +10,10 @@ export class GatewayError extends Error {
 }
 
 export function startGateway({ host = '0.0.0.0', port = 28771, resolveInstance, log = console.log }) {
-  const server = net.createServer((socket) => {
+  // allowHalfOpen keeps the connection alive after the client half-closes: the
+  // client writes one request line then ends its side, and without this Node
+  // would close our side too, dropping the reply of any op that awaits.
+  const server = net.createServer({ allowHalfOpen: true }, (socket) => {
     let data = '';
     let done = false;
     const reply = (obj) => {

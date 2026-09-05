@@ -107,6 +107,8 @@ const server = http.createServer(async (req, res) => {
       if (sub === 'library' && req.method === 'GET') return json(res, 200, { games: room.library(), login: room.login });
       if (sub === 'chat' && req.method === 'POST') { const body = await readJson(req); if (!body.message) return json(res, 400, { error: 'message required' }); await room.chat(String(body.message)); return json(res, 200, { ok: true }); }
       if (sub === 'abort' && req.method === 'POST') { await room.agent?.abort(); return json(res, 200, { ok: true }); }
+      if (sub === 'health' && req.method === 'GET') return json(res, 200, await room.health());
+      if (sub === 'retry' && req.method === 'POST') { await room.retryLaunch(); return json(res, 200, { ok: true }); }
       if (sub === 'click' && req.method === 'POST') { const body = await readJson(req); await room.click(Number(body.x), Number(body.y)); return json(res, 200, { ok: true }); }
       if (sub === 'finish' && req.method === 'POST') { const body = await readJson(req); return json(res, 200, await room.finishRun({ result: body.result || 'aborted', summary: body.summary || 'finished from the dashboard', by: 'user' })); }
       if (sub === 'frame.jpg' && req.method === 'GET') {

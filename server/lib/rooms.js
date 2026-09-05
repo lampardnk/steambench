@@ -44,28 +44,62 @@ const QR_FIRST_CODE_GRACE_MS = 180000;
 // Stop clicking once the sign-in screen is gone (a login succeeded, or Steam
 // moved on): a stray click on the library could launch something.
 const QR_CLICK_WINDOW_MS = 120000;
+// A fresh room may have to download a Steam client update before the game runs.
+const LAUNCH_NUDGE_MS = 180000;
 
-// python3 TCP forwarder: exposes the mod's loopback-only HTTP port on the container IP.
+// The mod's HTTP server binds loopback only and its .NET listener answers 404
+// unless the request's Host header is the loopback address, so this is a small
+// HTTP proxy rather than a raw pipe: it rewrites Host (and forces
+// Connection: close so keep-alive cannot smuggle the original header through).
 const FORWARDER_PY = `import socket,threading,sys
 lp,tp=int(sys.argv[1]),int(sys.argv[2])
-def pipe(a,b):
-  try:
-    while True:
-      d=a.recv(65536)
-      if not d: break
-      b.sendall(d)
-  except Exception: pass
-  finally:
-    for s in (a,b):
-      try: s.close()
-      except Exception: pass
-s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(('0.0.0.0',lp)); s.listen(16)
+HOST=('Host: 127.0.0.1:%d' % tp).encode()
+
+def pump(a,b):
+    try:
+        while True:
+            d=a.recv(65536)
+            if not d: break
+            b.sendall(d)
+    except Exception: pass
+    finally:
+        for s in (a,b):
+            try: s.close()
+            except Exception: pass
+
+def handle(c):
+    u=None
+    try:
+        c.settimeout(20)
+        buf=b''
+        while b'\\r\\n\\r\\n' not in buf:
+            d=c.recv(65536)
+            if not d: return
+            buf+=d
+            if len(buf)>65536: return
+        head,sep,rest=buf.partition(b'\\r\\n\\r\\n')
+        parts=head.split(b'\\r\\n')
+        hdrs=[l for l in parts[1:] if not l.lower().startswith((b'host:',b'connection:'))]
+        req=b'\\r\\n'.join([parts[0]]+hdrs+[HOST,b'Connection: close',b'',b''])+rest
+        u=socket.create_connection(('127.0.0.1',tp),timeout=20)
+        c.settimeout(None); u.settimeout(None)
+        u.sendall(req)
+        t=threading.Thread(target=pump,args=(u,c),daemon=True); t.start()
+        pump(c,u)
+        t.join(timeout=30)
+    except Exception:
+        pass
+    finally:
+        for s in (c,u):
+            if s is not None:
+                try: s.close()
+                except Exception: pass
+
+s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(('0.0.0.0',lp)); s.listen(32)
 while True:
-  c,_=s.accept()
-  try: u=socket.create_connection(('127.0.0.1',tp),timeout=5)
-  except Exception:
-    c.close(); continue
-  threading.Thread(target=pipe,args=(c,u),daemon=True).start(); threading.Thread(target=pipe,args=(u,c),daemon=True).start()`;
+    try: c,_=s.accept()
+    except Exception: continue
+    threading.Thread(target=handle,args=(c,),daemon=True).start()`;
 
 export class RoomManager extends EventEmitter {
   constructor(cfg) {
@@ -438,16 +472,59 @@ export class Room extends EventEmitter {
   }
 
   // ---- stage: launching -----------------------------------------------------
+  /**
+   * Ask Steam to run the game and wait for the mod to answer. This can take a
+   * long time on a fresh room (Steam downloads a client update first), so it
+   * keeps waiting and re-issues the launch instead of failing the room.
+   */
   async _launch() {
+    this.launchedAt = Date.now();
+    this.launchAttempts = 0;
+    await this._nudgeLaunch();
+    this._loop(() => this._watchLaunch(), 5000);
+  }
+
+  async _gameRunning() {
+    if (!this.roomContainer) return false;
+    try {
+      const out = await execIn(this.roomContainer, ['sh', '-c', 'ps -eo comm | grep -c SlayTheSpire2 || true'], { timeoutMs: 15000 });
+      return Number(out.trim()) > 0;
+    } catch { return false; }
+  }
+
+  async _nudgeLaunch() {
     const game = SUPPORTED_GAMES[this.setup.game];
-    await this._steamUrl(`steam://rungameid/${game.appid}`);
-    const deadline = Date.now() + 6 * 60 * 1000;
-    while (!this.destroyed && Date.now() < deadline) {
-      await sleep(4000);
-      try { const r = await this._sts2Fetch('/', {}); if (r.status === 200) { this.gameReady = true; break; } } catch { /* not yet */ }
+    this.launchAttempts += 1;
+    this.lastNudgeAt = Date.now();
+    try { await this._steamUrl(`steam://rungameid/${game.appid}`); }
+    catch (e) { this._log(`launch command failed: ${e.message}`); }
+  }
+
+  async _watchLaunch() {
+    if (this.destroyed || this.stage !== 'launching') return false;
+    try {
+      const r = await this._sts2Fetch('/', {});
+      if (r.status >= 200 && r.status < 300) {
+        this.gameReady = true;
+        await this._startPlayer();
+        return false;
+      }
+    } catch { /* not up yet */ }
+    const waited = Math.round((Date.now() - this.launchedAt) / 1000);
+    // Steam often has to update itself before it will start anything, so nudge
+    // the launch again now and then rather than giving up on the room. Never
+    // nudge while the game is already up: Steam answers that with an error
+    // dialog that blocks the game.
+    if (Date.now() - this.lastNudgeAt > LAUNCH_NUDGE_MS && !(await this._gameRunning())) {
+      this._log(`still waiting for the game after ${waited}s; asking Steam to launch it again`);
+      await this._nudgeLaunch();
     }
-    if (this.destroyed) return;
-    if (!this.gameReady) throw new Error('game started but the STS2MCP mod is not reachable (is the mod enabled in the game settings?)');
+    this.setDetail(`waiting for the game and its mod (${waited}s; Steam may be updating itself first)`);
+    return true;
+  }
+
+  async _startPlayer() {
+    const game = SUPPORTED_GAMES[this.setup.game];
     this._log('game and mod reachable');
     this.setDetail('starting the player');
     this.agent = new PiAgent({
@@ -505,6 +582,40 @@ export class Room extends EventEmitter {
     this.archiveDir = dir;
     this._log(`archived to ${path.basename(dir)}`);
     return dir;
+  }
+
+  /** Layer-by-layer status, for the dashboard and for debugging a stuck room. */
+  async health() {
+    const now = Date.now();
+    const checks = [];
+    const add = (name, ok, detail) => checks.push({ name, ok, detail });
+    add('wolf lobby', Boolean(this.lobbyId), this.lobbyId || 'not created');
+    const containers = this.roomContainer ? await runningContainers(this.roomContainer).catch(() => []) : [];
+    add('room container', containers.length > 0, this.roomContainer ? `${this.roomContainer}${containers.length ? '' : ' (not running)'}` : 'none');
+    add('video', Boolean(this.reader?.latest) && now - this.reader.latestAt < 15000, this.reader?.latest ? `${this.reader.frames} frames, last ${Math.round((now - this.reader.latestAt) / 1000)}s ago` : 'no frames');
+    add('audio', (this.audio?.bytes || 0) > 0, `${Math.round((this.audio?.bytes || 0) / 1024)} KB`);
+    add('controller', Boolean(this.sessionId), this.sessionId ? `session ${this.sessionId}, ${this.padHistory.length} inputs` : 'no observer session');
+    add('steam login', Boolean(this.login), this.login ? (this.login.personaName || this.login.steamId) : 'not signed in');
+    if (this.setup) {
+      const st = installState(this.home, SUPPORTED_GAMES[this.setup.game].appid);
+      add('game installed', st.installed, st.installed ? st.installdir : `state flags ${st.stateFlags ?? 'none'}`);
+    }
+    let mod = { ok: false, detail: 'not reachable' };
+    try { const r = await this._sts2Fetch('/', {}); mod = { ok: r.status < 300, detail: `HTTP ${r.status} ${String(r.body).slice(0, 60).replace(/\s+/g, ' ')}` }; }
+    catch (e) { mod = { ok: false, detail: e.message.slice(0, 120) }; }
+    add('game mod api', mod.ok, mod.detail);
+    add('player', this.agent ? this.agent.status !== 'error' : false, this.agent ? `${this.agent.status} (${this.agent.transcript.length} transcript items)` : 'not started');
+    return { room: this.id, stage: this.stage, detail: this.detail, ok: checks.every((c) => c.ok), checks };
+  }
+
+  /** Re-run the launch stage; useful after an error or a slow Steam update. */
+  async retryLaunch() {
+    if (!this.setup) throw new Error('the room has no setup yet');
+    if (['playing', 'finished'].includes(this.stage)) throw new Error(`room is already ${this.stage}`);
+    if (this.agent) { try { await this.agent.stop(); } catch { /* ignore */ } this.agent = null; }
+    this.setStage('launching', 'retrying the launch');
+    await this._launch();
+    return true;
   }
 
   async chat(message) { if (!this.agent) throw new Error('the player has not started yet'); return this.agent.prompt(message); }
