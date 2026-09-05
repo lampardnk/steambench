@@ -46,6 +46,9 @@ const QR_FIRST_CODE_GRACE_MS = 180000;
 const QR_CLICK_WINDOW_MS = 120000;
 // A fresh room may have to download a Steam client update before the game runs.
 const LAUNCH_NUDGE_MS = 180000;
+const LAUNCH_DISMISS_AFTER_S = 45;
+const LAUNCH_DISMISS_EVERY_MS = 15000;
+const MAX_LAUNCH_DISMISS = 12;
 
 // The mod's HTTP server binds loopback only and its .NET listener answers 404
 // unless the request's Host header is the loopback address, so this is a small
@@ -282,7 +285,12 @@ export class Room extends EventEmitter {
       renderNode: this.cfg.renderNode, bufferCaps: this.cfg.bufferCaps, runnerStateFolder: `${this.cfg.roomsRel}/${this.id}`,
       runner: {
         type: 'docker', name: runnerName, image: this.cfg.roomImage, mounts, devices: [], ports: [],
-        env: ['RUN_GAMESCOPE=1', 'GOW_REQUIRED_DEVICES=/dev/input/* /dev/dri/* /dev/nvidia*', 'SDL_GAMECONTROLLER_IGNORE_DEVICES=0x045e/0x02ea', ...this.cfg.roomExtraEnv],
+        // Do NOT set SDL_GAMECONTROLLER_IGNORE_DEVICES here. On the desktop that
+        // stopped Steam grabbing the pad so Godot could read evdev directly, but
+        // in a room the game runs under Steam and takes its controller through
+        // Steam Input; ignoring the pad there leaves the game with no controller
+        // at all (Steam passes its ignore list down to the game).
+        env: ['RUN_GAMESCOPE=1', 'GOW_REQUIRED_DEVICES=/dev/input/* /dev/dri/* /dev/nvidia*', ...this.cfg.roomExtraEnv],
         base_create_json: JSON.stringify({ Hostname: 'steambench-room', HostConfig: {
           IpcMode: 'host', CapAdd: ['SYS_ADMIN', 'SYS_NICE', 'SYS_PTRACE', 'NET_RAW', 'MKNOD', 'NET_ADMIN'],
           SecurityOpt: ['seccomp=unconfined', 'apparmor=unconfined'], Ulimits: [{ Name: 'nofile', Hard: 10240, Soft: 10240 }],
@@ -480,6 +488,8 @@ export class Room extends EventEmitter {
   async _launch() {
     this.launchedAt = Date.now();
     this.launchAttempts = 0;
+    this.dismissPresses = 0;
+    this.lastDismissAt = 0;
     await this._nudgeLaunch();
     this._loop(() => this._watchLaunch(), 5000);
   }
@@ -511,6 +521,17 @@ export class Room extends EventEmitter {
       }
     } catch { /* not up yet */ }
     const waited = Math.round((Date.now() - this.launchedAt) / 1000);
+    // Steam blocks the launch behind first-run overlays (the Steam Input
+    // explainer, for one) that only a controller press dismisses. Only do this
+    // while the game itself is not running, so we can never click its menus.
+    if (waited > LAUNCH_DISMISS_AFTER_S && this.dismissPresses < MAX_LAUNCH_DISMISS && Date.now() - (this.lastDismissAt || 0) > LAUNCH_DISMISS_EVERY_MS) {
+      if (!(await this._gameRunning())) {
+        this.lastDismissAt = Date.now();
+        this.dismissPresses += 1;
+        this._log(`dismissing a possible Steam dialog (press ${this.dismissPresses}/${MAX_LAUNCH_DISMISS})`);
+        try { await this._padPress({ button: 'a' }); } catch (e) { this._log(`dismiss press failed: ${e.message}`); }
+      }
+    }
     // Steam often has to update itself before it will start anything, so nudge
     // the launch again now and then rather than giving up on the room. Never
     // nudge while the game is already up: Steam answers that with an error
@@ -541,6 +562,10 @@ export class Room extends EventEmitter {
       `Goal: beat Ascension ${t.ascension} as ${t.character}. Start a new run with that character and ascension (use sts2_look to check the menus), play until the run ends, keep notes in scratchpad/, and call run_over when it is over.` +
       (t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : '');
     this.setStage('playing', `${t.character} · Ascension ${t.ascension}`);
+    // Capture any first-run state (dismissed Steam dialogs, controller layout)
+    // so the next room starts from a settled Steam.
+    try { await saveLoginTemplate({ home: this.home, templateDir: this.cfg.loginTemplateDir, log: () => {} }); this._log('refreshed the saved Steam login'); }
+    catch (e) { this._log(`could not refresh the saved login: ${e.message}`); }
     this.agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
     this._loop(() => this._watchPlaying(), 15000);
   }
@@ -594,7 +619,16 @@ export class Room extends EventEmitter {
     add('room container', containers.length > 0, this.roomContainer ? `${this.roomContainer}${containers.length ? '' : ' (not running)'}` : 'none');
     add('video', Boolean(this.reader?.latest) && now - this.reader.latestAt < 15000, this.reader?.latest ? `${this.reader.frames} frames, last ${Math.round((now - this.reader.latestAt) / 1000)}s ago` : 'no frames');
     add('audio', (this.audio?.bytes || 0) > 0, `${Math.round((this.audio?.bytes || 0) / 1024)} KB`);
-    add('controller', Boolean(this.sessionId), this.sessionId ? `session ${this.sessionId}, ${this.padHistory.length} inputs` : 'no observer session');
+    let padReaders = '';
+    if (this.roomContainer) {
+      try {
+        padReaders = (await execIn(this.roomContainer, ['sh', '-c',
+          'for p in /proc/[0-9]*; do for f in $p/fd/*; do case "$(readlink $f 2>/dev/null)" in *input/event*) echo "$(cat $p/comm 2>/dev/null)";; esac; done; done | sort -u | tr "\n" " "'],
+          { timeoutMs: 20000 })).trim();
+      } catch { padReaders = ''; }
+    }
+    add('controller', Boolean(this.sessionId) && padReaders.length > 0,
+      `${this.sessionId ? `session ${this.sessionId}, ` : 'no observer session, '}${this.padHistory.length} inputs, read by: ${padReaders || 'nobody (the game will not see the pad)'}`);
     add('steam login', Boolean(this.login), this.login ? (this.login.personaName || this.login.steamId) : 'not signed in');
     if (this.setup) {
       const st = installState(this.home, SUPPORTED_GAMES[this.setup.game].appid);

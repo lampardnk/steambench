@@ -77,11 +77,11 @@ export function encodeControllerArrival(controllerNumber = 0) {
  * Full controller state. buttons: bitmask of BUTTON_FLAGS; lt/rt 0..255;
  * sticks -32768..32767 with Moonlight's convention (positive y = up).
  */
-export function encodeControllerState({ controllerNumber = 0, buttons = 0, lt = 0, rt = 0, lx = 0, ly = 0, rx = 0, ry = 0 } = {}) {
+export function encodeControllerState({ controllerNumber = 0, buttons = 0, lt = 0, rt = 0, lx = 0, ly = 0, rx = 0, ry = 0, mask } = {}) {
   const p = Buffer.alloc(26);
   p.writeInt16LE(0x1a, 0);                          // header_b
   p.writeInt16LE(controllerNumber, 2);
-  p.writeInt16LE(1 << controllerNumber, 4);         // active_gamepad_mask: keep this pad alive
+  p.writeInt16LE(mask === undefined ? 1 << controllerNumber : mask, 4); // active_gamepad_mask: keep this pad alive
   p.writeInt16LE(0x14, 6);                          // mid_b
   p.writeUInt16LE(buttons & 0xffff, 8);
   p.writeUInt8(clamp(lt, 0, 255), 10);
