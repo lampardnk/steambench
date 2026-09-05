@@ -88,6 +88,16 @@ export class RoomManager extends EventEmitter {
   async init(log) {
     await this._ensureObserverClients(log);
     for (const name of await allContainers('steambench-player-')) { log(`cleanup: removing leftover player container ${name}`); await rmForce(name); }
+    // Room homes hold a full copy of the game (gigabytes). Rooms do not survive
+    // a restart, so anything still on disk here is an orphan.
+    try {
+      for (const d of fs.readdirSync(this.cfg.roomsDir, { withFileTypes: true })) {
+        if (!d.isDirectory() || this.rooms.has(d.name)) continue;
+        log(`cleanup: removing orphaned room home ${d.name}`);
+        try { await docker(['run', '--rm', '-v', `${this.cfg.hostRoomsDir}:/rooms`, 'alpine', 'rm', '-rf', `/rooms/${d.name}`]); }
+        catch (e) { log(`cleanup: could not remove ${d.name}: ${e.message}`); }
+      }
+    } catch { /* rooms dir may not exist yet */ }
     try {
       for (const s of await this.wolf.listSessions()) { try { await this.wolf.stopSession(s.client_id || s.session_id); } catch { /* ignore */ } }
       for (const l of await this.wolf.listLobbies()) { log(`cleanup: stopping leftover lobby ${l.name}`); try { await this.wolf.stopLobby(l.id); } catch { /* ignore */ } }

@@ -20,7 +20,9 @@ browser (steambench.dev) ──HTTPS/WS (tunnel)──▶ steambench-server (hos
                                                    └─ JSON-line gateway :28771 for players (sts2-get, screenshot, pad-*, room-finish)
 ```
 
-Room stages: `creating` → `login` (user scans the Steam QR code in the stream) → `setup` (game, player, task) → `installing` (game verify/install, mod, player image build) → `launching` → `playing` → `finished` (archived, auto-closes) or `deleting`.
+Room stages: `creating` → `login` → `setup` (game, player, task) → `installing` (game verify/install, mod, player image build) → `launching` → `playing` → `finished` (archived, auto-closes) or `deleting`.
+
+Steam sign-in happens once, ever. The server decodes the sign-in QR out of the room's own video frame (`lib/login.js`), publishes the URL so the dashboard can render a sharp code and a tappable `s.team` link, and clicks the reload button with a virtual mouse when Steam lets the code expire. The desktop client encrypts its stored refresh token per machine, so a token from a browser login cannot be injected; instead every room is created with the same pinned hostname and `/etc/machine-id`, the first successful login is snapshotted to `.runtime/wolf/steam-login`, and later rooms replay it and reach `setup` without a QR. Steam's data root inside the room is `~/.steam/steam` (not `~/.steam`); everything goes through `steamRoot()` in `lib/steam.js`.
 
 ## Build, Test, and Development Commands
 
@@ -30,7 +32,7 @@ Use the **native docker engine** (`DOCKER_CONTEXT=default`); the default Docker 
 - `docker build -t steambench-pi .` — build the reference player.
 - `docker compose up -d` — start Wolf and the server (`docker compose build server` after server changes). The server provisions observer clients in Wolf's config on first start and restarts Wolf once.
 - `docker compose --profile tunnel up -d tunnel && docker logs steambench-tunnel | grep trycloudflare` — public URL for the dashboard (changes on every restart; paste it into the dashboard settings with the token).
-- `curl -H "Authorization: Bearer $STEAMBENCH_TOKEN" localhost:8787/api/rooms` — API check; `POST /api/rooms {name}` creates a room, `POST /api/rooms/:id/setup {game, player, task}` configures it, `DELETE /api/rooms/:id` archives and removes it, `GET /api/history` lists archives.
+- `curl -H "Authorization: Bearer $STEAMBENCH_TOKEN" localhost:8787/api/rooms` — API check; `POST /api/rooms {name}` creates a room, `POST /api/rooms/:id/setup {game, player, task}` configures it, `DELETE /api/rooms/:id` archives and removes it, `GET /api/history` lists archives, `GET/DELETE /api/login` shows or forgets the saved Steam login, `POST /api/rooms/:id/click {x,y}` clicks in the room (room pixels).
 - `node server/bin/wolf-probe.mjs list|lobby|observe|frame|press|stop` — poke Wolf directly (socket `.runtime/wolf/wolf.sock`, chmod 666 by the server).
 - Dashboard: `npx -y pnpm@10 install && npx -y pnpm@10 build`; Vercel deploys `main` automatically.
 - Player contract test: `printf '{"type":"get_state","id":"1"}\n' | docker run -i --rm -e STEAMBENCH_PLAYER_MODE=rpc -e OPENROUTER_API_KEY steambench-pi`.
