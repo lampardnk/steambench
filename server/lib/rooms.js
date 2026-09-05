@@ -11,7 +11,7 @@ import { EventEmitter } from 'node:events';
 import { WolfClient, mjpegPipeline, mp3Pipeline, encodeControllerArrival, encodeControllerState, encodeMouseMoveAbs, encodeMouseButton, BUTTON_FLAGS } from './wolf.js';
 import { seedRoomHome, saveLoginTemplate, loginTemplateInfo } from './seed.js';
 import { decodeLoginQr, RELOAD_FALLBACK } from './login.js';
-import { SUPPORTED_GAMES, loggedInUser, libraryView, installState } from './steam.js';
+import { SUPPORTED_GAMES, loggedInUser, libraryView, installState, steamRoot } from './steam.js';
 import { MjpegReader } from './mjpeg.js';
 import { AudioRelay } from './audio.js';
 import { PiAgent } from './agent.js';
@@ -41,6 +41,9 @@ const QR_STALE_MS = 8000;
 const QR_RELOAD_COOLDOWN_MS = 12000;
 // Steam spends a while on boot/update screens before the sign-in page appears.
 const QR_FIRST_CODE_GRACE_MS = 180000;
+// Stop clicking once the sign-in screen is gone (a login succeeded, or Steam
+// moved on): a stray click on the library could launch something.
+const QR_CLICK_WINDOW_MS = 120000;
 
 // python3 TCP forwarder: exposes the mod's loopback-only HTTP port on the container IP.
 const FORWARDER_PY = `import socket,threading,sys
@@ -188,7 +191,7 @@ export class Room extends EventEmitter {
     this.hostHome = path.join(this.cfg.hostRoomsDir, id);
     this.reader = null; this.audio = null; this.agent = null; this.playerImage = null;
     this.padHistory = []; this.padBusy = Promise.resolve();
-    this.loginQr = null; this.qrPoint = null; this.qrReloads = 0; this.qrReloadedAt = 0; this.loginSince = Date.now(); this.loginReused = false;
+    this.loginQr = null; this.qrPoint = null; this.qrSeenAt = 0; this.qrReloads = 0; this.qrReloadedAt = 0; this.loginSince = Date.now(); this.loginReused = false;
     this.gameReady = false; this.destroyed = false; this.loops = new Set();
     this.lastState = null;
   }
@@ -290,6 +293,7 @@ export class Room extends EventEmitter {
     const found = decodeLoginQr(frame);
     if (found) {
       this.qrPoint = { x: (found.center.x / found.width) * this.cfg.roomWidth, y: (found.center.y / found.height) * this.cfg.roomHeight };
+      this.qrSeenAt = Date.now();
       if (this.loginQr?.url !== found.url) {
         this.loginQr = { url: found.url, at: Date.now(), reloads: this.qrReloads };
         this._log(`sign-in QR ready (${found.url})`);
@@ -299,9 +303,10 @@ export class Room extends EventEmitter {
     }
     // Only click reload once a real code has been seen: before that the room is
     // still on Steam's boot/update screens, where clicking would be noise.
-    const seenAQr = Boolean(this.qrPoint);
-    const desperate = !seenAQr && Date.now() - this.loginSince > QR_FIRST_CODE_GRACE_MS;
-    if (!seenAQr && !desperate) return true;
+    const lastSeen = this.qrSeenAt || 0;
+    const seenRecently = lastSeen > 0 && Date.now() - lastSeen < QR_CLICK_WINDOW_MS;
+    const desperate = !lastSeen && Date.now() - this.loginSince > QR_FIRST_CODE_GRACE_MS && this.qrReloads < 3;
+    if (!seenRecently && !desperate) return true;
     const staleFor = Date.now() - (this.loginQr?.at || this.loginSince);
     const sinceReload = Date.now() - (this.qrReloadedAt || 0);
     if (staleFor > QR_STALE_MS && sinceReload > QR_RELOAD_COOLDOWN_MS) {
@@ -400,7 +405,7 @@ export class Room extends EventEmitter {
     }
     this._log(`${game.name} installed`);
     // Mod + skills
-    const gameDir = path.join(this.home, '.steam', 'steamapps', 'common', game.installdir);
+    const gameDir = path.join(steamRoot(this.home), 'steamapps', 'common', game.installdir);
     const mods = path.join(gameDir, 'mods');
     fs.mkdirSync(mods, { recursive: true });
     for (const f of ['STS2_MCP.dll', 'STS2_MCP.json']) {
@@ -411,7 +416,8 @@ export class Room extends EventEmitter {
     const skills = path.join(this.home, 'skills');
     fs.rmSync(skills, { recursive: true, force: true });
     fs.cpSync(path.join(this.cfg.skillsDir, game.skill), path.join(skills, game.skill), { recursive: true });
-    try { await docker(['run', '--rm', '-v', `${this.hostHome}:/room`, 'alpine', 'chown', '-R', '1000:1000', '/room/skills', `/room/.steam/steamapps/common/${game.installdir}/mods`]); } catch (e) { this._log(`chown: ${e.message}`); }
+    const modsInRoom = path.join(steamRoot('/room'), 'steamapps', 'common', game.installdir, 'mods');
+    try { await docker(['run', '--rm', '-v', `${this.hostHome}:/room`, 'alpine', 'chown', '-R', '1000:1000', '/room/skills', modsInRoom]); } catch (e) { this._log(`chown: ${e.message}`); }
     if (this.destroyed) return;
     this.setStage('launching', `starting ${game.name}`);
     await this._launch();

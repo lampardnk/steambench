@@ -11,10 +11,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { steamRoot, ROOM_STEAM_ROOT } from './steam.js';
 
 export const STS2_APPID = '2868840';
 export const STS2_INSTALLDIR = 'Slay the Spire 2';
-export const ROOM_STEAM_ROOT = '/home/retro/.steam';
 
 function run(cmd, args) {
   return new Promise((resolve, reject) => {
@@ -52,7 +52,7 @@ function rewriteFile(file, from, to) {
  * @param {number} [o.sts2Port]        port the STS2MCP mod should listen on inside the room
  */
 export async function seedRoomHome({ home, hostSteam, hostSteamOriginalPath, hostSts2, loginTemplate, sts2Port = 15526, uid = 1000, gid = 1000, log = () => {} }) {
-  const steam = path.join(home, '.steam');
+  const steam = steamRoot(home);
   fs.mkdirSync(steam, { recursive: true });
   fs.mkdirSync(path.join(home, '.local', 'share'), { recursive: true });
 
@@ -97,7 +97,7 @@ export async function seedRoomHome({ home, hostSteam, hostSteamOriginalPath, hos
  * config.vdf, loginusers.vdf, the ssfn machine-auth files) plus per-user config.
  */
 export async function saveLoginTemplate({ home, templateDir, log = () => {} }) {
-  const steam = path.join(home, '.steam');
+  const steam = steamRoot(home);
   if (!fs.existsSync(path.join(steam, 'config', 'loginusers.vdf'))) throw new Error('room has no Steam login to save');
   const tmp = templateDir + '.new';
   fs.rmSync(tmp, { recursive: true, force: true });
