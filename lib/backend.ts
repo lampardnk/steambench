@@ -105,6 +105,9 @@ export type RoomSummary = {
   createdAt: number
   setup: RoomSetup | null
   login: { personaName: string; steamId: string } | null
+  loginQr: { url: string; at: number; reloads: number } | null
+  loginReused: boolean
+  sessionId: string | null
   finish: { result: string; summary: string; by: string; at: number } | null
   gameReady: boolean
   lobbyId: string | null
@@ -122,6 +125,7 @@ export type RoomSummary = {
 }
 
 export type Meta = {
+  savedLogin: { savedAt: number | null } | null
   games: { key: string; appid: string; name: string }[]
   characters: string[]
   builtinPlayer: { name: string; model: string; visionModel: string }
@@ -140,7 +144,7 @@ export type LibraryGame = {
 
 export const STAGE_LABELS: Record<string, string> = {
   creating: 'creating room',
-  login: 'waiting for Steam login',
+  login: 'sign in to Steam',
   setup: 'choose game, player, task',
   installing: 'installing',
   launching: 'launching game',

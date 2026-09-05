@@ -1,9 +1,13 @@
 // Seeds a room's home directory (mounted as /home/retro in the GOW steam
 // container) with read-only copies of the installed game, its mod, and the
-// game's user data from the host. Steam credentials are deliberately not
-// copied: Steam binds its login tokens to the machine, so the user signs in
-// once inside the room (QR code in the dashboard video) and "Remember me"
-// keeps that room logged in. Nothing on the host is modified.
+// game's user data from the host. Nothing on the host is modified.
+//
+// Steam credentials are never copied from the host: the client encrypts its
+// stored refresh token per machine, so a host login is useless in a room. What
+// does work is copying a login between rooms, because every room presents the
+// same pinned hostname and machine-id (see rooms.js). The first successful
+// login in any room is snapshotted with saveLoginTemplate() and replayed into
+// every room after that, so signing in is a one-time step.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -87,18 +91,35 @@ export async function seedRoomHome({ home, hostSteam, hostSteamOriginalPath, hos
   return home;
 }
 
-/** Copy a logged-in room's Steam credentials into a template dir for future rooms. */
+/**
+ * Snapshot a logged-in room's Steam credentials so later rooms start signed in.
+ * Copies the client's own encrypted token state (local.vdf ConnectCache,
+ * config.vdf, loginusers.vdf, the ssfn machine-auth files) plus per-user config.
+ */
 export async function saveLoginTemplate({ home, templateDir, log = () => {} }) {
   const steam = path.join(home, '.steam');
   if (!fs.existsSync(path.join(steam, 'config', 'loginusers.vdf'))) throw new Error('room has no Steam login to save');
-  fs.rmSync(templateDir, { recursive: true, force: true });
-  fs.mkdirSync(templateDir, { recursive: true });
-  log('template: steam config, userdata, local.vdf');
-  await copyTree(path.join(steam, 'config'), path.join(templateDir, 'config'), { exclude: ['htmlcache', 'avatarcache', 'depotcache'] });
-  await copyTree(path.join(steam, 'userdata'), path.join(templateDir, 'userdata'));
-  for (const f of ['local.vdf', 'registry.vdf']) {
-    const src = path.join(steam, f);
-    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(templateDir, f));
+  const tmp = templateDir + '.new';
+  fs.rmSync(tmp, { recursive: true, force: true });
+  fs.mkdirSync(tmp, { recursive: true });
+  log('saving steam login for future rooms');
+  await copyTree(path.join(steam, 'config'), path.join(tmp, 'config'), { exclude: ['htmlcache', 'avatarcache', 'depotcache'] });
+  await copyTree(path.join(steam, 'userdata'), path.join(tmp, 'userdata'));
+  for (const f of fs.readdirSync(steam)) {
+    if (f === 'local.vdf' || f === 'registry.vdf' || f.startsWith('ssfn')) {
+      const src = path.join(steam, f);
+      if (fs.statSync(src).isFile()) fs.copyFileSync(src, path.join(tmp, f));
+    }
   }
+  fs.rmSync(templateDir, { recursive: true, force: true });
+  fs.renameSync(tmp, templateDir);
   return templateDir;
+}
+
+/** Who the saved login belongs to, or null when there is none. */
+export function loginTemplateInfo(templateDir) {
+  if (!templateDir || !fs.existsSync(path.join(templateDir, 'config', 'loginusers.vdf'))) return null;
+  let savedAt = null;
+  try { savedAt = fs.statSync(path.join(templateDir, 'config', 'loginusers.vdf')).mtimeMs; } catch { /* ignore */ }
+  return { savedAt };
 }

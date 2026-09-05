@@ -21,11 +21,14 @@ const cfg = {
   wolfSocket: env.WOLF_SOCKET_PATH || '/etc/wolf/wolf.sock',
   wolfConfigFile: env.WOLF_CFG_FILE || '/etc/wolf/cfg/config.toml',
   wolfContainer: env.WOLF_CONTAINER || 'steambench-wolf',
+  runtimeDir: env.STEAMBENCH_RUNTIME_DIR || '/etc/wolf',
+  hostRuntimeDir: env.STEAMBENCH_HOST_RUNTIME_DIR || '/etc/wolf',
   roomsDir: env.STEAMBENCH_ROOMS_DIR || '/etc/wolf/rooms',
   roomsRel: env.STEAMBENCH_ROOMS_REL || 'rooms',
   // The docker daemon resolves bind mounts on the host, so player containers need the host path of the rooms dir.
   hostRoomsDir: env.STEAMBENCH_HOST_ROOMS_DIR || path.join(env.STEAMBENCH_HOST_RUNTIME_DIR || '/etc/wolf', 'rooms'),
   historyDir: env.STEAMBENCH_HISTORY_DIR || '/etc/steambench/history',
+  loginTemplateDir: env.STEAMBENCH_LOGIN_TEMPLATE || '/etc/wolf/steam-login',
   skillsDir: env.STEAMBENCH_SKILLS_SRC || path.join(here, '..', 'skills'),
   modDir: env.STEAMBENCH_MOD_DIR || '/opt/sts2mcp',
   hostSteam: env.STEAMBENCH_HOST_STEAM || '/host/steam',
@@ -78,8 +81,12 @@ const server = http.createServer(async (req, res) => {
     if (parts[0] !== 'api') return json(res, 404, { error: 'not found' });
     if (!authorized(req, url)) return json(res, 401, { error: 'unauthorized' });
 
+    if (parts[1] === 'login' && parts.length === 2) {
+      if (req.method === 'GET') return json(res, 200, { login: manager.loginInfo() });
+      if (req.method === 'DELETE') { manager.forgetLogin(); return json(res, 200, { ok: true }); }
+    }
     if (parts[1] === 'meta' && req.method === 'GET') {
-      return json(res, 200, { games: Object.entries(SUPPORTED_GAMES).map(([key, g]) => ({ key, appid: g.appid, name: g.name })), characters: ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'], builtinPlayer: { name: 'steambench-pi (Pi + Nemotron)', model: cfg.model, visionModel: cfg.visionModel }, maxRooms: cfg.maxRooms, observerSlots: manager.observerClients.length });
+      return json(res, 200, { savedLogin: manager.loginInfo(), games: Object.entries(SUPPORTED_GAMES).map(([key, g]) => ({ key, appid: g.appid, name: g.name })), characters: ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'], builtinPlayer: { name: 'steambench-pi (Pi + Nemotron)', model: cfg.model, visionModel: cfg.visionModel }, maxRooms: cfg.maxRooms, observerSlots: manager.observerClients.length });
     }
     if (parts[1] === 'history') {
       if (parts.length === 2) return json(res, 200, { history: manager.history() });
@@ -100,6 +107,7 @@ const server = http.createServer(async (req, res) => {
       if (sub === 'library' && req.method === 'GET') return json(res, 200, { games: room.library(), login: room.login });
       if (sub === 'chat' && req.method === 'POST') { const body = await readJson(req); if (!body.message) return json(res, 400, { error: 'message required' }); await room.chat(String(body.message)); return json(res, 200, { ok: true }); }
       if (sub === 'abort' && req.method === 'POST') { await room.agent?.abort(); return json(res, 200, { ok: true }); }
+      if (sub === 'click' && req.method === 'POST') { const body = await readJson(req); await room.click(Number(body.x), Number(body.y)); return json(res, 200, { ok: true }); }
       if (sub === 'finish' && req.method === 'POST') { const body = await readJson(req); return json(res, 200, await room.finishRun({ result: body.result || 'aborted', summary: body.summary || 'finished from the dashboard', by: 'user' })); }
       if (sub === 'frame.jpg' && req.method === 'GET') {
         const frame = room.reader?.latest;

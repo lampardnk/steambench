@@ -15,7 +15,11 @@ export const NVIDIA_BUFFER_CAPS = 'video/x-raw(memory:CUDAMemory)';
 
 // Moonlight control protocol constants (see wolf src/moonlight-protocol/moonlight/control.hpp).
 const INPUT_DATA = 0x0206;
-const INPUT_TYPE = { CONTROLLER_MULTI: 0x0000000c, CONTROLLER_ARRIVAL: 0x55000004 };
+const INPUT_TYPE = {
+  CONTROLLER_MULTI: 0x0000000c, CONTROLLER_ARRIVAL: 0x55000004,
+  MOUSE_MOVE_ABS: 0x00000005, MOUSE_BUTTON_PRESS: 0x00000008, MOUSE_BUTTON_RELEASE: 0x00000009,
+};
+export const MOUSE_BUTTONS = { left: 1, middle: 2, right: 3 };
 export const XBOX_TYPE = 0x01;
 const CAP_ANALOG_TRIGGERS = 0x01;
 const CAP_RUMBLE = 0x02;
@@ -37,6 +41,27 @@ function inputHeader(type, payloadLen) {
   b.writeUInt32LE(payloadLen, 4);
   b.writeUInt32LE(type, 8);
   return b;
+}
+
+/**
+ * Absolute mouse move. Wolf reads x/y/width/height as BIG endian and maps them
+ * proportionally onto the session's display mode, so any consistent
+ * width/height pair works as long as x/y are in the same space.
+ */
+export function encodeMouseMoveAbs({ x, y, width, height }) {
+  const p = Buffer.alloc(10);
+  p.writeInt16BE(clamp(x, 0, 32767), 0);
+  p.writeInt16BE(clamp(y, 0, 32767), 2);
+  p.writeInt16BE(0, 4); // unused
+  p.writeInt16BE(clamp(width, 1, 32767), 6);
+  p.writeInt16BE(clamp(height, 1, 32767), 8);
+  return Buffer.concat([inputHeader(INPUT_TYPE.MOUSE_MOVE_ABS, p.length), p]).toString('hex').toUpperCase();
+}
+
+export function encodeMouseButton(button = 'left', press = true) {
+  const p = Buffer.alloc(1);
+  p.writeUInt8(MOUSE_BUTTONS[button] || 1, 0);
+  return Buffer.concat([inputHeader(press ? INPUT_TYPE.MOUSE_BUTTON_PRESS : INPUT_TYPE.MOUSE_BUTTON_RELEASE, p.length), p]).toString('hex').toUpperCase();
 }
 
 export function encodeControllerArrival(controllerNumber = 0) {

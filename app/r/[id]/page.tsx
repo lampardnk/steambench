@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { api, apiUrl, wsUrl, STAGE_LABELS, type LibraryGame, type Meta, type PadEvent, type RoomSummary, type TranscriptItem } from '@/lib/backend'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { ControllerView } from '@/components/controller'
+import { SteamLogin } from '@/components/steam-login'
 import { Transcript } from '@/components/transcript'
 
 type WsMessage =
@@ -119,7 +120,7 @@ export default function RoomPage() {
             <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
               <section className="flex flex-col gap-3">
                 <GameView settings={settings} room={room} />
-                {room.stage === 'login' && <LoginHint />}
+                {room.stage === 'login' && <SteamLogin room={room} />}
                 {room.stage === 'setup' && <SetupForm settings={settings} room={room} onDone={(r) => setRoom(r)} />}
                 {room.stage === 'finished' && room.finish && (
                   <div className="rounded-md border border-border bg-card p-3 text-sm">
@@ -184,18 +185,6 @@ function GameView({ settings, room }: { settings: ReturnType<typeof useSettings>
   )
 }
 
-function LoginHint() {
-  return (
-    <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
-      <div className="font-medium">Sign in to Steam inside this room</div>
-      <p className="mt-1 text-muted-foreground">
-        Steam Big Picture is starting in the stream above. When the sign-in screen appears, open the Steam mobile app and scan the QR code in the video.
-        The login stays inside this room only; nothing on your PC changes. The next step unlocks automatically once you are signed in.
-      </p>
-    </div>
-  )
-}
-
 function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof useSettings>[0]; room: RoomSummary; onDone: (r: RoomSummary) => void }) {
   const [meta, setMeta] = useState<Meta | null>(null)
   const [library, setLibrary] = useState<LibraryGame[]>([])
@@ -240,6 +229,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
   return (
     <div className="rounded-md border border-border bg-card p-4 text-sm">
       <div className="mb-3 font-medium">Set up the run{room.login ? ` · signed in as ${room.login.personaName || room.login.steamId}` : ''}</div>
+      {room.loginReused && <p className="mb-2 text-xs text-muted-foreground">This room reused the saved Steam login, so no sign-in was needed.</p>}
       <div className="grid gap-4 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Game (your library, filtered to what steambench supports)</span>

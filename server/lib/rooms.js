@@ -8,8 +8,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { WolfClient, mjpegPipeline, mp3Pipeline, encodeControllerArrival, encodeControllerState, BUTTON_FLAGS } from './wolf.js';
-import { seedRoomHome } from './seed.js';
+import { WolfClient, mjpegPipeline, mp3Pipeline, encodeControllerArrival, encodeControllerState, encodeMouseMoveAbs, encodeMouseButton, BUTTON_FLAGS } from './wolf.js';
+import { seedRoomHome, saveLoginTemplate, loginTemplateInfo } from './seed.js';
+import { decodeLoginQr, RELOAD_FALLBACK } from './login.js';
 import { SUPPORTED_GAMES, loggedInUser, libraryView, installState } from './steam.js';
 import { MjpegReader } from './mjpeg.js';
 import { AudioRelay } from './audio.js';
@@ -33,6 +34,13 @@ const MIN_HOLD = 30, MAX_HOLD = 2000, DEFAULT_HOLD = 80, MAX_PRESSES = 20, MIN_I
 const PAD_HISTORY_MAX = 300;
 const OBSERVER_CLIENTS = 8;
 const CHARACTERS = ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'];
+// Steam's login QR expires after about a minute and hides behind a reload
+// button; we notice because it stops decoding, and click reload ourselves.
+const QR_POLL_MS = 2000;
+const QR_STALE_MS = 8000;
+const QR_RELOAD_COOLDOWN_MS = 12000;
+// Steam spends a while on boot/update screens before the sign-in page appears.
+const QR_FIRST_CODE_GRACE_MS = 180000;
 
 // python3 TCP forwarder: exposes the mod's loopback-only HTTP port on the container IP.
 const FORWARDER_PY = `import socket,threading,sys
@@ -69,6 +77,8 @@ export class RoomManager extends EventEmitter {
   }
 
   list() { return [...this.rooms.values()].map((r) => r.summary()); }
+  loginInfo() { return loginTemplateInfo(this.cfg.loginTemplateDir); }
+  forgetLogin() { fs.rmSync(this.cfg.loginTemplateDir, { recursive: true, force: true }); this.emit('rooms'); return true; }
   get(id) { return this.rooms.get(id) || null; }
   resolveToken(token) { return (token && this.byToken.get(token)) || null; }
 
@@ -178,6 +188,7 @@ export class Room extends EventEmitter {
     this.hostHome = path.join(this.cfg.hostRoomsDir, id);
     this.reader = null; this.audio = null; this.agent = null; this.playerImage = null;
     this.padHistory = []; this.padBusy = Promise.resolve();
+    this.loginQr = null; this.qrPoint = null; this.qrReloads = 0; this.qrReloadedAt = 0; this.loginSince = Date.now(); this.loginReused = false;
     this.gameReady = false; this.destroyed = false; this.loops = new Set();
     this.lastState = null;
   }
@@ -188,6 +199,8 @@ export class Room extends EventEmitter {
       id: this.id, name: this.name, stage: this.stage, detail: this.detail, createdAt: this.createdAt,
       setup: this.setup ? { game: this.setup.game, gameName: g?.name, player: { kind: this.setup.player.kind, name: this.setup.player.name }, task: this.setup.task } : null,
       login: this.login ? { personaName: this.login.personaName, steamId: this.login.steamId } : null,
+      loginQr: this.loginQr || null, loginReused: this.loginReused,
+      sessionId: this.sessionId,
       finish: this.finish, gameReady: this.gameReady,
       lobbyId: this.lobbyId, roomContainer: this.roomContainer, roomIp: this.roomIp, playerImage: this.playerImage,
       agentStatus: this.agent?.status || 'stopped', frames: this.reader?.frames || 0, lastFrameAt: this.reader?.latestAt || 0, audioBytes: this.audio?.bytes || 0,
@@ -206,18 +219,24 @@ export class Room extends EventEmitter {
     // Pre-warm: copy the game from the host library so the room does not need to download it.
     if (fs.existsSync(path.join(this.cfg.hostSteam, 'steamapps', `appmanifest_${SUPPORTED_GAMES.sts2.appid}.acf`))) {
       this.setDetail('copying game files from the host library into the room');
-      await seedRoomHome({ home: this.home, hostSteam: this.cfg.hostSteam, hostSteamOriginalPath: this.cfg.hostSteamOriginalPath, hostSts2: this.cfg.hostSts2, sts2Port: this.modPort, log: (t) => this._log(t) });
+      this.loginReused = Boolean(loginTemplateInfo(this.cfg.loginTemplateDir));
+      await seedRoomHome({ home: this.home, hostSteam: this.cfg.hostSteam, hostSteamOriginalPath: this.cfg.hostSteamOriginalPath, hostSts2: this.cfg.hostSts2, loginTemplate: this.cfg.loginTemplateDir, sts2Port: this.modPort, log: (t) => this._log(t) });
     }
     if (this.destroyed) return;
     this.setDetail('creating Wolf lobby (Steam)');
     const runnerName = `steambench-room-${this.id}`;
+    // Steam encrypts its stored login per machine, so every room presents the
+    // same hostname and machine-id; that is what lets one login be reused.
+    const machineIdFile = path.join(this.cfg.runtimeDir, 'machine-id');
+    if (!fs.existsSync(machineIdFile)) fs.writeFileSync(machineIdFile, crypto.randomBytes(16).toString('hex') + '\n');
+    const mounts = [`${path.join(this.cfg.hostRuntimeDir, 'machine-id')}:/etc/machine-id:ro`];
     this.lobbyId = await this.m.wolf.createLobby({
       name: this.name, width: this.cfg.roomWidth, height: this.cfg.roomHeight, fps: this.cfg.roomFps,
       renderNode: this.cfg.renderNode, bufferCaps: this.cfg.bufferCaps, runnerStateFolder: `${this.cfg.roomsRel}/${this.id}`,
       runner: {
-        type: 'docker', name: runnerName, image: this.cfg.roomImage, mounts: [], devices: [], ports: [],
+        type: 'docker', name: runnerName, image: this.cfg.roomImage, mounts, devices: [], ports: [],
         env: ['RUN_GAMESCOPE=1', 'GOW_REQUIRED_DEVICES=/dev/input/* /dev/dri/* /dev/nvidia*', 'SDL_GAMECONTROLLER_IGNORE_DEVICES=0x045e/0x02ea', ...this.cfg.roomExtraEnv],
-        base_create_json: JSON.stringify({ HostConfig: {
+        base_create_json: JSON.stringify({ Hostname: 'steambench-room', HostConfig: {
           IpcMode: 'host', CapAdd: ['SYS_ADMIN', 'SYS_NICE', 'SYS_PTRACE', 'NET_RAW', 'MKNOD', 'NET_ADMIN'],
           SecurityOpt: ['seccomp=unconfined', 'apparmor=unconfined'], Ulimits: [{ Name: 'nofile', Hard: 10240, Soft: 10240 }],
           Privileged: false, DeviceCgroupRules: ['c 13:* rmw', 'c 244:* rmw'] } }),
@@ -236,7 +255,7 @@ export class Room extends EventEmitter {
 
     this.setDetail('attaching video, audio and controller');
     this.clientId = this.m._takeObserverClient();
-    this.sessionId = await this.m.wolf.addSession({ width: 640, height: 360, fps: 30, clientId: this.clientId });
+    this.sessionId = await this.m.wolf.addSession({ width: this.cfg.roomWidth, height: this.cfg.roomHeight, fps: this.cfg.roomFps, clientId: this.clientId });
     await sleep(1500);
     await this.m.wolf.startSession(this.sessionId, {
       width: this.cfg.roomWidth, height: this.cfg.roomHeight, fps: this.cfg.roomFps, pingPort: this.videoPort, audioPingPort: this.audioPort,
@@ -253,8 +272,57 @@ export class Room extends EventEmitter {
     this.reader.on('frame', (f) => this.emit('frame', f));
     this.audio = new AudioRelay({ port: this.audioPort }).start();
 
-    this.setStage('login', 'Steam is starting in the room; sign in with the Steam mobile app by scanning the QR code shown in the stream');
+    this.loginSince = Date.now();
+    this.setStage('login', 'waiting for the Steam sign-in QR code');
     this._loop(() => this._watchLogin(), 3000);
+    this._loop(() => this._watchQr(), QR_POLL_MS);
+  }
+
+  /**
+   * While the sign-in screen is up, decode the QR from the video frame so the
+   * dashboard can render it sharply, and click the reload button when Steam
+   * lets the code expire (it stops decoding once it is blurred out).
+   */
+  async _watchQr() {
+    if (this.stage !== 'login') { this.loginQr = null; return false; }
+    const frame = this.reader?.latest;
+    if (!frame) return true;
+    const found = decodeLoginQr(frame);
+    if (found) {
+      this.qrPoint = { x: (found.center.x / found.width) * this.cfg.roomWidth, y: (found.center.y / found.height) * this.cfg.roomHeight };
+      if (this.loginQr?.url !== found.url) {
+        this.loginQr = { url: found.url, at: Date.now(), reloads: this.qrReloads };
+        this._log(`sign-in QR ready (${found.url})`);
+        this.emit('room', this.summary());
+      }
+      return true;
+    }
+    // Only click reload once a real code has been seen: before that the room is
+    // still on Steam's boot/update screens, where clicking would be noise.
+    const seenAQr = Boolean(this.qrPoint);
+    const desperate = !seenAQr && Date.now() - this.loginSince > QR_FIRST_CODE_GRACE_MS;
+    if (!seenAQr && !desperate) return true;
+    const staleFor = Date.now() - (this.loginQr?.at || this.loginSince);
+    const sinceReload = Date.now() - (this.qrReloadedAt || 0);
+    if (staleFor > QR_STALE_MS && sinceReload > QR_RELOAD_COOLDOWN_MS) {
+      this.qrReloadedAt = Date.now();
+      this.qrReloads = (this.qrReloads || 0) + 1;
+      const p = this.qrPoint || RELOAD_FALLBACK;
+      this._log(`sign-in QR expired; clicking reload at ${Math.round(p.x)},${Math.round(p.y)}`);
+      try { await this.click(p.x, p.y); } catch (e) { this._log(`reload click failed: ${e.message}`); }
+      if (this.loginQr) { this.loginQr = null; this.emit('room', this.summary()); }
+    }
+    return true;
+  }
+
+  /** Move the room's virtual mouse to a room pixel and click. */
+  async click(x, y, button = 'left') {
+    if (!this.sessionId) throw new Error('observer session not attached');
+    await this.m.wolf.sendInput(this.sessionId, encodeMouseMoveAbs({ x: Math.round(x), y: Math.round(y), width: this.cfg.roomWidth, height: this.cfg.roomHeight }));
+    await sleep(250);
+    await this.m.wolf.sendInput(this.sessionId, encodeMouseButton(button, true));
+    await sleep(90);
+    await this.m.wolf.sendInput(this.sessionId, encodeMouseButton(button, false));
   }
 
   async _watchLogin() {
@@ -262,7 +330,12 @@ export class Room extends EventEmitter {
     const user = loggedInUser(this.home);
     if (!user) return true;
     this.login = user;
+    this.loginQr = null;
     this._log(`steam login: ${user.personaName || user.accountName || user.steamId}`);
+    // Reuse this login for every future room: the client's token is bound to
+    // the machine identity, which we pin to the same values in all rooms.
+    try { await saveLoginTemplate({ home: this.home, templateDir: this.cfg.loginTemplateDir, log: (t) => this._log(t) }); }
+    catch (e) { this._log(`could not save the login for future rooms: ${e.message}`); }
     if (this.setup) { this.setStage('installing', 'signed in'); this._install().catch((e) => this.setStage('error', e.message)); }
     else this.setStage('setup', 'signed in; choose a game, a player and a task');
     return false;

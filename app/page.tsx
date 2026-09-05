@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { api, STAGE_COLORS, STAGE_LABELS, type RoomSummary } from '@/lib/backend'
+import { api, STAGE_COLORS, STAGE_LABELS, type Meta, type RoomSummary } from '@/lib/backend'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 
 export default function Page() {
   const [settings, setSettings, loaded] = useSettings()
   const [rooms, setRooms] = useState<RoomSummary[]>([])
+  const [meta, setMeta] = useState<Meta | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const configured = Boolean(settings.backendUrl && settings.token)
@@ -14,8 +15,9 @@ export default function Page() {
   const refresh = useCallback(async () => {
     if (!configured) return
     try {
-      const r = await api<{ rooms: RoomSummary[] }>(settings, '/api/rooms')
+      const [r, m] = await Promise.all([api<{ rooms: RoomSummary[] }>(settings, '/api/rooms'), api<Meta>(settings, '/api/meta')])
       setRooms(r.rooms)
+      setMeta(m)
       setError('')
     } catch (e) {
       setError((e as Error).message)
@@ -54,6 +56,12 @@ export default function Page() {
     }
   }
 
+  const forgetLogin = async () => {
+    if (!confirm('Forget the saved Steam login? The next room will ask you to sign in again.')) return
+    await api(settings, '/api/login', { method: 'DELETE' })
+    await refresh()
+  }
+
   return (
     <main className="min-h-svh bg-background text-foreground">
       <SettingsBar settings={settings} onChange={setSettings} status={configured ? (error ? `offline: ${error}` : `${rooms.length} room(s)`) : 'not configured'} />
@@ -69,6 +77,20 @@ export default function Page() {
           </button>
         </div>
         {!configured && <p className="text-sm text-muted-foreground">Enter the server URL and token above to connect.</p>}
+        {configured && meta && (
+          <p className="mb-4 text-xs text-muted-foreground">
+            {meta.savedLogin ? (
+              <>
+                Steam login saved{meta.savedLogin.savedAt ? ` ${new Date(meta.savedLogin.savedAt).toLocaleDateString()}` : ''}; new rooms start signed in.{' '}
+                <button onClick={forgetLogin} className="underline underline-offset-4 hover:text-destructive">
+                  forget it
+                </button>
+              </>
+            ) : (
+              'No Steam login saved yet. The first room will show a QR code to sign in; after that every room reuses it.'
+            )}
+          </p>
+        )}
         <ul className="grid gap-3 sm:grid-cols-2">
           {rooms.map((r) => (
             <li key={r.id} className="rounded-lg border border-border bg-card p-4">
