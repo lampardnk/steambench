@@ -1,0 +1,89 @@
+# steambench runtime: Wolf (game rooms) + steambench-server (dashboard API).
+# Run with the NATIVE docker engine (not Docker Desktop):
+#   DOCKER_CONTEXT=default docker compose up -d
+services:
+  wolf:
+    image: ghcr.io/games-on-whales/wolf:stable
+    container_name: steambench-wolf
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - WOLF_SOCKET_PATH=/etc/wolf/wolf.sock
+      - NVIDIA_DRIVER_VOLUME_NAME=nvidia-driver-vol
+      - WOLF_LOG_LEVEL=${WOLF_LOG_LEVEL:-INFO}
+      - WOLF_STOP_CONTAINER_ON_EXIT=TRUE
+      # Sunshine on the host owns the default Moonlight ports; Wolf uses +10000.
+      - WOLF_HTTP_PORT=${WOLF_HTTP_PORT:-57989}
+      - WOLF_HTTPS_PORT=${WOLF_HTTPS_PORT:-57984}
+      - WOLF_CONTROL_PORT=${WOLF_CONTROL_PORT:-57999}
+      - WOLF_RTSP_SETUP_PORT=${WOLF_RTSP_SETUP_PORT:-58010}
+      - WOLF_VIDEO_PING_PORT=${WOLF_VIDEO_PING_PORT:-58100}
+      - WOLF_AUDIO_PING_PORT=${WOLF_AUDIO_PING_PORT:-58200}
+    volumes:
+      - ./.runtime/wolf:/etc/wolf:rw
+      - wolf-run:/run/user/wolf:rw
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /dev/:/dev/:rw
+      - /run/udev:/run/udev:rw
+      - nvidia-driver-vol:/usr/nvidia:rw
+    devices:
+      - /dev/dri
+      - /dev/uinput
+      - /dev/uhid
+      - /dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools
+      - /dev/nvidia-caps/nvidia-cap1
+      - /dev/nvidia-caps/nvidia-cap2
+      - /dev/nvidiactl
+      - /dev/nvidia0
+      - /dev/nvidia-modeset
+    device_cgroup_rules:
+      - "c 13:* rmw"
+
+  server:
+    build: ./server
+    image: steambench-server
+    container_name: steambench-server
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - wolf
+    environment:
+      # Dashboard/API token and the agents' model key come from .env (gitignored).
+      - STEAMBENCH_TOKEN=${STEAMBENCH_TOKEN:?set STEAMBENCH_TOKEN in .env}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - WOLF_SOCKET_PATH=/etc/wolf/wolf.sock
+      - WOLF_CFG_FILE=/etc/wolf/cfg/config.toml
+      - WOLF_VIDEO_PING_PORT=${WOLF_VIDEO_PING_PORT:-58100}
+      - STEAMBENCH_ROOMS_DIR=/etc/wolf/rooms
+      - STEAMBENCH_HOST_RUNTIME_DIR=${PWD}/.runtime/wolf
+      - STEAMBENCH_HISTORY_DIR=/etc/steambench/history
+      - STEAMBENCH_MOD_DIR=/opt/sts2mcp
+      - STEAMBENCH_HOST_STEAM=/host/steam
+      - STEAMBENCH_HOST_STEAM_PATH=${STEAMBENCH_HOST_STEAM:-${HOME}/.local/share/Steam}
+      - STEAMBENCH_HOST_STS2=/host/sts2
+      - STEAMBENCH_MODEL=${STEAMBENCH_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
+      - STEAMBENCH_VISION_MODEL=${STEAMBENCH_VISION_MODEL:-nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free}
+      - PORT=8787
+    volumes:
+      - ./.runtime/wolf:/etc/wolf:rw
+      - ./.runtime/history:/etc/steambench/history:rw
+      - ./.runtime/sts2mcp:/opt/sts2mcp:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${STEAMBENCH_HOST_STEAM:-${HOME}/.local/share/Steam}:/host/steam:ro
+      - ${STEAMBENCH_HOST_STS2:-${HOME}/.local/share/SlayTheSpire2}:/host/sts2:ro
+
+  # Optional: public HTTPS URL for the dashboard on steambench.dev (no account needed).
+  # docker compose --profile tunnel up -d tunnel ; docker logs steambench-tunnel | grep trycloudflare
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: steambench-tunnel
+    network_mode: host
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate --url http://127.0.0.1:8787
+
+volumes:
+  nvidia-driver-vol:
+    external: true
+  wolf-run:

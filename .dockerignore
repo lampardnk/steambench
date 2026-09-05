@@ -1,0 +1,8 @@
+.runtime
+.git
+node_modules
+.next
+server/node_modules
+__pycache__
+*.md
+!client/PLAYBOOK.md

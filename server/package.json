@@ -1,0 +1,9 @@
+{
+  "name": "steambench-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "steambench dashboard API: manages Wolf game rooms and Pi agents",
+  "scripts": { "start": "node bin/server.mjs" },
+  "dependencies": { "ws": "^8.18.0" }
+}
