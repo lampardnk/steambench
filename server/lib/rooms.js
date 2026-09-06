@@ -33,6 +33,7 @@ const STS2_QUERY_CHOICES = { format: ['json', 'markdown'], item_type: ['all', 'c
 const MIN_HOLD = 30, MAX_HOLD = 2000, DEFAULT_HOLD = 80, MAX_PRESSES = 20, MIN_INTERVAL = 40, MAX_INTERVAL = 500, DEFAULT_INTERVAL = 120;
 const PAD_HISTORY_MAX = 300;
 const OBSERVER_CLIENTS = 8;
+const WOLF_RETRY_MS = 15000;
 const CHARACTERS = ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'];
 // Steam's login QR expires after about a minute and hides behind a reload
 // button; we notice because it stops decoding, and click reload ourselves.
@@ -123,7 +124,6 @@ export class RoomManager extends EventEmitter {
   resolveToken(token) { return (token && this.byToken.get(token)) || null; }
 
   async init(log) {
-    await this._ensureObserverClients(log);
     for (const name of await allContainers('steambench-player-')) { log(`cleanup: removing leftover player container ${name}`); await rmForce(name); }
     // Room homes hold a full copy of the game (gigabytes). Rooms do not survive
     // a restart, so anything still on disk here is an orphan.
@@ -135,10 +135,33 @@ export class RoomManager extends EventEmitter {
         catch (e) { log(`cleanup: could not remove ${d.name}: ${e.message}`); }
       }
     } catch { /* rooms dir may not exist yet */ }
+    await this.connectWolf(log);
+  }
+
+  /**
+   * Wolf can be down when we start: after a host reboot its Nvidia device nodes
+   * (/dev/nvidia-caps/*) may not exist yet, and Docker gives up on the container
+   * rather than retrying. Keep trying instead of running degraded forever.
+   */
+  async connectWolf(log, attempt = 0) {
+    clearTimeout(this._wolfRetry);
+    try {
+      await this.wolf.listLobbies();
+    } catch (e) {
+      if (attempt === 0) log(`wolf not reachable (${e.message}); starting it and retrying`);
+      try { await docker(['start', this.cfg.wolfContainer], { timeoutMs: 120000 }); } catch (err) {
+        if (attempt % 10 === 0) log(`could not start ${this.cfg.wolfContainer}: ${String(err.message).slice(0, 160)}`);
+      }
+      this._wolfRetry = setTimeout(() => this.connectWolf(log, attempt + 1), WOLF_RETRY_MS);
+      return false;
+    }
+    if (attempt > 0) log('wolf is reachable again');
+    await this._ensureObserverClients(log);
     try {
       for (const s of await this.wolf.listSessions()) { try { await this.wolf.stopSession(s.client_id || s.session_id); } catch { /* ignore */ } }
       for (const l of await this.wolf.listLobbies()) { log(`cleanup: stopping leftover lobby ${l.name}`); try { await this.wolf.stopLobby(l.id); } catch { /* ignore */ } }
-    } catch (e) { log(`cleanup: wolf not reachable (${e.message})`); }
+    } catch (e) { log(`cleanup: ${e.message}`); }
+    return true;
   }
 
   async _ensureObserverClients(log) {
@@ -182,6 +205,8 @@ export class RoomManager extends EventEmitter {
 
   async create({ name, setup } = {}) {
     if (this.rooms.size >= this.cfg.maxRooms) throw new Error(`room limit reached (${this.cfg.maxRooms})`);
+    try { await this.wolf.listLobbies(); }
+    catch { throw new Error('Wolf is not running yet, so no room can be created. It is being restarted automatically; try again in a few seconds.'); }
     const id = crypto.randomBytes(4).toString('hex');
     const room = new Room(this, { id, name: name || `room-${id}` });
     if (setup) room.validateSetup(setup); // fail fast before creating anything
