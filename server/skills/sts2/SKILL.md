@@ -26,16 +26,24 @@ You have two sensors and one actuator, all exposed as tools:
 ## Loop
 
 1. Call `sts2_state`.
-2. Decide one small step from the state. Think in game terms: energy, block, enemy intents, card effects.
-3. Send one or a few pad actions. Keep holds short (default 80 ms). Do not send long sequences blind.
-4. Call `sts2_state` again. If nothing changed, call `sts2_look` ("where is the highlight? is a popup open?"),
+2. If you have not started your run yet, follow "Starting a run" in
+   `controls/CONTROLS.md`: abandon any run already in progress, confirm, then
+   start a new singleplayer run with the character and ascension you were given.
+3. Decide one small step from the state. Think in game terms: energy, block, enemy intents, card effects.
+4. Send one or a few pad actions. Keep holds short (default 80 ms). Do not send long sequences blind.
+5. Call `sts2_state` again. If nothing changed, call `sts2_look` ("where is the highlight? is a popup open?"),
    then adjust. Never repeat the same blind input more than twice.
-5. Repeat. Narrate each decision in one or two short sentences before acting; do not pad your messages.
+6. Repeat. Narrate each decision in one or two short sentences before acting; do not pad your messages.
 
 ## Rules
 
-- Never quit, restart, or change profiles or settings. If a popup asks to quit or abandon, press `b`.
+- Never quit the game, change profiles, or change settings. Abandoning a run is allowed only as step 1 of
+  "Starting a run"; at any other time, decline a quit or abandon prompt with `b`.
 - If pad actions have no visible effect twice in a row, call `pad_status`; if it reports a problem, say so and stop.
 - If `sts2_state` says the mod is unreachable, wait a few seconds, retry once, then report and stop.
 - Prefer safe, incremental inputs over clever multi-press combos.
 - When the run is over, write a final summary to `scratchpad/run.md`, then call `run_over` with the result.
+- Only call `run_over` when the game itself says the run ended: `sts2_state` reports `state_type` of
+  `game_over`, or you are back at the main menu with no run in progress. Losing a fight you can still
+  act in, or a screen you cannot read, is not the end of a run. steambench records the game's own state
+  next to your report and flags a mismatch.

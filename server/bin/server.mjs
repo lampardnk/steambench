@@ -29,6 +29,9 @@ const cfg = {
   hostRoomsDir: env.STEAMBENCH_HOST_ROOMS_DIR || path.join(env.STEAMBENCH_HOST_RUNTIME_DIR || '/etc/wolf', 'rooms'),
   historyDir: env.STEAMBENCH_HISTORY_DIR || '/etc/steambench/history',
   loginTemplateDir: env.STEAMBENCH_LOGIN_TEMPLATE || '/etc/wolf/steam-login',
+  cacheDir: env.STEAMBENCH_CACHE_DIR || '/etc/wolf/cache',
+  mediaDir: env.STEAMBENCH_MEDIA_DIR || '/etc/wolf/media',
+  hostMediaDir: env.STEAMBENCH_HOST_MEDIA_DIR || path.join(env.STEAMBENCH_HOST_RUNTIME_DIR || '/etc/wolf', 'media'),
   skillsDir: env.STEAMBENCH_SKILLS_SRC || path.join(here, '..', 'skills'),
   modDir: env.STEAMBENCH_MOD_DIR || '/opt/sts2mcp',
   hostSteam: env.STEAMBENCH_HOST_STEAM || '/host/steam',
@@ -44,7 +47,10 @@ const cfg = {
   renderNode: env.WOLF_RENDER_NODE || '/dev/dri/renderD128',
   bufferCaps: env.WOLF_VIDEO_BUFFER_CAPS || NVIDIA_BUFFER_CAPS,
   roomWidth: Number(env.STEAMBENCH_ROOM_WIDTH || 1280), roomHeight: Number(env.STEAMBENCH_ROOM_HEIGHT || 720), roomFps: Number(env.STEAMBENCH_ROOM_FPS || 60),
-  streamWidth: Number(env.STEAMBENCH_STREAM_WIDTH || 960), streamHeight: Number(env.STEAMBENCH_STREAM_HEIGHT || 540), streamFps: Number(env.STEAMBENCH_STREAM_FPS || 5), streamQuality: Number(env.STEAMBENCH_STREAM_QUALITY || 80),
+  streamWidth: Number(env.STEAMBENCH_STREAM_WIDTH || 1280), streamHeight: Number(env.STEAMBENCH_STREAM_HEIGHT || 720), streamFps: Number(env.STEAMBENCH_STREAM_FPS || 30), streamQuality: Number(env.STEAMBENCH_STREAM_QUALITY || 80),
+  streamBitrateKbps: Number(env.STEAMBENCH_STREAM_BITRATE || 4000),
+  stillsFps: Number(env.STEAMBENCH_STILLS_FPS || 2),
+  fragmentMs: Number(env.STEAMBENCH_FRAGMENT_MS || 500),
   audioBitrate: Number(env.STEAMBENCH_AUDIO_BITRATE || 128),
   portBase: Number(env.STEAMBENCH_PORT_BASE || 39000),
   maxRooms: Number(env.STEAMBENCH_MAX_ROOMS || 4),
@@ -81,12 +87,16 @@ const server = http.createServer(async (req, res) => {
     if (parts[0] !== 'api') return json(res, 404, { error: 'not found' });
     if (!authorized(req, url)) return json(res, 401, { error: 'unauthorized' });
 
+    if (parts[1] === 'cache' && parts.length === 2) {
+      if (req.method === 'GET') return json(res, 200, manager.cacheInfo());
+      if (req.method === 'DELETE') { manager.clearCache(); return json(res, 200, { ok: true }); }
+    }
     if (parts[1] === 'login' && parts.length === 2) {
       if (req.method === 'GET') return json(res, 200, { login: manager.loginInfo() });
       if (req.method === 'DELETE') { manager.forgetLogin(); return json(res, 200, { ok: true }); }
     }
     if (parts[1] === 'meta' && req.method === 'GET') {
-      return json(res, 200, { savedLogin: manager.loginInfo(), games: Object.entries(SUPPORTED_GAMES).map(([key, g]) => ({ key, appid: g.appid, name: g.name })), characters: ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'], builtinPlayer: { name: 'steambench-pi (Pi + Nemotron)', model: cfg.model, visionModel: cfg.visionModel }, maxRooms: cfg.maxRooms, observerSlots: manager.observerClients.length });
+      return json(res, 200, { savedLogin: manager.loginInfo(), cache: manager.cacheInfo(), games: Object.entries(SUPPORTED_GAMES).map(([key, g]) => ({ key, appid: g.appid, name: g.name })), characters: ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'], builtinPlayer: { name: 'steambench-pi (Pi + Nemotron)', model: cfg.model, visionModel: cfg.visionModel }, maxRooms: cfg.maxRooms, observerSlots: manager.observerClients.length });
     }
     if (parts[1] === 'history') {
       if (parts.length === 2) return json(res, 200, { history: manager.history() });
@@ -117,10 +127,6 @@ const server = http.createServer(async (req, res) => {
         cors(res); res.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'no-store', 'content-length': frame.length }); return res.end(frame);
       }
       if (sub === 'stream.mjpg' && req.method === 'GET') return streamMjpeg(room, req, res);
-      if (sub === 'audio.mp3' && req.method === 'GET') {
-        if (!room.audio) return json(res, 503, { error: 'no audio yet' });
-        cors(res); res.writeHead(200, { 'content-type': 'audio/mpeg', 'cache-control': 'no-store', connection: 'close' }); room.audio.attach(res); return;
-      }
       if (sub === 'sts2' && req.method === 'GET') { const result = await room.gatewayOp('sts2-get', { path: url.searchParams.get('path') || '/', query: url.searchParams.get('format') ? { format: url.searchParams.get('format') } : {} }); return json(res, 200, result); }
     }
     return json(res, 404, { error: 'not found' });
@@ -155,6 +161,11 @@ server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url, 'http://localhost');
   const parts = url.pathname.split('/').filter(Boolean);
   if (!authorized(req, url)) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); return socket.destroy(); }
+  if (parts[0] === 'api' && parts[1] === 'rooms' && parts[3] === 'media') {
+    const room = manager.get(parts[2]);
+    if (!room) { socket.write('HTTP/1.1 404 Not Found\r\n\r\n'); return socket.destroy(); }
+    return wss.handleUpgrade(req, socket, head, (ws) => attachMediaSocket(ws, room));
+  }
   if (parts[0] === 'api' && parts[1] === 'rooms' && parts[3] === 'ws') {
     const room = manager.get(parts[2]);
     if (!room) { socket.write('HTTP/1.1 404 Not Found\r\n\r\n'); return socket.destroy(); }
@@ -168,6 +179,51 @@ server.on('upgrade', (req, socket, head) => {
   }
   socket.destroy();
 });
+
+/** Live video+audio for one viewer: the cached init segment, then fragments. */
+// Binary framing: one leading byte says which track a message belongs to, so a
+// viewer can feed video and audio into their own MSE source buffers.
+const TRACK = { videoInit: 0, audioInit: 1, videoFragment: 2, audioFragment: 3 };
+const tagged = (tag, buf) => Buffer.concat([Buffer.from([tag]), buf]);
+
+function attachMediaSocket(ws, room) {
+  if (!room.media) { ws.close(1011, 'no media stream'); return; }
+  const send = (tag, buf) => { if (ws.readyState === ws.OPEN) ws.send(tagged(tag, buf)); };
+  let videoReady = false;
+  let audioReady = false;
+
+  const announce = () => {
+    if (ws.readyState !== ws.OPEN) return;
+    ws.send(JSON.stringify({
+      type: 'hello',
+      video: room.media?.codecs || '',
+      audio: room.mediaAudio?.codecs || '',
+      width: room.cfg.streamWidth, height: room.cfg.streamHeight, fps: room.cfg.streamFps,
+    }));
+  };
+  const startVideo = (init) => { if (!videoReady) { videoReady = true; announce(); send(TRACK.videoInit, init); } };
+  const startAudio = (init) => { if (!audioReady) { audioReady = true; send(TRACK.audioInit, init); } };
+
+  const onVideoInit = (init) => startVideo(init);
+  const onAudioInit = (init) => startAudio(init);
+  const onFragment = ({ kind, data }) => {
+    if (kind === 'video' && videoReady) send(TRACK.videoFragment, data);
+    if (kind === 'audio' && audioReady) send(TRACK.audioFragment, data);
+  };
+
+  if (room.media.init) startVideo(room.media.init);
+  if (room.mediaAudio?.init) startAudio(room.mediaAudio.init);
+  room.media.on('init', onVideoInit);
+  room.mediaAudio?.on('init', onAudioInit);
+  room.on('media', onFragment);
+  const cleanup = () => {
+    room.media.off('init', onVideoInit);
+    room.mediaAudio?.off('init', onAudioInit);
+    room.off('media', onFragment);
+  };
+  ws.on('close', cleanup);
+  ws.on('error', cleanup);
+}
 
 function attachRoomSocket(ws, room) {
   const send = (obj) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };

@@ -5,15 +5,17 @@
 // Stages: creating -> login -> setup -> installing -> launching -> playing -> finished -> deleting
 // (error can happen anywhere; the room stays listed until deleted).
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { WolfClient, mjpegPipeline, mp3Pipeline, encodeControllerArrival, encodeControllerState, encodeMouseMoveAbs, encodeMouseButton, BUTTON_FLAGS } from './wolf.js';
+import { WolfClient, roomVideoPipeline, roomAudioPipeline, encodeControllerArrival, encodeControllerState, encodeMouseMoveAbs, encodeMouseButton, BUTTON_FLAGS } from './wolf.js';
 import { seedRoomHome, saveLoginTemplate, loginTemplateInfo } from './seed.js';
+import { saveSteamHomeCache, cacheInfo, clearCache } from './cache.js';
 import { decodeLoginQr, RELOAD_FALLBACK } from './login.js';
 import { SUPPORTED_GAMES, loggedInUser, libraryView, installState, steamRoot } from './steam.js';
 import { MjpegReader } from './mjpeg.js';
-import { AudioRelay } from './audio.js';
+import { Fmp4Relay } from './fmp4.js';
 import { PiAgent } from './agent.js';
 import { GatewayError } from './gateway.js';
 import { docker, runningContainers, allContainers, containerIp, rmForce, execDetached, execIn, restart as dockerRestart } from './docker.js';
@@ -47,6 +49,9 @@ const QR_FIRST_CODE_GRACE_MS = 180000;
 const QR_CLICK_WINDOW_MS = 120000;
 // A fresh room may have to download a Steam client update before the game runs.
 const LAUNCH_NUDGE_MS = 180000;
+const STEAM_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const FORWARDER_TAG = 'steambench-forwarder';
+const FORWARDER_REPAIR_MS = 45000;
 const LAUNCH_DISMISS_AFTER_S = 45;
 const LAUNCH_DISMISS_EVERY_MS = 15000;
 const MAX_LAUNCH_DISMISS = 12;
@@ -56,7 +61,7 @@ const MAX_LAUNCH_DISMISS = 12;
 // HTTP proxy rather than a raw pipe: it rewrites Host (and forces
 // Connection: close so keep-alive cannot smuggle the original header through).
 const FORWARDER_PY = `import socket,threading,sys
-lp,tp=int(sys.argv[1]),int(sys.argv[2])
+lp,tp=int(sys.argv[1]),int(sys.argv[2])  # argv[3] is a tag so pkill can find us
 HOST=('Host: 127.0.0.1:%d' % tp).encode()
 
 def pump(a,b):
@@ -119,6 +124,8 @@ export class RoomManager extends EventEmitter {
 
   list() { return [...this.rooms.values()].map((r) => r.summary()); }
   loginInfo() { return loginTemplateInfo(this.cfg.loginTemplateDir); }
+  cacheInfo() { return cacheInfo(this.cfg.cacheDir, '2868840'); }
+  clearCache() { clearCache(this.cfg.cacheDir); this.emit('rooms'); return true; }
   forgetLogin() { fs.rmSync(this.cfg.loginTemplateDir, { recursive: true, force: true }); this.emit('rooms'); return true; }
   get(id) { return this.rooms.get(id) || null; }
   resolveToken(token) { return (token && this.byToken.get(token)) || null; }
@@ -201,7 +208,22 @@ export class RoomManager extends EventEmitter {
     return null;
   }
   _releaseObserverClient(clientId) { const c = this.observerClients.find((x) => x.clientId === clientId); if (c) c.busy = false; }
-  allocPort() { const p = this.nextPort; this.nextPort += 2; if (this.nextPort > this.cfg.portBase + 900) this.nextPort = this.cfg.portBase; return p; }
+  /**
+   * Reserve three consecutive free ports. A GStreamer pipeline from a room that
+   * did not shut down cleanly can outlive its session and keep holding a port,
+   * and a sink that cannot bind takes the whole pipeline down, so check first.
+   */
+  async allocPorts() {
+    for (let tries = 0; tries < 250; tries++) {
+      const base = this.nextPort;
+      this.nextPort += 4;
+      if (this.nextPort > this.cfg.portBase + 900) this.nextPort = this.cfg.portBase;
+      const ports = [base, base + 1, base + 2];
+      const free = await Promise.all(ports.map((p) => isPortFree(p)));
+      if (free.every(Boolean)) return { jpegPort: ports[0], videoPingPort: ports[1], audioPingPort: ports[2] };
+    }
+    throw new Error('no free ports for the room media stream');
+  }
 
   async create({ name, setup } = {}) {
     if (this.rooms.size >= this.cfg.maxRooms) throw new Error(`room limit reached (${this.cfg.maxRooms})`);
@@ -257,11 +279,17 @@ export class Room extends EventEmitter {
     this.log = [];
     this.setup = null; this.login = null; this.finish = null;
     this.lobbyId = null; this.sessionId = null; this.clientId = null; this.roomContainer = null; this.roomIp = null;
-    this.videoPort = manager.allocPort(); this.audioPort = this.videoPort + 1;
+    this.jpegPort = 0; this.videoPingPort = 0; this.audioPingPort = 0;
+    // mp4mux advertises no stream header, so the fragmented streams go through
+    // FIFOs the server opens before the pipeline starts (see Fmp4Relay).
+    this.videoFifo = path.join(this.cfg.mediaDir, `${id}-video.mp4`);
+    this.audioFifo = path.join(this.cfg.mediaDir, `${id}-audio.mp4`);
+    this.videoFifoInWolf = this.videoFifo;
+    this.audioFifoInWolf = this.audioFifo;
     this.fwdPort = 25526; this.modPort = 15526;
     this.home = path.join(this.cfg.roomsDir, id);
     this.hostHome = path.join(this.cfg.hostRoomsDir, id);
-    this.reader = null; this.audio = null; this.agent = null; this.playerImage = null;
+    this.reader = null; this.media = null; this.mediaAudio = null; this.agent = null; this.playerImage = null;
     this.padHistory = []; this.padBusy = Promise.resolve();
     this.loginQr = null; this.qrPoint = null; this.qrSeenAt = 0; this.qrReloads = 0; this.qrReloadedAt = 0; this.loginSince = Date.now(); this.loginReused = false;
     this.gameReady = false; this.destroyed = false; this.loops = new Set();
@@ -278,7 +306,12 @@ export class Room extends EventEmitter {
       sessionId: this.sessionId,
       finish: this.finish, gameReady: this.gameReady,
       lobbyId: this.lobbyId, roomContainer: this.roomContainer, roomIp: this.roomIp, playerImage: this.playerImage,
-      agentStatus: this.agent?.status || 'stopped', frames: this.reader?.frames || 0, lastFrameAt: this.reader?.latestAt || 0, audioBytes: this.audio?.bytes || 0,
+      agentStatus: this.agent?.status || 'stopped', frames: this.reader?.frames || 0, lastFrameAt: this.reader?.latestAt || 0,
+      media: {
+        ready: Boolean(this.media?.init), codecs: this.media?.codecs || '', fragments: this.media?.fragments || 0, bytes: this.media?.bytes || 0,
+        audioReady: Boolean(this.mediaAudio?.init), audioCodecs: this.mediaAudio?.codecs || '', audioFragments: this.mediaAudio?.fragments || 0,
+        width: this.cfg.streamWidth, height: this.cfg.streamHeight,
+      },
       lastPad: this.padHistory[this.padHistory.length - 1] || null, padCount: this.padHistory.length,
       lastState: this.lastState, log: this.log.slice(-40),
     };
@@ -290,12 +323,13 @@ export class Room extends EventEmitter {
 
   // ---- stage: creating ----------------------------------------------------
   async start() {
+    Object.assign(this, await this.m.allocPorts());
     fs.mkdirSync(this.home, { recursive: true });
     // Pre-warm: copy the game from the host library so the room does not need to download it.
     if (fs.existsSync(path.join(this.cfg.hostSteam, 'steamapps', `appmanifest_${SUPPORTED_GAMES.sts2.appid}.acf`))) {
       this.setDetail('copying game files from the host library into the room');
       this.loginReused = Boolean(loginTemplateInfo(this.cfg.loginTemplateDir));
-      await seedRoomHome({ home: this.home, hostSteam: this.cfg.hostSteam, hostSteamOriginalPath: this.cfg.hostSteamOriginalPath, hostSts2: this.cfg.hostSts2, loginTemplate: this.cfg.loginTemplateDir, sts2Port: this.modPort, log: (t) => this._log(t) });
+      await seedRoomHome({ home: this.home, hostSteam: this.cfg.hostSteam, hostSteamOriginalPath: this.cfg.hostSteamOriginalPath, hostSts2: this.cfg.hostSts2, loginTemplate: this.cfg.loginTemplateDir, cacheDir: this.cfg.cacheDir, sts2Port: this.modPort, log: (t) => this._log(t) });
     }
     if (this.destroyed) return;
     this.setDetail('creating Wolf lobby (Steam)');
@@ -331,26 +365,45 @@ export class Room extends EventEmitter {
     if (this.destroyed) return;
     if (!this.roomIp) throw new Error('room container did not start');
     this._log(`room container ${containerName} at ${this.roomIp}`);
-    await execDetached(containerName, ['python3', '-c', FORWARDER_PY, String(this.fwdPort), String(this.modPort)]);
+    await this._startForwarder();
 
     this.setDetail('attaching video, audio and controller');
     this.clientId = this.m._takeObserverClient();
     this.sessionId = await this.m.wolf.addSession({ width: this.cfg.roomWidth, height: this.cfg.roomHeight, fps: this.cfg.roomFps, clientId: this.clientId });
     await sleep(1500);
+    // Make the pipes and start reading them before the pipeline can write, so
+    // the init segment at the head of each stream is never missed.
+    fs.mkdirSync(this.cfg.mediaDir, { recursive: true });
+    for (const f of [this.videoFifo, this.audioFifo]) {
+      fs.rmSync(f, { force: true });
+      await docker(['run', '--rm', '-v', `${this.cfg.hostMediaDir}:/media`, 'alpine', 'mkfifo', '-m', '666', `/media/${path.basename(f)}`], { timeoutMs: 60000 });
+    }
+    this.media = new Fmp4Relay({ fifo: this.videoFifo }).start();
+    this.media.on('fragment', (f) => this.emit('media', { kind: 'video', data: f }));
+    this.media.on('init', (_init, codecs) => { this._log(`video stream ready (${codecs})`); this.emit('room', this.summary()); });
+    this.media.on('warn', (m) => this._log(m));
+    this.mediaAudio = new Fmp4Relay({ fifo: this.audioFifo }).start();
+    this.mediaAudio.on('fragment', (f) => this.emit('media', { kind: 'audio', data: f }));
+    this.mediaAudio.on('init', (_init, codecs) => this._log(`audio stream ready (${codecs})`));
+    this.mediaAudio.on('warn', (m) => this._log(m));
+
     await this.m.wolf.startSession(this.sessionId, {
-      width: this.cfg.roomWidth, height: this.cfg.roomHeight, fps: this.cfg.roomFps, pingPort: this.videoPort, audioPingPort: this.audioPort,
-      gstPipeline: mjpegPipeline({ port: this.videoPort, outWidth: this.cfg.streamWidth, outHeight: this.cfg.streamHeight, fps: this.cfg.streamFps, quality: this.cfg.streamQuality }),
-      audioPipeline: mp3Pipeline({ port: this.audioPort, bitrate: this.cfg.audioBitrate }),
+      width: this.cfg.roomWidth, height: this.cfg.roomHeight, fps: this.cfg.roomFps, pingPort: this.videoPingPort, audioPingPort: this.audioPingPort,
+      gstPipeline: roomVideoPipeline({
+        width: this.cfg.streamWidth, height: this.cfg.streamHeight, fps: this.cfg.streamFps,
+        bitrateKbps: this.cfg.streamBitrateKbps, fmp4Fifo: this.videoFifoInWolf, jpegPort: this.jpegPort,
+        jpegFps: this.cfg.stillsFps, jpegQuality: this.cfg.streamQuality, fragmentMs: this.cfg.fragmentMs,
+      }),
+      audioPipeline: roomAudioPipeline({ fmp4Fifo: this.audioFifoInWolf, bitrate: this.cfg.audioBitrate * 1000, fragmentMs: this.cfg.fragmentMs }),
     });
-    await this.m.wolf.sendVideoPing(this.videoPort);
-    await this.m.wolf.sendAudioPing(this.audioPort);
+    await this.m.wolf.sendVideoPing(this.videoPingPort);
+    await this.m.wolf.sendAudioPing(this.audioPingPort);
     await sleep(2500);
     await this.m.wolf.joinLobby(this.lobbyId, this.sessionId);
     await this.m.wolf.sendInput(this.sessionId, encodeControllerArrival(0));
     await this.m.wolf.sendInput(this.sessionId, encodeControllerState({}));
-    this.reader = new MjpegReader({ port: this.videoPort }).start();
+    this.reader = new MjpegReader({ port: this.jpegPort }).start();
     this.reader.on('frame', (f) => this.emit('frame', f));
-    this.audio = new AudioRelay({ port: this.audioPort }).start();
 
     this.loginSince = Date.now();
     this.setStage('login', 'waiting for the Steam sign-in QR code');
@@ -485,10 +538,17 @@ export class Room extends EventEmitter {
     const gameDir = path.join(steamRoot(this.home), 'steamapps', 'common', game.installdir);
     const mods = path.join(gameDir, 'mods');
     fs.mkdirSync(mods, { recursive: true });
+    // Prefer the build made against this game version (host/install_sts2mcp.sh
+    // build). The published 0.4.0 release does not load on v0.111 and fails
+    // with a ReflectionTypeLoadException, which looks from the outside like the
+    // game simply never coming up.
+    const modSources = [path.join(this.cfg.modDir, 'src', 'out'), this.cfg.modDir];
     for (const f of ['STS2_MCP.dll', 'STS2_MCP.json']) {
-      const src = path.join(this.cfg.modDir, f);
-      if (fs.existsSync(src) && !fs.existsSync(path.join(mods, f))) fs.copyFileSync(src, path.join(mods, f));
+      const src = modSources.map((d) => path.join(d, f)).find((p2) => fs.existsSync(p2));
+      if (src) fs.copyFileSync(src, path.join(mods, f));
+      else if (f.endsWith('.dll')) throw new Error(`the STS2MCP mod is missing: build it with host/install_sts2mcp.sh build`);
     }
+    this._log(`installed the game mod from ${path.dirname(modSources.find((d) => fs.existsSync(path.join(d, 'STS2_MCP.dll'))) || '')}`);
     fs.writeFileSync(path.join(mods, 'STS2_MCP.conf'), JSON.stringify({ port: this.modPort }, null, 2) + '\n');
     const skills = path.join(this.home, 'skills');
     fs.rmSync(skills, { recursive: true, force: true });
@@ -498,6 +558,30 @@ export class Room extends EventEmitter {
     if (this.destroyed) return;
     this.setStage('launching', `starting ${game.name}`);
     await this._launch();
+  }
+
+  /** (Re)start the tiny HTTP proxy that exposes the mod's loopback port. */
+  async _startForwarder() {
+    try { await execIn(this.roomContainer, ['sh', '-c', `pkill -f ${FORWARDER_TAG} || true`], { timeoutMs: 15000 }); } catch { /* nothing to kill */ }
+    await execDetached(this.roomContainer, ['python3', '-c', FORWARDER_PY, String(this.fwdPort), String(this.modPort), FORWARDER_TAG]);
+    this.forwarderStartedAt = Date.now();
+  }
+
+  /**
+   * The game can be up and answering inside the room while our proxy has died,
+   * which used to leave a room waiting for a mod that was already running.
+   */
+  async _repairForwarder() {
+    if (!this.roomContainer) return false;
+    if (Date.now() - (this.forwarderStartedAt || 0) < FORWARDER_REPAIR_MS) return false;
+    try {
+      await execIn(this.roomContainer, ['sh', '-c', `curl -sf -m 3 -o /dev/null http://127.0.0.1:${this.modPort}/`], { timeoutMs: 15000 });
+    } catch {
+      return false; // the game itself is not answering yet, so there is nothing to forward
+    }
+    this._log('the mod answers inside the room but not through the forwarder; restarting the forwarder');
+    await this._startForwarder();
+    return true;
   }
 
   async _steamUrl(url) {
@@ -535,6 +619,16 @@ export class Room extends EventEmitter {
     catch (e) { this._log(`launch command failed: ${e.message}`); }
   }
 
+  /** The game logs a mod that fails to load; say so rather than waiting forever. */
+  modLoadError() {
+    try {
+      const log = fs.readFileSync(path.join(this.home, '.local', 'share', 'SlayTheSpire2', 'logs', 'godot.log'), 'utf8');
+      const at = log.lastIndexOf('Exception thrown while loading mod');
+      if (at < 0) return null;
+      return log.slice(at, at + 200).split('\n').slice(0, 2).join(' ').trim();
+    } catch { return null; }
+  }
+
   async _watchLaunch() {
     if (this.destroyed || this.stage !== 'launching') return false;
     try {
@@ -544,8 +638,15 @@ export class Room extends EventEmitter {
         await this._startPlayer();
         return false;
       }
-    } catch { /* not up yet */ }
+    } catch {
+      await this._repairForwarder();
+    }
     const waited = Math.round((Date.now() - this.launchedAt) / 1000);
+    const modError = this.modLoadError();
+    if (modError) {
+      this.setStage('error', `the game started but its mod failed to load: ${modError}`);
+      return false;
+    }
     // Steam blocks the launch behind first-run overlays (the Steam Input
     // explainer, for one) that only a controller press dismisses. Only do this
     // while the game itself is not running, so we can never click its menus.
@@ -579,20 +680,41 @@ export class Room extends EventEmitter {
       mounts: [`${this.hostHome}/skills:/workspace/skills`],
     });
     for (const ev of ['item', 'delta', 'status']) this.agent.on(ev, (p) => this.emit(`agent:${ev}`, p));
-    this.agent.on('status', () => this.m.emit('rooms'));
+    this.agent.on('status', (status) => {
+      this.m.emit('rooms');
+      // The player stopping is not the run ending: say so plainly instead of
+      // leaving the room looking like it is still being played.
+      if (this.stage === 'playing' && (status === 'error' || status === 'stopped') && !this.finish) {
+        const why = this.agent?.exitInfo ? `exit code ${this.agent.exitInfo.code}` : status;
+        this.setStage('error', `the player stopped (${why}); the game is still running`);
+      }
+    });
     this.agent.start();
     await sleep(4000);
     const t = this.setup.task;
     const kickoff = `You are connected to ${game.name} through steambench. First read /workspace/skills/${game.skill}/SKILL.md and /workspace/skills/${game.skill}/controls/CONTROLS.md. ` +
-      `Goal: beat Ascension ${t.ascension} as ${t.character}. Start a new run with that character and ascension (use sts2_look to check the menus), play until the run ends, keep notes in scratchpad/, and call run_over when it is over.` +
+      `Goal: beat Ascension ${t.ascension} as ${t.character}. ` +
+      'Start by following "Starting a run" in CONTROLS.md exactly: if any run is already in progress, abandon it and confirm, ' +
+      `then start a new singleplayer run as ${t.character} at Ascension ${t.ascension}. Do not continue a run you did not start. ` +
+      'Then play until the game itself reports the run is over, keep notes in scratchpad/, and call run_over once with the result.' +
       (t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : '');
     this.setStage('playing', `${t.character} · Ascension ${t.ascension}`);
-    // Capture any first-run state (dismissed Steam dialogs, controller layout)
-    // so the next room starts from a settled Steam.
-    try { await saveLoginTemplate({ home: this.home, templateDir: this.cfg.loginTemplateDir, log: () => {} }); this._log('refreshed the saved Steam login'); }
-    catch (e) { this._log(`could not refresh the saved login: ${e.message}`); }
     this.agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
     this._loop(() => this._watchPlaying(), 15000);
+    // Refresh the caches in the background: they copy gigabytes, and the player
+    // must not wait on that. Only worth doing when the cache is stale.
+    this._refreshCaches();
+  }
+
+  /** Snapshot Steam's settled state for future rooms, off the critical path. */
+  async _refreshCaches() {
+    try { await saveLoginTemplate({ home: this.home, templateDir: this.cfg.loginTemplateDir, log: () => {} }); this._log('refreshed the saved Steam login'); }
+    catch (e) { this._log(`could not refresh the saved login: ${e.message}`); }
+    const info = cacheInfo(this.cfg.cacheDir, '');
+    const age = info.steamHome?.at ? Date.now() - info.steamHome.at : Infinity;
+    if (age < STEAM_CACHE_MAX_AGE_MS) return;
+    try { await saveSteamHomeCache({ home: this.home, cacheDir: this.cfg.cacheDir, log: (t) => this._log(t) }); }
+    catch (e) { this._log(`could not cache the Steam client: ${e.message}`); }
   }
 
   async _watchPlaying() {
@@ -603,6 +725,7 @@ export class Room extends EventEmitter {
       if (!this.gameReady) { this.gameReady = true; this.setDetail('game reachable again'); }
     } catch {
       if (this.gameReady) { this.gameReady = false; this.setDetail('game/mod not reachable'); }
+      await this._repairForwarder();
     }
     return true;
   }
@@ -610,7 +733,15 @@ export class Room extends EventEmitter {
   // ---- stage: finished --------------------------------------------------------
   async finishRun({ result, summary, by = 'player' }) {
     if (this.finish) return this.finish;
-    this.finish = { result, summary: String(summary || '').slice(0, 2000), by, at: Date.now() };
+    // Keep the game's own view next to the player's claim: a player that says
+    // it died while the mod still reports a live run is worth seeing.
+    const state = this.lastState;
+    this.finish = {
+      result, summary: String(summary || '').slice(0, 2000), by, at: Date.now(),
+      gameState: state || null,
+      disputed: Boolean(by === 'player' && result === 'lost' && state && state.inRun && !state.gameOver),
+    };
+    if (this.finish.disputed) this._log('the player reported a loss while the game still shows a run in progress');
     this.setStage('finished', `${result}: room closes in ${this.cfg.finishGraceS}s`);
     // Archive a moment later so the player's own run_over call (and anything it
     // says afterwards) is part of the transcript we keep.
@@ -648,7 +779,8 @@ export class Room extends EventEmitter {
     const containers = this.roomContainer ? await runningContainers(this.roomContainer).catch(() => []) : [];
     add('room container', containers.length > 0, this.roomContainer ? `${this.roomContainer}${containers.length ? '' : ' (not running)'}` : 'none');
     add('video', Boolean(this.reader?.latest) && now - this.reader.latestAt < 15000, this.reader?.latest ? `${this.reader.frames} frames, last ${Math.round((now - this.reader.latestAt) / 1000)}s ago` : 'no frames');
-    add('audio', (this.audio?.bytes || 0) > 0, `${Math.round((this.audio?.bytes || 0) / 1024)} KB`);
+    add('video stream', Boolean(this.media?.init) && now - (this.media.lastFragmentAt || 0) < 15000,
+      this.media?.init ? `${this.media.codecs}, ${this.media.fragments} fragments, ${Math.round(this.media.bytes / 1024)} KB` : 'no fragmented-MP4 stream yet');
     let padReaders = '';
     if (this.roomContainer) {
       try {
@@ -667,7 +799,8 @@ export class Room extends EventEmitter {
     let mod = { ok: false, detail: 'not reachable' };
     try { const r = await this._sts2Fetch('/', {}); mod = { ok: r.status < 300, detail: `HTTP ${r.status} ${String(r.body).slice(0, 60).replace(/\s+/g, ' ')}` }; }
     catch (e) { mod = { ok: false, detail: e.message.slice(0, 120) }; }
-    add('game mod api', mod.ok, mod.detail);
+    const modError = this.modLoadError();
+    add('game mod api', mod.ok, modError ? `mod failed to load in the game: ${modError}` : mod.detail);
     add('player', this.agent ? this.agent.status !== 'error' : false, this.agent ? `${this.agent.status} (${this.agent.transcript.length} transcript items)` : 'not started');
     return { room: this.id, stage: this.stage, detail: this.detail, ok: checks.every((c) => c.ok), checks };
   }
@@ -690,10 +823,11 @@ export class Room extends EventEmitter {
     if (!this.archiveDir && (this.agent || this.padHistory.length)) { try { await this.archive(reason || 'deleted'); } catch (e) { this._log(`archive failed: ${e.message}`); } }
     this.setStage('deleting', reason);
     try { await this.agent?.stop(); } catch (e) { this._log(`player stop: ${e.message}`); }
-    this.reader?.stop(); this.audio?.stop();
+    this.reader?.stop(); this.media?.stop(); this.mediaAudio?.stop();
     if (this.sessionId) { try { await this.m.wolf.stopSession(this.sessionId); } catch (e) { this._log(`session stop: ${e.message}`); } }
     if (this.clientId) this.m._releaseObserverClient(this.clientId);
     if (this.lobbyId) { try { await this.m.wolf.stopLobby(this.lobbyId); } catch (e) { this._log(`lobby stop: ${e.message}`); } }
+    for (const f of [this.videoFifo, this.audioFifo]) { try { fs.rmSync(f, { force: true }); } catch { /* ignore */ } }
     if (this.roomContainer) { await sleep(2000); await rmForce(this.roomContainer); }
     if (this.playerImage && this.playerImage !== this.cfg.agentImage) { try { await docker(['rmi', '-f', this.playerImage]); } catch { /* ignore */ } }
     if (!keepHome) { try { await docker(['run', '--rm', '-v', `${path.dirname(this.hostHome)}:/rooms`, 'alpine', 'rm', '-rf', `/rooms/${this.id}`]); } catch (e) { this._log(`home cleanup: ${e.message}`); } }
@@ -820,21 +954,39 @@ export class Room extends EventEmitter {
   }
 }
 
-/** Small, dashboard-friendly view of the mod's JSON state (fields are best effort). */
+/**
+ * Dashboard-friendly view of the mod's state. Field names follow STS2MCP's
+ * own builder: run info under `run`, the character under `player`.
+ */
 function pickState(s) {
   if (!s || typeof s !== 'object') return null;
-  const run = s.run || s;
-  const pl = run.player || run.character || {};
+  const run = s.run || {};
+  const player = s.player || {};
   return {
-    state_type: s.state_type ?? s.screen ?? null,
-    floor: run.floor ?? run.current_floor ?? null,
+    state_type: s.state_type ?? null,
+    screen: s.menu_screen ?? null,
     act: run.act ?? null,
-    hp: pl.hp ?? pl.current_hp ?? null,
-    max_hp: pl.max_hp ?? null,
-    gold: run.gold ?? pl.gold ?? null,
-    character: pl.name ?? run.character_name ?? null,
+    floor: run.floor ?? null,
+    ascension: run.ascension ?? null,
+    character: player.character ?? null,
+    hp: player.hp ?? null,
+    max_hp: player.max_hp ?? null,
+    gold: player.gold ?? null,
+    energy: player.energy ?? null,
+    relics: Array.isArray(player.relics) ? player.relics.length : null,
+    deck: Array.isArray(player.deck) ? player.deck.length : null,
+    inRun: Boolean(run.floor) && s.state_type !== 'game_over',
+    gameOver: s.state_type === 'game_over' || Boolean(s.game_over),
     at: Date.now(),
   };
+}
+
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', () => resolve(false));
+    probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
+  });
 }
 
 function boundedInt(value, min, max, dflt, code, name) {

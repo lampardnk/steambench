@@ -60,6 +60,7 @@ services:
       - STEAMBENCH_HISTORY_DIR=/etc/steambench/history
       - STEAMBENCH_MOD_DIR=/opt/sts2mcp
       - STEAMBENCH_LOGIN_TEMPLATE=/etc/wolf/steam-login
+      - STEAMBENCH_CACHE_DIR=/etc/wolf/cache
       - STEAMBENCH_HOST_STEAM=/host/steam
       - STEAMBENCH_HOST_STEAM_PATH=${STEAMBENCH_HOST_STEAM:-${HOME}/.local/share/Steam}
       - STEAMBENCH_HOST_STS2=/host/sts2

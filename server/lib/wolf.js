@@ -239,3 +239,76 @@ export function mp3Pipeline({ port, bitrate = 128, host = '127.0.0.1' }) {
     `tcpserversink host=${host} port=${port} sync=false recover-policy=latest`,
   ].join(' ! ');
 }
+
+/**
+ * Video half of a room's stream, for the session's own video pipeline.
+ *
+ * The interpipesrc keeps Wolf's naming (`interpipesrc_<session>_video`) and
+ * listens to the session's own producer: Wolf repoints it at the lobby when the
+ * session joins. Pointing it straight at the lobby never negotiates.
+ *
+ * Encoding is done on the CPU with x264: the NVENC elements cannot take frames
+ * from this producer (they refuse to negotiate, having no share of the CUDA
+ * context Wolf created for it), while downloading once and encoding with
+ * x264enc works and costs little at 720p.
+ *
+ * Frames are rate-capped once, then split: fragmented MP4 for the browser, and
+ * a slow JPEG branch for still frames (the player's screenshot tool, and the
+ * fallback view for browsers without Media Source Extensions).
+ */
+export function roomVideoPipeline({
+  width = 1280, height = 720, fps = 30, bitrateKbps = 4000,
+  fmp4Fifo, jpegPort, jpegFps = 2, jpegQuality = 80, fragmentMs = 500, host = '127.0.0.1',
+}) {
+  const gop = Math.max(2, Math.round((fps * fragmentMs) / 1000));
+  const source = [
+    'interpipesrc name=interpipesrc_{session_id}_video listen-to={session_id}_video is-live=true stream-sync=restart-ts max-bytes=0 max-buffers=1 leaky-type=downstream',
+    'queue leaky=downstream max-size-buffers=3',
+    'cudaconvertscale add-borders=true',
+    `video/x-raw(memory:CUDAMemory), format=I420, width=${width}, height=${height}, pixel-aspect-ratio=1/1`,
+    'cudadownload',
+    'videorate drop-only=true',
+    `video/x-raw, framerate=${fps}/1`,
+    'tee name=steambench_tee',
+  ].join(' ! ');
+
+  const encoded = [
+    'steambench_tee.',
+    'queue leaky=downstream max-size-buffers=4',
+    'videoconvert',
+    `x264enc speed-preset=veryfast tune=zerolatency bitrate=${bitrateKbps} key-int-max=${gop}`,
+    'h264parse',
+    'video/x-h264, stream-format=avc, alignment=au',
+    `mp4mux fragment-duration=${fragmentMs} streamable=true`,
+    `filesink location=${fmp4Fifo} sync=false buffer-mode=2 async=false`,
+  ].join(' ! ');
+
+  const stills = [
+    'steambench_tee.',
+    'queue leaky=downstream max-size-buffers=1',
+    'videorate drop-only=true',
+    `video/x-raw, framerate=${jpegFps}/1`,
+    'videoconvert',
+    `jpegenc quality=${jpegQuality}`,
+    'multipartmux boundary=steambench',
+    `tcpserversink host=${host} port=${jpegPort} sync=false recover-policy=keyframe`,
+  ].join(' ! ');
+
+  return [source, encoded, stills].join(' ');
+}
+
+/** Audio half: AAC in fragmented MP4, played as a second MSE track. */
+export function roomAudioPipeline({ fmp4Fifo, bitrate = 128000, fragmentMs = 500 }) {
+  return [
+    'interpipesrc name=interpipesrc_{session_id}_audio listen-to={session_id}_audio is-live=true stream-sync=restart-ts max-bytes=0 max-buffers=3 leaky-type=downstream',
+    'queue leaky=downstream max-size-buffers=16',
+    'audiorate',
+    'audioconvert',
+    'audioresample',
+    'audio/x-raw, format=S16LE',
+    `fdkaacenc bitrate=${bitrate}`,
+    'aacparse',
+    `mp4mux fragment-duration=${fragmentMs} streamable=true`,
+    `filesink location=${fmp4Fifo} sync=false buffer-mode=2 async=false`,
+  ].join(' ! ');
+}

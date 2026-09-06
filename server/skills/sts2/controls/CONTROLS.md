@@ -47,7 +47,24 @@ d-pad directions `up down left right`.
 - Never enter an Elite below 60% HP.
 - When an enemy intends to attack for more than your current HP, play block first.
 
-## Main menu and starting a run (verify with `sts2_look`)
+## Starting a run (do this exactly, every time)
+
+steambench always wants a fresh run, and the game may resume an old one. From
+the main menu:
+
+1. Call `sts2_state`. If `state_type` is anything other than `menu`, a run is
+   already in progress: open the pause menu with `start`, choose **Abandon Run**,
+   and **confirm** it. Check with `sts2_state` that you are back at the menu.
+2. On the main menu choose **Singleplayer** (not Continue, not multiplayer).
+   If a **Continue** entry is highlighted, move off it first.
+3. Pick the character you were told to play, set the ascension level you were
+   told to use, then Embark.
+4. Confirm with `sts2_state` that `run.floor` is 1 and `player.character` is the
+   character you were asked for. If it is not, abandon and start again.
+
+Never continue somebody else's run: the benchmark only counts a run you started.
+
+## Main menu details (verify with `sts2_look`)
 
 - The game opens on the main menu. `dpad up/down` moves between entries (Continue, New Run / Play, Compendium,
   Settings, Quit); `a` selects. Never select Quit or Settings.

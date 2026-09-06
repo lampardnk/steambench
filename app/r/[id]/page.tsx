@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { api, apiUrl, wsUrl, STAGE_LABELS, type LibraryGame, type Meta, type PadEvent, type RoomSummary, type TranscriptItem } from '@/lib/backend'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { ControllerView } from '@/components/controller'
+import { GameView } from '@/components/game-view'
 import { SteamLogin } from '@/components/steam-login'
 import { Transcript } from '@/components/transcript'
 
@@ -126,6 +127,11 @@ export default function RoomPage() {
                   <div className="rounded-md border border-border bg-card p-3 text-sm">
                     <div className="font-medium">Run {room.finish.result}</div>
                     <p className="text-muted-foreground">{room.finish.summary}</p>
+                    {room.finish.disputed && (
+                      <p className="mt-1 text-amber-700">
+                        The player reported a loss while the game still showed a run in progress, so this result may be wrong.
+                      </p>
+                    )}
                     <p className="mt-1 text-xs text-muted-foreground">The room is archived and will close automatically. See it later under history.</p>
                   </div>
                 )}
@@ -153,36 +159,6 @@ export default function RoomPage() {
         )}
       </div>
     </main>
-  )
-}
-
-function GameView({ settings, room }: { settings: ReturnType<typeof useSettings>[0]; room: RoomSummary }) {
-  const [mode, setMode] = useState<'stream' | 'poll'>('stream')
-  const [tick, setTick] = useState(0)
-  useEffect(() => {
-    if (mode !== 'poll') return
-    const t = setInterval(() => setTick((x) => x + 1), 1000)
-    return () => clearInterval(t)
-  }, [mode])
-  const src = mode === 'stream' ? apiUrl(settings, `/api/rooms/${room.id}/stream.mjpg`) : apiUrl(settings, `/api/rooms/${room.id}/frame.jpg`, { t: String(tick) })
-  return (
-    <div className="rounded-lg border border-border bg-black">
-      <div className="aspect-video w-full overflow-hidden rounded-t-lg">
-        {room.frames > 0 ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="game stream" className="h-full w-full object-contain" onError={() => setMode('poll')} />
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-neutral-400">waiting for the first frame…</div>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs text-neutral-300">
-        <audio controls preload="none" className="h-8" src={apiUrl(settings, `/api/rooms/${room.id}/audio.mp3`)} />
-        <span>{room.frames} frames</span>
-        <button onClick={() => setMode(mode === 'stream' ? 'poll' : 'stream')} className="rounded border border-neutral-600 px-1.5 py-0.5 hover:bg-neutral-800">
-          video: {mode === 'stream' ? 'live (mjpeg)' : 'snapshots (1/s)'}
-        </button>
-      </div>
-    </div>
   )
 }
 
@@ -378,7 +354,20 @@ function RoomInfo({ room, log }: { room: RoomSummary; log: string[] }) {
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         <dt className="text-muted-foreground">game state</dt>
         <dd className="font-mono">
-          {room.lastState ? `${s.state_type ?? '?'} · floor ${s.floor ?? '?'} · HP ${s.hp ?? '?'}/${s.max_hp ?? '?'} · gold ${s.gold ?? '?'}` : room.gameReady ? 'mod reachable' : 'game not reachable yet'}
+          {room.lastState
+            ? [
+                s.state_type ?? '?',
+                s.character ? `${s.character}` : null,
+                s.floor != null ? `act ${s.act ?? '?'} floor ${s.floor}` : null,
+                s.ascension != null ? `A${s.ascension}` : null,
+                s.hp != null ? `HP ${s.hp}/${s.max_hp ?? '?'}` : null,
+                s.gold != null ? `${s.gold} gold` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : room.gameReady
+              ? 'mod reachable'
+              : 'game not reachable yet'}
         </dd>
         <dt className="text-muted-foreground">task</dt>
         <dd>{room.setup ? `${room.setup.gameName} · ${room.setup.task.character} · Ascension ${room.setup.task.ascension}` : '—'}</dd>
@@ -388,8 +377,12 @@ function RoomInfo({ room, log }: { room: RoomSummary; log: string[] }) {
         <dd className="font-mono break-all">{room.roomContainer || '—'} {room.roomIp ? `(${room.roomIp})` : ''}</dd>
         <dt className="text-muted-foreground">lobby</dt>
         <dd className="font-mono break-all">{room.lobbyId || '—'}</dd>
-        <dt className="text-muted-foreground">video / audio</dt>
-        <dd>{room.frames} frames · {(room.audioBytes / 1024).toFixed(0)} KB audio</dd>
+        <dt className="text-muted-foreground">stream</dt>
+        <dd>
+          {room.media?.ready
+            ? `${room.media.codecs} · ${room.media.fragments} fragments · ${(room.media.bytes / 1024 / 1024).toFixed(1)} MB${room.media.audioReady ? ` · audio ${room.media.audioCodecs}` : ' · no audio yet'}`
+            : `${room.frames} still frames, live stream not ready`}
+        </dd>
       </dl>
       <div className="mt-2 text-muted-foreground">log</div>
       <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-background p-2 font-mono text-[11px]">{log.slice(-80).join('\n')}</pre>

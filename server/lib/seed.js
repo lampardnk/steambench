@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { steamRoot, ROOM_STEAM_ROOT } from './steam.js';
+import { ensureGameCache, seedSteamHome, seedGame, cachePaths } from './cache.js';
 
 export const STS2_APPID = '2868840';
 export const STS2_INSTALLDIR = 'Slay the Spire 2';
@@ -51,17 +52,19 @@ function rewriteFile(file, from, to) {
  * @param {string} [o.loginTemplate]   optional dir holding a previously saved Steam login (config/, userdata/, local.vdf)
  * @param {number} [o.sts2Port]        port the STS2MCP mod should listen on inside the room
  */
-export async function seedRoomHome({ home, hostSteam, hostSteamOriginalPath, hostSts2, loginTemplate, sts2Port = 15526, uid = 1000, gid = 1000, log = () => {} }) {
+export async function seedRoomHome({ home, hostSteam, hostSteamOriginalPath, hostSts2, loginTemplate, cacheDir, sts2Port = 15526, uid = 1000, gid = 1000, log = () => {} }) {
+  // Prefer the cached Steam directory (client, login and settings from a room
+  // that already settled): it saves the bootstrap and the client self-update.
+  const cachedSteam = cacheDir ? await seedSteamHome({ home, cacheDir, log }) : false;
   const steam = steamRoot(home);
   fs.mkdirSync(steam, { recursive: true });
   fs.mkdirSync(path.join(home, '.local', 'share'), { recursive: true });
 
-  if (loginTemplate && fs.existsSync(loginTemplate)) {
+  if (!cachedSteam && loginTemplate && fs.existsSync(loginTemplate)) {
     log('seed: saved steam login');
     await copyTree(loginTemplate, steam);
   }
 
-  log('seed: game files');
   const apps = path.join(steam, 'steamapps');
   fs.mkdirSync(path.join(apps, 'common'), { recursive: true });
   fs.mkdirSync(path.join(apps, 'workshop', 'content'), { recursive: true });
@@ -70,7 +73,13 @@ export async function seedRoomHome({ home, hostSteam, hostSteamOriginalPath, hos
   fs.copyFileSync(manifest, path.join(apps, `appmanifest_${STS2_APPID}.acf`));
   const libFolders = path.join(hostSteam, 'steamapps', 'libraryfolders.vdf');
   if (fs.existsSync(libFolders)) fs.copyFileSync(libFolders, path.join(apps, 'libraryfolders.vdf'));
-  await copyTree(path.join(hostSteam, 'steamapps', 'common', STS2_INSTALLDIR), path.join(apps, 'common', STS2_INSTALLDIR));
+  if (cacheDir) {
+    const gameCache = await ensureGameCache({ cacheDir, appid: STS2_APPID, hostGameDir: path.join(hostSteam, 'steamapps', 'common', STS2_INSTALLDIR), log });
+    await seedGame({ gameCacheDir: gameCache, installDir: path.join(apps, 'common', STS2_INSTALLDIR), log });
+  } else {
+    log('seed: game files');
+    await copyTree(path.join(hostSteam, 'steamapps', 'common', STS2_INSTALLDIR), path.join(apps, 'common', STS2_INSTALLDIR));
+  }
   const ws = path.join(hostSteam, 'steamapps', 'workshop', `appworkshop_${STS2_APPID}.acf`);
   if (fs.existsSync(ws)) fs.copyFileSync(ws, path.join(apps, 'workshop', `appworkshop_${STS2_APPID}.acf`));
   await copyTree(path.join(hostSteam, 'steamapps', 'workshop', 'content', STS2_APPID), path.join(apps, 'workshop', 'content', STS2_APPID));

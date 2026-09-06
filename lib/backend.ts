@@ -108,7 +108,7 @@ export type RoomSummary = {
   loginQr: { url: string; at: number; reloads: number } | null
   loginReused: boolean
   sessionId: string | null
-  finish: { result: string; summary: string; by: string; at: number } | null
+  finish: { result: string; summary: string; by: string; at: number; gameState?: Record<string, unknown> | null; disputed?: boolean } | null
   gameReady: boolean
   lobbyId: string | null
   roomContainer: string | null
@@ -117,7 +117,7 @@ export type RoomSummary = {
   agentStatus: string
   frames: number
   lastFrameAt: number
-  audioBytes: number
+  media: { ready: boolean; codecs: string; fragments: number; bytes: number; audioReady: boolean; audioCodecs: string; audioFragments: number; width: number; height: number } | null
   lastPad: PadEvent | null
   padCount: number
   lastState: Record<string, unknown> | null
