@@ -329,7 +329,7 @@ export default function sts2Extension(pi: ExtensionAPI) {
       result: StringEnum(["lost", "won", "aborted"] as const),
       summary: Type.String({ description: "Two or three sentences: how far you got, what killed you or how you won, key lessons." }),
     }),
-    async execute(params) {
+    async execute(_id, params) {
       const result = await gateway({ op: "room-finish", result: params.result, summary: params.summary });
       return text(`recorded: ${JSON.stringify(result)}`);
     },

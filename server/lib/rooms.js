@@ -612,8 +612,13 @@ export class Room extends EventEmitter {
     if (this.finish) return this.finish;
     this.finish = { result, summary: String(summary || '').slice(0, 2000), by, at: Date.now() };
     this.setStage('finished', `${result}: room closes in ${this.cfg.finishGraceS}s`);
-    try { await this.archive('run finished'); } catch (e) { this._log(`archive failed: ${e.message}`); }
-    setTimeout(() => { this.m.remove(this.id, { reason: 'run finished' }).catch(() => {}); }, this.cfg.finishGraceS * 1000);
+    // Archive a moment later so the player's own run_over call (and anything it
+    // says afterwards) is part of the transcript we keep.
+    setTimeout(() => {
+      this.archive('run finished')
+        .catch((e) => this._log(`archive failed: ${e.message}`))
+        .then(() => this.m.remove(this.id, { reason: 'run finished' }).catch(() => {}));
+    }, this.cfg.finishGraceS * 1000);
     return this.finish;
   }
 
@@ -717,8 +722,13 @@ export class Room extends EventEmitter {
       case 'pad-stick': return this._padSerial(() => this._padStick(request));
       case 'pad-neutral': return this._padSerial(async () => { await this._padState({}); return { held: [] }; });
       case 'room-finish': {
-        const result = ['lost', 'won', 'aborted'].includes(request.result) ? request.result : 'aborted';
-        return this.finishRun({ result, summary: request.summary, by: 'player' });
+        if (!['lost', 'won', 'aborted'].includes(request.result)) {
+          throw new GatewayError('invalid_result', 'result must be lost, won or aborted');
+        }
+        if (typeof request.summary !== 'string' || !request.summary.trim()) {
+          throw new GatewayError('invalid_summary', 'summary must describe how the run ended');
+        }
+        return this.finishRun({ result: request.result, summary: request.summary, by: 'player' });
       }
       default: throw new GatewayError('unknown_operation', `unknown operation: ${op}`);
     }
