@@ -22,6 +22,10 @@ browser (steambench.dev) ──HTTPS/WS (tunnel)──▶ steambench-server (hos
 
 Room stages: `creating` → `login` → `setup` (game, player, task) → `installing` (game verify/install, mod, player image build) → `launching` → `playing` → `finished` (archived, auto-closes) or `deleting`.
 
+Media: each room's Wolf session produces fragmented MP4 (H.264 from x264 on the CPU, AAC audio) plus a slow JPEG branch. The browser plays the two MP4 tracks in one `<video>` through Media Source Extensions (`components/game-view.tsx`), so there is no seek bar and audio needs only an unmute click; the JPEG branch serves `frame.jpg`/`stream.mjpg` for the player's screenshot tool and as a fallback view. Two constraints shape this: NVENC will not take frames from Wolf's producer (it refuses to negotiate), and `mp4mux` publishes no stream header, so each track is written to a FIFO under `.runtime/wolf/media` that the server opens before the pipeline starts.
+
+Caching: `.runtime/cache/game-<appid>` and `.runtime/cache/steam-home` hold the game and a settled Steam directory; rooms hardlink from them, which takes a cold room from about fifteen minutes to about a minute. The snapshots refresh in the background once a room is playing, at most every twelve hours.
+
 Steam sign-in happens once, ever. The server decodes the sign-in QR out of the room's own video frame (`lib/login.js`), publishes the URL so the dashboard can render a sharp code and a tappable `s.team` link, and clicks the reload button with a virtual mouse when Steam lets the code expire. The desktop client encrypts its stored refresh token per machine, so a token from a browser login cannot be injected; instead every room is created with the same pinned hostname and `/etc/machine-id`, the first successful login is snapshotted to `.runtime/wolf/steam-login`, and later rooms replay it and reach `setup` without a QR. Steam's data root inside the room is `~/.steam/steam` (not `~/.steam`); everything goes through `steamRoot()` in `lib/steam.js`.
 
 ## Build, Test, and Development Commands
