@@ -31,7 +31,6 @@ export default function RoomPage() {
   const [log, setLog] = useState<string[]>([])
   const [error, setError] = useState('')
   const [connected, setConnected] = useState(false)
-  const [tab, setTab] = useState<'conversation' | 'learning'>('conversation')
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -120,9 +119,9 @@ export default function RoomPage() {
               </button>
             </header>
 
-            {/* One column, three things: what the room looks like, what is being
-                said to and by the player, and everything you only open when
-                something is wrong. */}
+            {/* One column, four things: what the room looks like, what is being
+                said to and by the player, what it has learned, and everything
+                you only open when something is wrong. */}
             <div className="flex flex-col gap-4">
               <section>
                 <GameView settings={settings} room={room} />
@@ -144,24 +143,9 @@ export default function RoomPage() {
 
               <section className="rounded-lg border border-border bg-card p-3">
                 <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <div className="flex rounded-md border border-border p-0.5">
-                    {(['conversation', 'learning'] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setTab(t)}
-                        className={`rounded px-2 py-0.5 ${tab === t ? 'bg-muted font-medium text-foreground' : 'hover:text-foreground'}`}
-                      >
-                        {t}
-                      </button>
-                    ))}
-                  </div>
-                  <span>player: {room.setup?.player.name || 'not chosen'}</span>
+                  <span className="text-sm font-medium text-foreground">Conversation</span>
+                  <span>· player: {room.setup?.player.name || 'not chosen'}</span>
                   <span>· {room.agentStatus}</span>
-                  {room.lastLibraryCommit && (
-                    <span title={room.lastLibraryCommit.message}>
-                      · learned <span className="font-mono">{room.lastLibraryCommit.hash.slice(0, 7)}</span>
-                    </span>
-                  )}
                   <div className="flex-1" />
                   {room.agentStatus === 'running' && (
                     <button onClick={() => send({ type: 'abort' })} className="rounded border border-border px-1.5 py-0.5 hover:bg-muted">
@@ -169,28 +153,38 @@ export default function RoomPage() {
                     </button>
                   )}
                 </div>
-                {tab === 'conversation' ? (
-                  <>
-                    {room.attention && (
-                      <div role="alert" className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
-                        <strong>Paused for supervisor review</strong>
-                        <p className="mt-1">{room.attention.error}</p>
-                        <p className="mt-1 text-xs">
-                          Incident {room.attention.id} · decision {room.attention.decision}. Evidence is preserved and no game input is sent until you answer.
-                          Replying below resumes the player with your message as the review.
-                        </p>
-                      </div>
-                    )}
-                    <Transcript items={items} />
-                    <ChatBox
-                      attention={Boolean(room.attention)}
-                      disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'}
-                      onSend={(m) => send({ type: 'chat', message: m })}
-                    />
-                  </>
-                ) : (
-                  <Learning settings={settings} refreshKey={room.lastLibraryCommit?.hash || ''} />
+                {room.attention && (
+                  <div role="alert" className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+                    <strong>Paused for supervisor review</strong>
+                    <p className="mt-1">{room.attention.error}</p>
+                    <p className="mt-1 text-xs">
+                      Incident {room.attention.id} · decision {room.attention.decision}. Evidence is preserved and no game input is sent until you answer.
+                      Replying below resumes the player with your message as the review.
+                    </p>
+                  </div>
                 )}
+                <Transcript items={items} />
+                <ChatBox
+                  attention={Boolean(room.attention)}
+                  disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'}
+                  onSend={(m) => send({ type: 'chat', message: m })}
+                />
+              </section>
+
+              <section className="rounded-lg border border-border bg-card p-3">
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="text-sm font-medium text-foreground">Learning</span>
+                  {room.lastLibraryCommit && (
+                    <span title={room.lastLibraryCommit.message}>
+                      · latest commit <span className="font-mono">{room.lastLibraryCommit.hash.slice(0, 7)}</span>
+                    </span>
+                  )}
+                </div>
+                <Learning
+                  settings={settings}
+                  curriculum={room.curriculum}
+                  refreshKey={`${room.lastLibraryCommit?.hash || ''}:${room.curriculum?.active?.id || ''}`}
+                />
               </section>
 
               <details className="rounded-lg border border-border bg-card">

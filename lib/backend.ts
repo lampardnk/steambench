@@ -97,6 +97,27 @@ export type RoomSetup = {
   task: { ascension: number; character: string; prompt?: string }
 }
 
+/** One objective from the curriculum ladder, as the player's runtime writes it. */
+export type Objective = {
+  id: string
+  text: string
+  why?: string
+  done_when?: string
+  area?: string
+  status: 'active' | 'completed' | 'failed'
+  attempts?: number
+  critiques?: string[]
+  opened?: { room?: string | null; decision?: number; at?: number; act?: number | null; floor?: number | null; by?: string }
+  closed?: { decision?: number; at?: number; reasoning?: string }
+}
+
+export type Curriculum = {
+  active: Objective | null
+  completed: number
+  failed: number
+  recent: Objective[]
+}
+
 export type RoomSummary = {
   id: string
   name: string
@@ -118,6 +139,7 @@ export type RoomSummary = {
   attention?: { id: string; error: string; path: string; decision: number; at: string; status: string } | null
   /** Latest commit this room made to the persistent skill library. */
   lastLibraryCommit?: { hash: string; message: string; by: string; at: number } | null
+  curriculum?: Curriculum | null
   frames: number
   lastFrameAt: number
   media: { ready: boolean; codecs: string; fragments: number; bytes: number; audioReady: boolean; audioCodecs: string; audioFragments: number; width: number; height: number } | null

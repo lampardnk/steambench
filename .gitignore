@@ -21,3 +21,6 @@ __pycache__/
 server/node_modules/
 # raw agent session transcripts
 codex-session-*.md
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
