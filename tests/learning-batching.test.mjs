@@ -365,9 +365,9 @@ test('a standalone probe reports an unmoved edge instead of failing, and stays b
     [{ type: 'input', buttons: ['left', 'left'], probe: true }],
     [{ type: 'input', buttons: ['left'], probe: true, expect: { state_type: 'map', focus_path: '/map/Points/@Control@372' } }],
     [{ type: 'input', buttons: ['left'], probe: true, expect: { state_type: 'map' } }, { type: 'input', buttons: ['a'], from: { state_type: 'map', focus_path: '/x' } }],
-  ]) assert.throws(() => validatePlan(planFor(state, actions), state), /standalone noncombat directional press|batch navigation separately/);
+  ]) assert.throws(() => validatePlan(planFor(state, actions), state), /outside live card play|batch navigation separately/);
   const combat = initialCombat();
-  assert.throws(() => validatePlan(planFor(combat, [{ type: 'input', buttons: ['left'], probe: true }]), combat), /standalone noncombat directional press/);
+  assert.throws(() => validatePlan(planFor(combat, [{ type: 'input', buttons: ['left'], probe: true }]), combat), /outside live card play/);
 });
 
 test('a batch that costs more energy than the turn has is refused before any input', async () => {
@@ -445,4 +445,30 @@ test('a wrong prediction on the last step is reported, not paused; on an earlier
   ]), rewards());
   assert.match(batched.error, /did not reach expected screen\/focus/);
   assert.equal(earlier.inputs.length, 1, 'the activation was never sent');
+});
+
+test('a selection overlay during combat is a list, not card play', async () => {
+  // The player reached a hand_select overlay on an auto-generated focus path
+  // and could neither batch navigation nor probe, because both rules keyed off
+  // "is there a battle" rather than "is a card being aimed".
+  const overlay = () => ({
+    state_type: 'hand_select', run: { floor: 12, act: 1 },
+    player: { hp: 17, block: 8, energy: 0, hand: [{ instance_id: 1, index: 0, name: 'Strike', can_play: false, target_type: 'AnyEnemy' }] },
+    battle: { is_play_phase: false, turn: 'player', round: 5, enemies: [{ entity_id: 'FOE_0', combat_id: 9, hp: 12 }] },
+    ui: { focus_path: '/Hand/CardHolderContainer/@Control@3421' },
+  });
+  validatePlan(planFor(overlay(), [{ type: 'input', buttons: ['right', 'right'] }]), overlay());
+  validatePlan(planFor(overlay(), [{ type: 'input', buttons: ['left'], probe: true }]), overlay());
+
+  // And an unmoved probe answers the question instead of failing the run.
+  const edge = fixture(overlay(), { onInput: state => state });
+  const stuck = await edge.executor.execute(planFor(overlay(), [{ type: 'input', buttons: ['left'] }]), overlay());
+  assert.equal(stuck.error, undefined);
+  assert.equal(stuck.completed[0].moved, false);
+
+  // Live card play keeps every restriction: a stray direction there changes
+  // which enemy a lifted card hits.
+  const play = initialCombat();
+  assert.throws(() => validatePlan(planFor(play, [{ type: 'input', buttons: ['right', 'right'] }]), play), /batch navigation separately/);
+  assert.throws(() => validatePlan(planFor(play, [{ type: 'input', buttons: ['left'], probe: true }]), play), /outside live card play/);
 });

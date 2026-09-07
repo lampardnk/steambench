@@ -106,6 +106,19 @@ export function isCombat(state) {
   return Boolean(state.battle && Array.isArray(state.player?.hand));
 }
 
+/**
+ * Live card play, as opposed to a selection overlay that happens to be open
+ * during a combat. The batching and probe restrictions exist to protect
+ * targeting: a card is lifted, an enemy is aimed at, and a stray direction
+ * changes what gets hit. A discard, exhaust or card-select overlay is a list
+ * UI with none of that, and treating it as card play left the player unable to
+ * batch navigation OR probe - stuck on an auto-generated focus path with no
+ * legal way to find out what it was pointing at.
+ */
+export function isCardPlay(state) {
+  return isCombat(state) && !/select|overlay|reward/.test(state.state_type);
+}
+
 export function ready(state) {
   return !isCombat(state) || /select|overlay|reward/.test(state.state_type) || (state.battle.is_play_phase === true && state.battle.turn === 'player');
 }
@@ -162,15 +175,15 @@ export function validatePlan(plan, state) {
       if (index > 0 && (!validUiExpectation(action.from) || !action.from.focus_path)) throw new Error('later UI actions require an exact expected screen and focus precondition');
       const source = index === 0 ? state : { state_type: action.from.state_type, menu_screen: action.from.menu_screen, ui: { focus_path: action.from.focus_path } };
       const navigation = action.buttons.every(button => DIRECTIONS.includes(button));
-      if (action.buttons.length > 1 && (!navigation || isCombat(state))) throw new Error('batch navigation separately from activation; combine verified semantic sequences in one plan');
-      if (action.probe !== undefined && (action.probe !== true || actions.length !== 1 || action.buttons.length !== 1 || !navigation || action.expect || isCombat(state))) throw new Error('probe is a single standalone noncombat directional press with no expected destination');
+      if (action.buttons.length > 1 && (!navigation || isCardPlay(state))) throw new Error('batch navigation separately from activation; combine verified semantic sequences in one plan');
+      if (action.probe !== undefined && (action.probe !== true || actions.length !== 1 || action.buttons.length !== 1 || !navigation || action.expect || isCardPlay(state))) throw new Error('probe is a single standalone directional press, with no expected destination, outside live card play');
       if (index < actions.length - 1 && (!action.expect || (!navigation && !startupTransition(source, action)))) throw new Error('activation is a final semantic boundary except verified startup transitions');
       if (navigation && index < actions.length - 1 && !action.expect.focus_path) throw new Error('navigation before activation requires the exact destination focus');
       // A directional move that predicts the focus it starts from cannot be verified: reject it
       // before any input rather than spending presses on an expectation that must fail.
       const origin = index === 0 ? state.ui?.focus_path : action.from?.focus_path;
       if (navigation && action.expect?.focus_path && origin && action.expect.focus_path === origin) throw new Error('a directional move cannot expect the focus it starts from; navigate standalone when the destination path is unknown');
-      if (isCombat(state) && actions.length !== 1) throw new Error('raw combat UI input must be standalone');
+      if (isCardPlay(state) && actions.length !== 1) throw new Error('raw combat UI input must be standalone');
     } else if (action.type === 'scout') {
       if (actions.length !== 1 || state.state_type !== 'map' || !['up', 'down'].includes(action.direction) || !['left', 'right'].includes(action.stick || 'left') || !Number.isInteger(action.hold_ms) || action.hold_ms < 100 || action.hold_ms > 600) throw new Error('scout requires a map, up/down direction, left/right stick and 100–600 ms hold');
     } else if (action.type === 'learn') {

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { DIRECTIONS, isCombat, noteProblem, progressId, ready, startupTransition, stateId, uiMatches, uncertainCard, validatePlan } from './state.mjs';
+import { DIRECTIONS, isCardPlay, isCombat, noteProblem, progressId, ready, startupTransition, stateId, uiMatches, uncertainCard, validatePlan } from './state.mjs';
 
 export const MAX_NOTE = 8000;
 
@@ -254,7 +254,7 @@ export class Executor {
           // focus is the answer (already at that edge), not a fault. Opaque @Control@NNNN labels
           // make this the only way to locate focus. Every other sequence still pauses.
           const probing = action.probe || (steps.length === 1 && action.buttons.length === 1
-            && DIRECTIONS.includes(action.buttons[0]) && !action.expect && !isCombat(before));
+            && DIRECTIONS.includes(action.buttons[0]) && !action.expect && !isCardPlay(before));
           if (probing && stateId(state) === stateId(before)) {
             completed.push({ action, buttons: action.buttons, verified: true, moved: false, detail: 'Focus did not move, so it was already at that edge of the reachable options.' });
             this.record({ type: 'action', before, after: state, action, verified: true, moved: false });
