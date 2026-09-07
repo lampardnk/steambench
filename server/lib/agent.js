@@ -1,7 +1,7 @@
 // Runs one steambench-pi agent container in Pi's RPC mode and turns its
 // JSONL event stream into a compact transcript the dashboard can render.
 import { EventEmitter } from 'node:events';
-import { spawnRun, rmForce } from './docker.js';
+import { spawnRun, rmForce, allContainers } from './docker.js';
 
 const MAX_ITEMS = 400;
 const MAX_TEXT = 20000;
@@ -30,6 +30,7 @@ export class PiAgent extends EventEmitter {
     this.current = { thinking: null, text: null };
     this.exitInfo = null;
     this.stderrTail = '';
+    this.attention = null;
   }
 
   start() {
@@ -104,6 +105,11 @@ export class PiAgent extends EventEmitter {
     this.status = 'stopped';
     try { this.proc?.stdin.end(); } catch { /* ignore */ }
     await rmForce(this.name);
+    const deadline = Date.now() + 15000;
+    while ((await allContainers(this.name)).includes(this.name)) {
+      if (Date.now() >= deadline) throw new Error(`player container ${this.name} is still being removed; refusing name reuse`);
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
     this.emit('status', this.status);
   }
 
@@ -115,6 +121,11 @@ export class PiAgent extends EventEmitter {
       return;
     }
     switch (msg.type) {
+      case 'steambench_attention':
+        this.attention = msg.attention || null;
+        if (this.attention) this._system(`Supervisor required [${this.attention.id}]: ${String(this.attention.error || '').slice(0, 1200)}`);
+        this.emit('attention', this.attention);
+        break;
       case 'agent_start':
         this.status = 'running'; this.emit('status', this.status); break;
       case 'agent_settled':

@@ -1,4 +1,7 @@
 .runtime
+.env
+.env.*
+previous_work.txt
 .git
 node_modules
 .next

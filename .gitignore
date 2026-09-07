@@ -15,6 +15,9 @@ node_modules
 .DS_Store
 # steambench runtime state and secrets
 .runtime/
+previous_work.txt
 __pycache__/
 .env
 server/node_modules/
+# raw agent session transcripts
+codex-session-*.md

@@ -1,0 +1,15 @@
+FROM steambench-pi
+
+USER root
+COPY client/astra/ /opt/steambench/client/astra/
+COPY client/gateway_client.js /opt/steambench/client/gateway_client.js
+COPY server/lib/learning-profile.mjs /opt/steambench/server/lib/learning-profile.mjs
+COPY --chown=node:node client/astra/models.json /home/node/.pi/agent/models.json
+COPY --chown=node:node client/astra/settings.json /home/node/.pi/agent/settings.json
+USER node
+ENV STEAMBENCH_PLAYER_ID=STS2-Pi-Luna-v0.1
+LABEL org.opencontainers.image.title="STS2-Pi-Luna-v0.1" \
+      ai.steambench.model="openai/gpt-5.6-luna" \
+      ai.steambench.reasoning="max"
+ENTRYPOINT ["node", "/opt/steambench/client/astra/player.mjs"]
+CMD []

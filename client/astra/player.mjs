@@ -1,0 +1,276 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import readline from 'node:readline';
+import { randomUUID } from 'node:crypto';
+import gateway from '../gateway_client.js';
+import { Planner } from './planner.mjs';
+import { Executor, learnedFiles } from './executor.mjs';
+import { VERSION, SENSOR_VERSION, compactState, digest, needsScreenshot, plannerResult, plannerState, stateId, validatePlan } from './state.mjs';
+import { encounterReferences } from './references.mjs';
+import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
+import { PROFILE } from './profile.mjs';
+import { learningDelta, saveIncident } from './incidents.mjs';
+
+const directory = process.env.STEAMBENCH_LEARNING_SCRATCHPAD || process.env.STEAMBENCH_ASTRA_SCRATCHPAD || '/workspace/skills/sts2/scratchpad';
+// The skill tree outlives the room through the server's git library; scratchpad/ does not.
+const skillDir = path.dirname(directory);
+fs.mkdirSync(directory, { recursive: true });
+let checkpoint = null;
+try { checkpoint = JSON.parse(fs.readFileSync(path.join(directory, 'checkpoint.json'), 'utf8')); } catch { }
+if (checkpoint?.version !== VERSION) checkpoint = null;
+const sessionId = randomUUID().slice(0, 8);
+const emit = event => process.stdout.write(JSON.stringify(event) + '\n');
+const usage = { requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, modelLatencyMs: 0, ...checkpoint?.usage };
+const policyHash = digest([PROFILE, ...['prompt.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'references.mjs', 'references.json', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
+const catalog = new ObservationCatalog(directory);
+const started = checkpoint?.started || Date.now();
+let totalInputs = checkpoint?.totalInputs || 0;
+let verifiedPlays = checkpoint?.verifiedPlays || 0;
+let actionFailures = checkpoint?.actionFailures || 0;
+const executionMetrics = { sensors: 0, screenshots: 0, completedActions: 0, batches: 0, ...checkpoint?.executionMetrics };
+let build = null;
+let lastState = checkpoint?.lastState || null;
+let lifecycle = 'idle';
+let attention = checkpoint?.attention || null;
+let requiresResume = Boolean(checkpoint);
+const recentSensors = [];
+const recentInputs = [];
+const record = event => {
+  if (event.type === 'sensor') {
+    executionMetrics.sensors++;
+    // Startup may cross multiple verified menu boundaries in one model plan.
+    if (event.state?.menu_screen === 'character_select') sawCharacterSelect = true;
+    if (event.state?.run?.floor === 1 && sawCharacterSelect) freshRunVerified = true;
+    recentSensors.push({ at: Date.now(), ...event });
+    if (recentSensors.length > 24) recentSensors.shift();
+    return;
+  }
+  if (event.type === 'model_usage') {
+    usage.requests++;
+    usage.modelLatencyMs += event.latencyMs || 0;
+    for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'totalTokens']) usage[key] += Number(event.usage?.[key] || 0);
+  }
+  if (event.type === 'input') {
+    totalInputs++;
+    recentInputs.push({ at: Date.now(), ...event });
+    if (recentInputs.length > 24) recentInputs.shift();
+  }
+  if (event.type === 'action' && event.action?.type === 'play' && event.verified) verifiedPlays++;
+  if (event.type === 'action_failure' || event.type === 'planner_failure') actionFailures++;
+  fs.appendFileSync(path.join(directory, 'events.jsonl'), JSON.stringify({ at: Date.now(), version: VERSION, sessionId, decision, ...event }) + '\n');
+};
+const planner = new Planner({ emit, record });
+let active = false;
+let controller;
+// Older checkpoints stored plain strings; every instruction now carries the decision it arrived at
+// so a one-time retry directive is not mistaken for a standing order.
+let instructions = (checkpoint?.instructions || []).map(item => (typeof item === 'string' ? { at_decision: null, from: 'supervisor review', text: item } : item));
+let strategy = checkpoint?.strategy || '';
+let decision = checkpoint?.decision || 0;
+let lastResult = checkpoint?.lastResult || null;
+let accepted = [];
+let taskText = checkpoint?.taskText || '';
+let freshRunVerified = checkpoint?.freshRunVerified || false;
+let sawCharacterSelect = checkpoint?.sawCharacterSelect || false;
+let memorySeed = null;
+try {
+  const file = path.join(directory, 'accepted.json');
+  if (fs.statSync(file).size <= 12000) memorySeed = JSON.parse(fs.readFileSync(file, 'utf8'));
+} catch { }
+
+function saveMetrics() {
+  fs.writeFileSync(path.join(directory, 'metrics.json'), JSON.stringify({ version: VERSION, playerName: PROFILE.name, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, lifecycle, decisions: decision, inputs: totalInputs, verifiedPlays, actionFailures, executionMetrics, elapsedMs: Date.now() - started, floor: lastState?.run?.floor, act: lastState?.run?.act, attention, acceptedMemoryHash: digest(accepted), usage }, null, 2));
+  const saved = { version: VERSION, policyHash, started, taskText, instructions, strategy, decision, lastResult, lastState, freshRunVerified, sawCharacterSelect, attention, usage, totalInputs, verifiedPlays, actionFailures, executionMetrics };
+  const temporary = path.join(directory, 'checkpoint.tmp');
+  fs.writeFileSync(temporary, JSON.stringify(saved));
+  fs.renameSync(temporary, path.join(directory, 'checkpoint.json'));
+}
+
+// The operator answers a paused player either through the explicit resume route or by replying in
+// the room chat. Both record the review, clear the pending issue and mark the previous error
+// historical; only the explicit route can acknowledge an incident ID.
+function acknowledge(text, { via, issueId = null }) {
+  const resolution = { at: Date.now(), issueId: attention?.id || null, acknowledgedIssueId: issueId, via, message: text.slice(0, 2000), policyHash };
+  fs.appendFileSync(path.join(directory, 'incident-resolutions.jsonl'), JSON.stringify(resolution) + '\n');
+  if (attention) fs.writeFileSync(path.join(directory, 'attention.json'), JSON.stringify({ ...attention, status: 'resolved', resolution }, null, 2));
+  attention = null;
+  requiresResume = false;
+  instructions = [...instructions, { at_decision: decision, from: via === 'chat' ? 'operator chat reply' : 'supervisor review', text: resolution.message }].slice(-3);
+  if (lastResult) lastResult = { ...lastResult, supervisor_reviewed: true };
+  emit({ type: 'steambench_attention', attention: null });
+  saveMetrics();
+  return resolution;
+}
+
+function message(text) {
+  emit({ type: 'message_start' });
+  emit({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: text } });
+  emit({ type: 'message_update', assistantMessageEvent: { type: 'text_end' } });
+}
+
+async function run(task) {
+  active = true;
+  controller = new AbortController();
+  const executor = new Executor({ call: gateway.call, record, signal: controller.signal, skillDir });
+  emit({ type: 'agent_start' });
+  lifecycle = 'running';
+  message(`${PROFILE.name} · ${PROFILE.provider}/${PROFILE.model} · ${PROFILE.reasoning} reasoning`);
+  let unchanged = 0;
+  let stalePlans = 0;
+  let previous = '';
+  let previousInput = '';
+  let repeatedInput = 0;
+  let observation = lastState;
+  let beforeImage = null;
+  let plan = null;
+  try {
+    while (decision < 800) {
+      decision++;
+      controller.signal.throwIfAborted();
+      plan = null;
+      beforeImage = null;
+      const state = await executor.settled();
+      lastState = state;
+      observation = state;
+      build = compatibility(state, policyHash);
+      if (state.ui?.sensor_version !== SENSOR_VERSION || state.ui.error) throw new Error('read-only learning UI sensor is missing or incompatible; install the matching sensor mod build');
+      accepted = acceptedLessons(memorySeed, build);
+      const current = stateId(state);
+      unchanged = current === previous ? unchanged + 1 : 0;
+      previous = current;
+      if (unchanged >= 3) throw new Error('three observations without gameplay progress; requesting supervisor inspection');
+      if (state.menu_screen === 'character_select') sawCharacterSelect = true;
+      if (state.run?.floor === 1 && sawCharacterSelect) freshRunVerified = true;
+      const compact = compactState(state);
+      record({ type: 'observation', decision, state });
+      catalog.observe(state, decision, build);
+      fs.writeFileSync(path.join(directory, 'facts.json'), JSON.stringify({ version: VERSION, decision, observedAt: Date.now(), state: compact }, null, 2));
+      if (state.state_type === 'game_over' && freshRunVerified) {
+        const result = state.game_over?.win === true || state.game_over?.victory === true ? 'won' : state.game_over?.win === false || state.game_over?.victory === false || state.player?.hp === 0 ? 'lost' : null;
+        if (!result) throw new Error('game_over result needs verification; refusing to guess');
+        const summary = `${PROFILE.name}: ${result}; act ${state.run?.act}, floor ${state.run?.floor}; ${decision} decisions.`;
+        const finished = await gateway.call({ op: 'room-finish', result, summary });
+        lifecycle = result;
+        record({ type: 'run_finished', result, state });
+        message(JSON.stringify(finished));
+        return;
+      }
+      const needsImage = needsScreenshot(state);
+      if (needsImage) {
+        executionMetrics.screenshots++;
+        beforeImage = await gateway.call({ op: 'screenshot', format: 'jpeg' });
+        if (beforeImage.age_ms > 2000) throw new Error('screenshot is stale; refusing to act without current visual evidence');
+      }
+      const image = beforeImage;
+      const context = { version: VERSION, task: task.slice(0, 6000), fresh_run_verified: freshRunVerified, observation_id: stateId(state), state: plannerState(state, lastResult, strategy), strategy, reference_data: encounterReferences(state), accepted_lessons: accepted, learned_notes: learnedFiles(skillDir), last_result: lastResult, user_instructions: instructions.slice(-3), consecutive_no_progress: unchanged };
+      record({ type: 'decision_context', characters: JSON.stringify(context).length, screenshot: Boolean(image), acceptedMemoryHash: digest(accepted) });
+      if (JSON.stringify(context).length > 40000) throw new Error('decision context exceeds 40,000 characters; refusing silent truncation');
+      emit({ type: 'message_start' });
+      try { plan = validatePlan(await planner.decide(context, image), state); }
+      catch (error) {
+        controller.signal.throwIfAborted();
+        lastResult = { error: `planner: ${error.message}` };
+        record({ type: 'planner_failure', error: error.message });
+        throw error;
+      }
+      controller.signal.throwIfAborted();
+      const signature = digest({ state: stateId(state), actions: plan.actions });
+      repeatedInput = signature === previousInput ? repeatedInput + 1 : 0;
+      previousInput = signature;
+      if (repeatedInput >= 1) throw new Error('same plan against unchanged state; requesting supervisor before repeating it');
+      message(plan.summary);
+      const toolCallId = `learn-${sessionId}-${decision}`;
+      fs.appendFileSync(path.join(directory, 'learning.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, kind: 'pre_action_hypothesis', note: plan.note, evidence: toolCallId, compatibility: build }) + '\n');
+      if (plan.actions[0].type === 'report_issue') throw new Error(`Agent requests help: ${plan.actions[0].issue}`);
+      emit({ type: 'tool_execution_start', toolCallId, toolName: 'sts2_execute', args: plan });
+      const batchStarted = Date.now();
+      const batchSensors = executionMetrics.sensors;
+      const batchInputs = executor.inputs;
+      const result = await executor.execute(plan, state).catch(error => ({ error: error.message, code: error.code, completed: [] }));
+      executionMetrics.batches++;
+      executionMetrics.completedActions += result.completed.length;
+      record({ type: 'decision_result', plan, completed: result.completed, error: result.error, latencyMs: Date.now() - batchStarted, sensorCalls: executionMetrics.sensors - batchSensors, inputs: executor.inputs - batchInputs });
+      if (result.state) lastState = result.state;
+      lastResult = plannerResult(result);
+      emit({ type: 'tool_execution_end', toolCallId, toolName: 'sts2_execute', isError: Boolean(result.error), result: { content: [{ type: 'text', text: JSON.stringify(lastResult) }] } });
+      fs.appendFileSync(path.join(directory, 'learning.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, kind: 'observed_outcome', evidence: toolCallId, completed: result.completed, error: result.error, ...learningDelta(state, result.state) }) + '\n');
+      if (plan.strategy) strategy = plan.strategy;
+      if (plan.lesson) fs.appendFileSync(path.join(directory, 'candidates.jsonl'), JSON.stringify({ id: digest({ decision, lesson: plan.lesson }), version: VERSION, compatibility: build, status: 'candidate', text: plan.lesson, decision, evidence: toolCallId, verifiedActions: result.completed, error: result.error }) + '\n');
+      fs.writeFileSync(path.join(directory, 'run.md'), `# ${PROFILE.name}\n\nDecision: ${decision}\n\nStrategy (hypothesis): ${strategy}\n\nLatest verified result: ${JSON.stringify(lastResult)}\n`);
+      saveMetrics();
+      if (result.code === 'stale_observation' && ++stalePlans < 3) continue;
+      if (result.error) throw new Error(result.error);
+      stalePlans = 0;
+    }
+    throw new Error('800-decision run budget reached');
+  } catch (error) {
+    lifecycle = 'paused';
+    requiresResume = true;
+    await gateway.call({ op: 'pad-neutral' }, { timeoutMs: 3000 }).catch(() => {});
+    let after = recentSensors.at(-1)?.state || lastState;
+    let afterImage = null;
+    try { after = JSON.parse((await gateway.call({ op: 'sts2-get', path: '/api/v1/singleplayer', query: { format: 'json' } })).body); } catch { }
+    try { executionMetrics.screenshots++; afterImage = await gateway.call({ op: 'screenshot', format: 'jpeg' }); } catch { }
+    const reason = String(error.message).replace(/sk-(?:or-v1-)?[a-zA-Z0-9_-]{20,}/g, '[redacted]');
+    if (!controller.signal.aborted) {
+      const logFile = path.join(directory, 'events.jsonl');
+      attention = saveIncident(directory, { decision, sessionId, error: reason, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, before: observation, after, beforeImage, afterImage, plan, planner: planner.lastDiagnostics, lastResult, recentInputs, recentSensors, eventLogBytes: fs.existsSync(logFile) ? fs.statSync(logFile).size : 0 });
+      emit({ type: 'steambench_attention', attention });
+      message(`SUPERVISOR REQUIRED [${attention.id}]: ${reason}\nEvidence: ${attention.path}\nNo further gameplay inputs until explicit resume.`);
+    } else message('Player paused by operator; no further gameplay inputs.');
+    if (after) lastState = after;
+    record({ type: 'paused', error: reason, attention });
+  } finally {
+    saveMetrics();
+    await gateway.call({ op: 'pad-neutral' }).catch(() => {});
+    active = false;
+    emit({ type: 'agent_settled' });
+  }
+}
+
+if (process.argv.includes('--smoke')) {
+  const state = { state_type: 'menu', menu_screen: 'main' };
+  const plan = await planner.decide({ task: 'Smoke test: choose a standalone wait action. No game is connected.', observation_id: stateId(state), state });
+  validatePlan(plan, state);
+  console.log(JSON.stringify({ smoke: 'passed', model: PROFILE.model, reasoning: PROFILE.reasoning, plan }));
+} else {
+  const input = readline.createInterface({ input: process.stdin });
+  input.on('line', async line => {
+    let command;
+    try {
+      command = JSON.parse(line);
+      if (command.type === 'get_state') {
+        emit({ type: 'response', id: command.id, command: command.type, success: true, data: { isStreaming: active, model: PROFILE.model, thinkingLevel: PROFILE.reasoning, player: VERSION, displayName: PROFILE.name, attention, requiresResume, checkpointRestored: Boolean(checkpoint) } });
+        if (attention) emit({ type: 'steambench_attention', attention });
+      }
+      else if (command.type === 'resume') {
+        if (active) throw new Error('player is already running');
+        if (!taskText) throw new Error('no existing task to resume');
+        if (attention && command.issueId !== attention.id) throw new Error(`explicit acknowledgement of issue ${attention.id} is required`);
+        if (typeof command.message !== 'string' || !command.message.trim()) throw new Error('resume requires the supervisor review/fix description');
+        acknowledge(command.message, { via: 'resume', issueId: command.issueId || null });
+        emit({ type: 'response', id: command.id, command: command.type, success: true });
+        void run(taskText);
+      }
+      else if (command.type === 'prompt' || command.type === 'steer') {
+        if (typeof command.message !== 'string' || !command.message.trim()) throw new Error('message required');
+        if (active && (attention || requiresResume)) throw new Error('player is still stopping; wait for it to settle before replying');
+        // A chat reply answers a paused, reloaded or issue-reporting player: it clears the pending
+        // issue and restarts the same run. The resolution journal records that it came from chat.
+        const answering = Boolean(attention || requiresResume);
+        if (answering) acknowledge(command.message, { via: 'chat' });
+        emit({ type: 'response', id: command.id, command: command.type, success: true });
+        if (!taskText) taskText = command.message;
+        else if (!answering) instructions = [...instructions, { at_decision: decision, from: 'operator chat', text: command.message.slice(0, 2000) }].slice(-3);
+        saveMetrics();
+        if (!active) void run(taskText);
+      } else if (command.type === 'abort') {
+        controller?.abort();
+        await planner.abort();
+        emit({ type: 'response', id: command.id, command: command.type, success: true });
+      } else throw new Error('unsupported RPC command');
+    } catch (error) { emit({ type: 'response', id: command?.id, command: command?.type, success: false, error: error.message }); }
+  });
+  input.on('close', () => { controller?.abort(); void planner.abort(); });
+  process.on('SIGTERM', () => { controller?.abort(); void planner.abort(); });
+}
