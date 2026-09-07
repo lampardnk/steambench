@@ -402,3 +402,47 @@ test('a batch that costs more energy than the turn has is refused before any inp
   gainsEnergy.player.hand[1].description = 'Deal 5 damage. Gain 2 energy.';
   validatePlan(planFor(gainsEnergy, [play(1), play(2), { type: 'play', card: 3 }]), gainsEnergy);
 });
+
+test('a wrong prediction on the last step is reported, not paused; on an earlier step it still pauses', async () => {
+  // Collecting a reward consumes it and focus lands on an auto-generated
+  // sibling path nobody can predict. The action worked; only the guess did not.
+  const rewards = () => ({
+    state_type: 'rewards', run: { floor: 3, act: 1 }, player: { hp: 33, max_hp: 80 },
+    rewards: { items: [{ index: 0, type: 'gold' }, { index: 1, type: 'card' }], can_proceed: true },
+    ui: { focus_path: '/Rewards/RewardButton' },
+  });
+  const collected = state => {
+    const next = structuredClone(state);
+    next.rewards.items = [{ index: 0, type: 'card' }];
+    next.ui.focus_path = '/Rewards/@Control@3081';
+    return next;
+  };
+
+  const last = fixture(rewards(), { onInput: collected });
+  const result = await last.executor.execute(planFor(rewards(), [
+    { type: 'input', buttons: ['a'], expect: { state_type: 'rewards', focus_path: '/Rewards/RewardButton' } },
+  ]), rewards());
+  assert.equal(result.error, undefined, 'the scene changed, so the action is not a failure');
+  assert.equal(result.completed[0].verified, true);
+  assert.equal(result.completed[0].expectation_missed.observed.focus_path, '/Rewards/@Control@3081');
+  assert.equal(last.inputs.length, 1, 'and nothing further was sent');
+
+  // A trailing note does not make the press an earlier step.
+  const noted = fixture(rewards(), { onInput: collected });
+  const withNote = await noted.executor.execute(planFor(rewards(), [
+    { type: 'input', buttons: ['a'], expect: { state_type: 'rewards', focus_path: '/Rewards/RewardButton' } },
+    { type: 'learn', path: 'controls/rewards.md', content: '---\ndescription: Rewards\nkeys: rewards\n---\nFocus moves after collecting.\n', message: 'Record the reward focus rule' },
+  ]), rewards());
+  assert.equal(withNote.error, undefined);
+  assert.equal(withNote.completed[1].action.type, 'learn');
+
+  // With another gameplay action still queued, a wrong prediction must stop the
+  // batch: the next input would be aimed at a scene that was never verified.
+  const earlier = fixture(rewards(), { onInput: collected });
+  const batched = await earlier.executor.execute(planFor(rewards(), [
+    { type: 'input', buttons: ['down'], expect: { state_type: 'rewards', focus_path: '/Rewards/CardButton' } },
+    { type: 'input', buttons: ['a'], from: { state_type: 'rewards', focus_path: '/Rewards/CardButton' } },
+  ]), rewards());
+  assert.match(batched.error, /did not reach expected screen\/focus/);
+  assert.equal(earlier.inputs.length, 1, 'the activation was never sent');
+});

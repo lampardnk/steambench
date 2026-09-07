@@ -261,7 +261,21 @@ export class Executor {
             break;
           }
           if (stateId(state) === stateId(before)) throw new Error('UI sequence produced no observed change; stopping before further input');
-          if (action.expect && !uiMatches(state, action.expect)) throw new Error('UI sequence did not reach expected screen/focus; stopping before further input');
+          // A wrong prediction is not a failed action. What the gate protects
+          // against is sending the NEXT input into a scene that is not the one
+          // planned for - so on the last step, with the scene demonstrably
+          // changed and nothing left to send, a missed expectation is reported
+          // as an unmet hypothesis and the planner decides from fresh state.
+          // Sibling focus paths are auto-generated and genuinely unpredictable,
+          // and pausing a run over one turned successful actions into incidents.
+          const missed = action.expect && !uiMatches(state, action.expect);
+          const last = action === steps.at(-1);
+          if (missed && !last) throw new Error('UI sequence did not reach expected screen/focus; stopping before further input');
+          if (missed) {
+            completed.push({ action, buttons: action.buttons, verified: true, expectation_missed: { expected: action.expect, observed: { state_type: state.state_type, menu_screen: state.menu_screen ?? null, focus_path: state.ui?.focus_path ?? null } }, detail: 'The action changed the scene but not into what you predicted. Nothing further was sent; decide from fresh state, and do not predict a sibling focus path again.' });
+            this.record({ type: 'action', before, after: state, action, verified: true, expectationMissed: true });
+            break;
+          }
           const navigation = action.buttons.every(button => DIRECTIONS.includes(button));
           if (navigation && progressId(state) !== progressId(before)) throw new Error('navigation changed gameplay unexpectedly; stopping before further input');
           const barrier = !navigation && !startupTransition(before, action);
