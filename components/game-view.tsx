@@ -50,6 +50,11 @@ export function GameView({ settings, room }: { settings: Settings; room: RoomSum
   const [muted, setMuted] = useState(true)
   const [status, setStatus] = useState('connecting…')
   const [tick, setTick] = useState(0)
+  // A dropped socket used to say "reconnecting…" and then never reconnect.
+  // Bumping this rebuilds the MediaSource and the socket; after several failed
+  // attempts we fall back to still frames rather than sitting on a dead player.
+  const [attempt, setAttempt] = useState(0)
+  const failures = useRef(0)
 
   const supported = typeof window !== 'undefined' && typeof window.MediaSource !== 'undefined'
 
@@ -79,6 +84,7 @@ export function GameView({ settings, room }: { settings: Settings; room: RoomSum
     let audioAppender: Appender | null = null
     let closed = false
     let hello: Hello | null = null
+    let retry: ReturnType<typeof setTimeout> | undefined
 
     const addBuffers = () => {
       if (!hello || ms.readyState !== 'open') return
@@ -124,13 +130,23 @@ export function GameView({ settings, room }: { settings: Settings; room: RoomSum
       if (tag === TRACK.videoInit || tag === TRACK.videoFragment) videoAppender?.push(payload)
       if (tag === TRACK.audioInit || tag === TRACK.audioFragment) audioAppender?.push(payload)
       if (tag === TRACK.videoInit) {
+        failures.current = 0
         setStatus('')
         video.play().catch(() => setStatus('press play to start'))
       }
     }
     ws.onerror = () => setStatus('stream connection failed')
     ws.onclose = () => {
-      if (!closed) setStatus('stream disconnected, reconnecting…')
+      if (closed) return
+      failures.current += 1
+      if (failures.current > 4) {
+        setStatus('live stream keeps dropping; showing still frames')
+        setMode('stills')
+        return
+      }
+      const wait = Math.min(1000 * failures.current, 5000)
+      setStatus(`stream disconnected, reconnecting in ${Math.round(wait / 1000)}s…`)
+      retry = setTimeout(() => setAttempt((n) => n + 1), wait)
     }
 
     // Stay at the live edge and keep the buffer short.
@@ -154,9 +170,11 @@ export function GameView({ settings, room }: { settings: Settings; room: RoomSum
 
     return () => {
       closed = true
+      clearTimeout(retry)
       clearInterval(keeper)
       try { ws?.close() } catch { /* already closed */ }
       try { if (ms.readyState === 'open') ms.endOfStream() } catch { /* not open */ }
+      URL.revokeObjectURL(video.src)
       video.removeAttribute('src')
       video.load()
     }
@@ -166,7 +184,16 @@ export function GameView({ settings, room }: { settings: Settings; room: RoomSum
     if (mode !== 'live') return
     const cleanup = connect()
     return cleanup
-  }, [connect, mode])
+    // `attempt` is the reconnect trigger: changing it tears the stream down and builds a new one.
+  }, [connect, mode, attempt])
+
+  /** Manual retry from stills, which also clears the failure count. */
+  const backToLive = () => {
+    failures.current = 0
+    setStatus('connecting…')
+    setMode('live')
+    setAttempt((n) => n + 1)
+  }
 
   const toggleMute = () => {
     const video = videoRef.current
@@ -203,7 +230,7 @@ export function GameView({ settings, room }: { settings: Settings; room: RoomSum
           <span className="text-neutral-500">still frames only (no sound)</span>
         )}
         <button
-          onClick={() => setMode(mode === 'live' ? 'stills' : 'live')}
+          onClick={() => (mode === 'live' ? setMode('stills') : backToLive())}
           className="rounded border border-neutral-600 px-2 py-1 hover:bg-neutral-800"
           disabled={!supported && mode === 'stills'}
         >

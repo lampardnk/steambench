@@ -8,6 +8,7 @@ import { ControllerView } from '@/components/controller'
 import { GameView } from '@/components/game-view'
 import { SteamLogin } from '@/components/steam-login'
 import { Transcript } from '@/components/transcript'
+import { Learning } from '@/components/learning'
 
 type WsMessage =
   | { type: 'snapshot'; room: RoomSummary; transcript: TranscriptItem[]; padHistory: PadEvent[]; log: string[] }
@@ -30,6 +31,7 @@ export default function RoomPage() {
   const [log, setLog] = useState<string[]>([])
   const [error, setError] = useState('')
   const [connected, setConnected] = useState(false)
+  const [tab, setTab] = useState<'conversation' | 'learning'>('conversation')
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function RoomPage() {
   return (
     <main className="min-h-svh bg-background text-foreground">
       <SettingsBar settings={settings} onChange={setSettings} status={room ? `${room.name} · ${STAGE_LABELS[room.stage] || room.stage}` : connected ? 'connected' : 'connecting…'} />
-      <div className="mx-auto max-w-7xl px-4 py-4">
+      <div className="mx-auto w-full max-w-6xl px-4 py-4">
         {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
         {!room && <p className="text-sm text-muted-foreground">{configured ? 'Loading room…' : 'Configure the server URL and token first.'}</p>}
         {room && (
@@ -118,42 +120,89 @@ export default function RoomPage() {
               </button>
             </header>
 
-            <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-              <section className="flex flex-col gap-3">
+            {/* One column, three things: what the room looks like, what is being
+                said to and by the player, and everything you only open when
+                something is wrong. */}
+            <div className="flex flex-col gap-4">
+              <section>
                 <GameView settings={settings} room={room} />
-                {room.stage === 'login' && <SteamLogin room={room} />}
-                {room.stage === 'setup' && <SetupForm settings={settings} room={room} onDone={(r) => setRoom(r)} />}
+                {room.stage === 'login' && <div className="mt-3"><SteamLogin room={room} /></div>}
+                {room.stage === 'setup' && <div className="mt-3"><SetupForm settings={settings} room={room} onDone={(r) => setRoom(r)} /></div>}
                 {room.stage === 'finished' && room.finish && (
-                  <div className="rounded-md border border-border bg-card p-3 text-sm">
+                  <div className="mt-3 rounded-md border border-border bg-card p-3 text-sm">
                     <div className="font-medium">Run {room.finish.result}</div>
                     <p className="text-muted-foreground">{room.finish.summary}</p>
                     {room.finish.disputed && (
                       <p className="mt-1 text-amber-700">
-                        The player reported a loss while the game still showed a run in progress, so this result may be wrong.
+                        The game still showed a run in progress when the player reported a loss, so this result may be wrong.
                       </p>
                     )}
                     <p className="mt-1 text-xs text-muted-foreground">The room is archived and will close automatically. See it later under history.</p>
                   </div>
                 )}
-                <ControllerView last={pads[pads.length - 1] || room.lastPad} history={pads} />
               </section>
-              <section className="flex flex-col gap-3">
-                <div>
-                  <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>player: {room.setup?.player.name || 'not chosen'}</span>
-                    <span>· {room.agentStatus}</span>
-                    {room.agentStatus === 'running' && (
-                      <button onClick={() => send({ type: 'abort' })} className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-muted">
-                        abort turn
+
+              <section className="rounded-lg border border-border bg-card p-3">
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex rounded-md border border-border p-0.5">
+                    {(['conversation', 'learning'] as const).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setTab(t)}
+                        className={`rounded px-2 py-0.5 ${tab === t ? 'bg-muted font-medium text-foreground' : 'hover:text-foreground'}`}
+                      >
+                        {t}
                       </button>
-                    )}
+                    ))}
                   </div>
-                  <Transcript items={items} />
-                  <ChatBox disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'} onSend={(m) => send({ type: 'chat', message: m })} />
+                  <span>player: {room.setup?.player.name || 'not chosen'}</span>
+                  <span>· {room.agentStatus}</span>
+                  {room.lastLibraryCommit && (
+                    <span title={room.lastLibraryCommit.message}>
+                      · learned <span className="font-mono">{room.lastLibraryCommit.hash.slice(0, 7)}</span>
+                    </span>
+                  )}
+                  <div className="flex-1" />
+                  {room.agentStatus === 'running' && (
+                    <button onClick={() => send({ type: 'abort' })} className="rounded border border-border px-1.5 py-0.5 hover:bg-muted">
+                      abort turn
+                    </button>
+                  )}
                 </div>
-                <HealthPanel settings={settings} room={room} />
-                <RoomInfo room={room} log={log} />
+                {tab === 'conversation' ? (
+                  <>
+                    {room.attention && (
+                      <div role="alert" className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+                        <strong>Paused for supervisor review</strong>
+                        <p className="mt-1">{room.attention.error}</p>
+                        <p className="mt-1 text-xs">
+                          Incident {room.attention.id} · decision {room.attention.decision}. Evidence is preserved and no game input is sent until you answer.
+                          Replying below resumes the player with your message as the review.
+                        </p>
+                      </div>
+                    )}
+                    <Transcript items={items} />
+                    <ChatBox
+                      attention={Boolean(room.attention)}
+                      disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'}
+                      onSend={(m) => send({ type: 'chat', message: m })}
+                    />
+                  </>
+                ) : (
+                  <Learning settings={settings} refreshKey={room.lastLibraryCommit?.hash || ''} />
+                )}
               </section>
+
+              <details className="rounded-lg border border-border bg-card">
+                <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
+                  Debug <span className="font-normal text-muted-foreground">· room data, log, controller and health</span>
+                </summary>
+                <div className="flex flex-col gap-3 border-t border-border p-3">
+                  <RoomInfo room={room} log={log} />
+                  <ControllerView last={pads[pads.length - 1] || room.lastPad} history={pads} />
+                  <HealthPanel settings={settings} room={room} />
+                </div>
+              </details>
             </div>
           </>
         )}
@@ -166,7 +215,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
   const [meta, setMeta] = useState<Meta | null>(null)
   const [library, setLibrary] = useState<LibraryGame[]>([])
   const [game, setGame] = useState('sts2')
-  const [playerKind, setPlayerKind] = useState<'builtin' | 'dockerfile'>('builtin')
+  const [playerKind, setPlayerKind] = useState<'builtin' | 'astra' | 'dockerfile'>('builtin')
   const [dockerfile, setDockerfile] = useState(DEFAULT_DOCKERFILE)
   const [character, setCharacter] = useState('Ironclad')
   const [ascension, setAscension] = useState(1)
@@ -193,7 +242,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
     try {
       await api(settings, `/api/rooms/${room.id}/setup`, {
         method: 'POST',
-        body: JSON.stringify({ game, player: playerKind === 'builtin' ? { kind: 'builtin' } : { kind: 'dockerfile', dockerfile, name: 'custom Dockerfile' }, task: { character, ascension, prompt } }),
+        body: JSON.stringify({ game, player: playerKind !== 'dockerfile' ? { kind: playerKind } : { kind: 'dockerfile', dockerfile, name: 'custom Dockerfile' }, task: { character, ascension, prompt } }),
       })
       onDone({ ...room, stage: 'installing' })
     } catch (e) {
@@ -234,8 +283,9 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Player</span>
-          <select value={playerKind} onChange={(e) => setPlayerKind(e.target.value as 'builtin' | 'dockerfile')} className="rounded-md border border-border bg-background px-2 py-1">
+          <select value={playerKind} onChange={(e) => setPlayerKind(e.target.value as 'builtin' | 'astra' | 'dockerfile')} className="rounded-md border border-border bg-background px-2 py-1">
             <option value="builtin">{meta?.builtinPlayer.name || 'steambench-pi (Pi + Nemotron)'}</option>
+            <option value="astra" disabled={!meta?.astraPlayer?.configured}>{meta?.astraPlayer?.name || 'STS2-Pi-Luna-v0.1'} · {meta?.astraPlayer?.reasoning || 'max'} reasoning</option>
             <option value="dockerfile">custom Dockerfile</option>
           </select>
         </label>
@@ -261,7 +311,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
   )
 }
 
-function ChatBox({ disabled, onSend }: { disabled: boolean; onSend: (m: string) => void }) {
+function ChatBox({ disabled, attention, onSend }: { disabled: boolean; attention: boolean; onSend: (m: string) => void }) {
   const [text, setText] = useState('')
   const submit = () => {
     if (!text.trim()) return
@@ -269,17 +319,23 @@ function ChatBox({ disabled, onSend }: { disabled: boolean; onSend: (m: string) 
     setText('')
   }
   return (
-    <div className="mt-2 flex gap-2">
+    <div className="mt-2 flex w-full gap-2">
       <input
         disabled={disabled}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
-        placeholder={disabled ? 'chat opens once the player is running' : 'Message the player (delivered between its turns)'}
-        className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm disabled:opacity-50"
+        placeholder={
+          disabled
+            ? 'chat opens once the player is running'
+            : attention
+              ? 'Answer the player: your reply is recorded as the review and resumes it'
+              : 'Message the player (delivered between its turns)'
+        }
+        className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm disabled:opacity-50"
       />
-      <button disabled={disabled} onClick={submit} className="rounded-md bg-primary px-3 py-1 text-sm text-primary-foreground disabled:opacity-50">
-        send
+      <button disabled={disabled} onClick={submit} className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">
+        {attention ? 'reply and resume' : 'send'}
       </button>
     </div>
   )
@@ -349,8 +405,8 @@ function HealthPanel({ settings, room }: { settings: ReturnType<typeof useSettin
 function RoomInfo({ room, log }: { room: RoomSummary; log: string[] }) {
   const s = room.lastState || {}
   return (
-    <details className="rounded-md border border-border bg-card p-3 text-xs" open>
-      <summary className="cursor-pointer select-none font-medium">Room data</summary>
+    <div className="rounded-md border border-border p-3 text-xs">
+      <div className="font-medium">Room data</div>
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
         <dt className="text-muted-foreground">game state</dt>
         <dd className="font-mono">
@@ -386,7 +442,7 @@ function RoomInfo({ room, log }: { room: RoomSummary; log: string[] }) {
       </dl>
       <div className="mt-2 text-muted-foreground">log</div>
       <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-background p-2 font-mono text-[11px]">{log.slice(-80).join('\n')}</pre>
-    </details>
+    </div>
   )
 }
 

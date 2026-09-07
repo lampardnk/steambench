@@ -93,7 +93,7 @@ export type TranscriptItem = {
 export type RoomSetup = {
   game: string
   gameName?: string
-  player: { kind: 'builtin' | 'dockerfile'; name?: string; dockerfile?: string }
+  player: { kind: 'builtin' | 'astra' | 'dockerfile'; name?: string; dockerfile?: string }
   task: { ascension: number; character: string; prompt?: string }
 }
 
@@ -115,6 +115,9 @@ export type RoomSummary = {
   roomIp: string | null
   playerImage: string | null
   agentStatus: string
+  attention?: { id: string; error: string; path: string; decision: number; at: string; status: string } | null
+  /** Latest commit this room made to the persistent skill library. */
+  lastLibraryCommit?: { hash: string; message: string; by: string; at: number } | null
   frames: number
   lastFrameAt: number
   media: { ready: boolean; codecs: string; fragments: number; bytes: number; audioReady: boolean; audioCodecs: string; audioFragments: number; width: number; height: number } | null
@@ -129,8 +132,12 @@ export type Meta = {
   games: { key: string; appid: string; name: string }[]
   characters: string[]
   builtinPlayer: { name: string; model: string; visionModel: string }
+  astraPlayer?: { name: string; model: string; reasoning: string; configured: boolean }
   maxRooms: number
   observerSlots: number
+  /** Reference sites the player may fetch, and the persistent skill libraries. */
+  referenceHosts?: string[]
+  librarySkills?: string[]
 }
 
 export type LibraryGame = {

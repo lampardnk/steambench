@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, STAGE_COLORS, STAGE_LABELS, type Meta, type RoomSummary } from '@/lib/backend'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
+import { Learning } from '@/components/learning'
 
 export default function Page() {
   const [settings, setSettings, loaded] = useSettings()
@@ -119,6 +120,14 @@ export default function Page() {
           ))}
         </ul>
         {configured && rooms.length === 0 && !error && <p className="text-sm text-muted-foreground">No rooms. Create one: it starts Steam in an isolated room and asks you to sign in.</p>}
+        {configured && (
+          <section className="mt-8">
+            {/* The skill library is not tied to a room: it is what every future
+                room starts from, so it belongs here as well. */}
+            <h2 className="mb-2 text-sm font-semibold tracking-tight">What the players have learned</h2>
+            <Learning settings={settings} />
+          </section>
+        )}
       </div>
     </main>
   )
