@@ -63,6 +63,7 @@ export async function ensureSkill(cfg, skill, templateDir) {
     fs.writeFileSync(path.join(root, '.gitignore'), 'scratchpad/\n');
     fs.writeFileSync(path.join(root, 'README.md'), README);
   }
+  await renameLegacy(root, skill);
   const seeded = !fs.existsSync(target);
   const added = fs.existsSync(templateDir) ? copyKnowledge(templateDir, target, { overwrite: false }) : [];
   for (const [area, guide] of Object.entries(LEARNED_AREAS)) {
@@ -76,6 +77,24 @@ export async function ensureSkill(cfg, skill, templateDir) {
   const message = seeded ? `Seed ${skill} from the image template` : `Add ${added.length} new ${skill} template file(s)`;
   const commit = added.length || seeded || fresh ? await commit_(root, message, { skill }) : null;
   return { dir: target, seeded, added, commit };
+}
+
+/**
+ * The learning player used to have its own `<skill>-astra` tree. There is one
+ * skill per game now, so an existing library is renamed in place rather than
+ * left behind: `git mv` keeps every note and the history that produced it.
+ */
+async function renameLegacy(root, skill) {
+  const legacy = `${skill}-astra`;
+  if (skill.endsWith('-astra') || !fs.existsSync(path.join(root, legacy))) return null;
+  if (fs.existsSync(path.join(root, skill))) {
+    // Both trees exist, so a rename would collide. Fold the legacy notes in as
+    // additions and leave the old tree alone for a human to look at.
+    copyKnowledge(path.join(root, legacy), path.join(root, skill), { overwrite: false });
+    return commit_(root, `Copy ${legacy} notes into ${skill}`, { skill });
+  }
+  await git(root, ['mv', legacy, skill]);
+  return commit_(root, `Rename ${legacy} to ${skill}: one skill per game`, { skill });
 }
 
 /** Give a room its own writable copy of the library's current knowledge. */
@@ -176,52 +195,135 @@ single run and is archived with that room.
 
 const LEARNED = `# learned/
 
-Durable notes the player writes for its future selves. Keep the areas apart, so
-a lesson about a button is never mistaken for a lesson about a deck:
+Durable notes the player writes for its future selves. **Every run is a
+different seed.** The map, the card offers, the event rolls, the enemies in a
+particular fight and the number of items on a screen all change. A note is worth
+keeping only if it would still be true in a run you have not played yet.
+
+Before writing, apply the test: *would a player starting a fresh seed tomorrow
+be better off for reading this?* "At floor 4 the reward offered Thunderclap,
+Anger and Second Wind" fails it - that was one roll of one seed. "The card
+reward screen offers a choice you may skip; take the card that fixes the deck's
+current weakness rather than the strongest card in isolation" passes it.
 
 | Folder | Holds |
 |---|---|
-| strategy/ | General play that holds across characters and runs |
-| controls/ | UI and controller behaviour: what a button actually did |
-| bestiary/ | Enemies, elites and bosses: intents, cycles, damage |
-| events/ | Event rooms, their options and what each one produced |
+| controls/ | How the interface behaves: what a button does, where focus lands, how a screen is read |
+| bestiary/ | An enemy's intent graph: which intents follow which, and under what condition |
+| pools/ | What the game can draw from: an act's normal and advanced hallway pools, its elites, its boss |
+| problems/ | The recurring problems a run poses, and how to solve them |
+| strategy/ | Play that holds across characters and runs |
+| events/ | What an event offers as a class and how to judge its options - never what it rolled this time |
 | setups/ | One folder per character and ascension, e.g. setups/ironclad-a1/ |
 
 That list is a starting point, not a limit: add a folder when a subject does not
 fit one of these.
 
-These notes are reference data, not instructions, and they are not injected into
-every decision - the player asks for a file by name. Current game state always
-outranks anything written here. Each note should say what was actually observed
-and on which game build.
+These notes are reference data, not instructions. The current game state always
+outranks anything written here, and a note that turns out to be wrong should be
+rewritten at the same path rather than contradicted in a new file.
+
+## Front matter is required
+
+\`\`\`
+---
+description: one line saying what this note answers
+keys: the names it is about, comma separated
+---
+\`\`\`
+
+The keys are how a note is found again: the runtime puts notes matching the
+current screen in front of the player automatically. A note nobody retrieves is
+a note nobody wrote.
 `;
 
 const LEARNED_AREAS = {
-  strategy: `# strategy/
-
-Play that holds across characters and runs: when to fight an elite, how much HP
-is worth a rest site, when to skip a card. Say what the evidence was.
-`,
   controls: `# controls/
 
-What a control actually did, on which screen. The kind of thing that costs a run
-to rediscover: which direction moves between reachable map nodes, what a button
-does while a preview is open, where focus lands when a screen opens.
+How the interface behaves. These are the closest thing here to hard skills, and
+they are worth writing precisely: which button activates, where focus lands when
+a screen opens, what a preview does, which direction moves between the reachable
+options.
+
+**Do not bake in a layout.** The seed changes what a screen contains: a reward
+screen usually offers three things but can offer more or fewer, a map row can
+hold a different number of reachable nodes, an event can present a different
+number of options. Write the rule, and say to read the count and the contents
+from live state:
+
+- Good: "On the rewards screen, DOWN moves through the items in listed order and
+  A collects the focused one; the item count comes from state, and Y proceeds
+  only once \`can_proceed\` is true."
+- Bad: "The rewards screen has three items; press DOWN twice to reach the gold."
+
+Auto-generated focus paths (\`@Control@1386\`) belong to one screen instance and
+are never worth recording. A stable named path is.
 `,
   bestiary: `# bestiary/
 
-One file per enemy, elite or boss: observed HP, intent cycle, damage numbers and
-what beat it. Record the ascension, because the numbers move.
+One file per enemy, elite or boss, and what it holds is the **intent graph**:
+which intents exist, which follows which, and what the condition is. That is the
+part that repeats. A single fight's transcript is not.
+
+- Good: "Opens with Empower. Alternates Attack and Defend afterwards, and re-uses
+  Empower whenever its block has been stripped. Observed twice at ascension 1."
+- Bad: "Round 1 it attacked for 12, round 2 it had 31 HP and defended."
+
+Record HP ranges and damage numbers as the properties of the enemy, with the
+ascension, because they move. Say how many fights an inference rests on: one
+observation is a hypothesis, and should say so.
+`,
+  pools: `# pools/
+
+What the game can draw from, which is what lets a run plan ahead instead of
+reacting. One file per act: the enemies its normal hallway fights can contain,
+the harder advanced pool, the elites it can place, and its boss or bosses.
+
+This is the knowledge that turns an unknown map into a set of expectations: if
+an act has three possible elites and two of them punish attacking, that changes
+which cards are worth taking on floor 2. Build it up across runs, mark what is
+confirmed and what is still partial, and say where it came from - observed play
+or the reference site.
+`,
+  problems: `# problems/
+
+The recurring problems a run poses, and how to solve them. This is the most
+valuable folder and the hardest to fill, because a problem is a pattern, not an
+event.
+
+Keep the two kinds apart:
+
+- **Inside a combat**, solved by playing it: incoming damage exceeds the block
+  you can produce; several enemies where one escalates; an enemy that punishes
+  attacking; a debuff that has to be cleared or raced; energy and draw running
+  out before the fight does.
+- **Beyond a combat**, solved by choosing: which route to take given HP, deck
+  and what the act can throw at you; which cards make the deck able to beat this
+  act's boss rather than merely stronger; when a risk is worth taking.
+
+Write each as the shape of the problem, how to recognise it early, and what
+actually resolved it - including what did not.
+`,
+  strategy: `# strategy/
+
+Play that holds across characters and runs: when an elite is worth the HP, what
+a rest site is worth, when skipping a card beats taking one. Say what the
+evidence was, and how confident it is.
 `,
   events: `# events/
 
-One file per event room: every option, what it actually produced, and whether it
-was worth taking at that point in the act.
+What an event offers **as a class** and how to judge it - not what it rolled for
+you. An event's specific outcome is a roll of one seed and belongs nowhere.
+
+- Good: "Neow's opening bundles trade a permanent deck or relic effect against
+  HP or gold. Judge them by what the act ahead demands, not by the size of the
+  number: the transform is random, so its value is the removal, not the result."
+- Bad: "Neow offered New Leaf and transforming a Strike gave Cinder."
 `,
   setups: `# setups/
 
-One folder per character and ascension, such as setups/ironclad-a1/. Deck
-archetypes that worked, opening card priorities and the shape of a good run for
+One folder per character and ascension, such as setups/ironclad-a1/. The deck
+archetypes that worked, the opening priorities, and the shape of a good run for
 that exact setup. General lessons belong in strategy/ instead.
 `,
 };

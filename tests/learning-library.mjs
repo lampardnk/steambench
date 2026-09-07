@@ -20,7 +20,7 @@ fs.writeFileSync(path.join(template, 'controls', 'CONTROLS.md'), 'A selects.\n')
 fs.mkdirSync(path.join(template, 'scratchpad'), { recursive: true });
 fs.writeFileSync(path.join(template, 'scratchpad', 'README.md'), 'per-run only\n');
 
-const first = await library.ensureSkill(cfg, 'sts2-astra', template);
+const first = await library.ensureSkill(cfg, 'sts2', template);
 assert.ok(first.seeded);
 assert.ok(first.commit, 'seeding makes a commit');
 assert.ok(fs.existsSync(path.join(first.dir, 'SKILL.md')));
@@ -29,13 +29,13 @@ assert.ok(!fs.existsSync(path.join(first.dir, 'scratchpad')), 'per-run state sta
 
 // --- room one learns something -------------------------------------------
 const roomOne = path.join(root, 'room-one', 'skills', 'sts2');
-library.checkoutInto(cfg, 'sts2-astra', roomOne);
+library.checkoutInto(cfg, 'sts2', roomOne);
 assert.ok(fs.existsSync(path.join(roomOne, 'controls', 'CONTROLS.md')));
 fs.mkdirSync(path.join(roomOne, 'scratchpad'), { recursive: true });
 fs.writeFileSync(path.join(roomOne, 'scratchpad', 'checkpoint.json'), '{"decision":12}');
 fs.mkdirSync(path.join(roomOne, 'learned', 'bestiary'), { recursive: true });
 fs.writeFileSync(path.join(roomOne, 'learned', 'bestiary', 'wriggler.md'), 'Empower then Strategic.\n');
-const commit = await library.commitFromRoom(cfg, { skill: 'sts2-astra', roomSkillDir: roomOne, roomId: 'aaaa1111', player: 'STS2-Pi-Luna-v0.1', message: 'Record the Wriggler intent cycle' });
+const commit = await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomOne, roomId: 'aaaa1111', player: 'STS2-Pi-Luna-v0.1', message: 'Record the Wriggler intent cycle' });
 assert.ok(commit);
 
 // Deleting the room home must not take the knowledge with it.
@@ -45,12 +45,12 @@ assert.ok(!fs.existsSync(path.join(first.dir, 'scratchpad', 'checkpoint.json')),
 
 // --- room two inherits it -------------------------------------------------
 const roomTwo = path.join(root, 'room-two', 'skills', 'sts2');
-library.checkoutInto(cfg, 'sts2-astra', roomTwo);
+library.checkoutInto(cfg, 'sts2', roomTwo);
 assert.equal(fs.readFileSync(path.join(roomTwo, 'learned', 'bestiary', 'wriggler.md'), 'utf8').trim(), 'Empower then Strategic.');
 // The seeded areas keep note subjects apart, and the room's own note came with it.
 assert.deepEqual(learnedFiles(roomTwo), [
   'README.md', 'bestiary/README.md', 'bestiary/wriggler.md', 'controls/README.md',
-  'events/README.md', 'setups/README.md', 'strategy/README.md',
+  'events/README.md', 'pools/README.md', 'problems/README.md', 'setups/README.md', 'strategy/README.md',
 ]);
 
 // --- history reads like git ----------------------------------------------
@@ -63,20 +63,20 @@ assert.ok(log[0].files.every((file) => !file.path.includes('scratchpad')));
 const patch = await library.diff(cfg, log[0].hash);
 assert.match(patch.patch, /Empower then Strategic/);
 await assert.rejects(() => library.diff(cfg, '../etc'), /invalid commit/);
-assert.ok(library.tree(cfg, 'sts2-astra').some((file) => file.path.endsWith('wriggler.md')));
-assert.throws(() => library.readFile(cfg, 'sts2-astra', '../../secret'), /outside the skill library/);
-assert.throws(() => library.readFile(cfg, 'sts2-astra', 'scratchpad/checkpoint.json'), /outside the skill library|no such file/);
+assert.ok(library.tree(cfg, 'sts2').some((file) => file.path.endsWith('wriggler.md')));
+assert.throws(() => library.readFile(cfg, 'sts2', '../../secret'), /outside the skill library/);
+assert.throws(() => library.readFile(cfg, 'sts2', 'scratchpad/checkpoint.json'), /outside the skill library|no such file/);
 
 // A newer image adds files but must never clobber what the player wrote.
 fs.writeFileSync(path.join(template, 'SKILL.md'), '# replaced by a newer image\n');
 fs.writeFileSync(path.join(template, 'wiki.md'), 'new reference\n');
-const again = await library.ensureSkill(cfg, 'sts2-astra', template);
+const again = await library.ensureSkill(cfg, 'sts2', template);
 assert.equal(again.seeded, false);
 assert.deepEqual(again.added, ['wiki.md']);
 assert.equal(fs.readFileSync(path.join(first.dir, 'SKILL.md'), 'utf8'), '# skill\n');
 
 // Nothing new to say means no empty commit.
-assert.equal(await library.commitFromRoom(cfg, { skill: 'sts2-astra', roomSkillDir: roomTwo, roomId: 'bbbb2222', player: 'p', message: 'no change' }), null);
+assert.equal(await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomTwo, roomId: 'bbbb2222', player: 'p', message: 'no change' }), null);
 
 // --- the player's learn/recall/research actions ---------------------------
 const state = { state_type: 'map', player: { hp: 80 }, ui: { focus_path: '/map' }, map: { nodes: [], next_options: [] } };
@@ -99,8 +99,18 @@ for (const note of [
   assert.ok(noteProblem(note), 'the problem is described');
   validatePlan(plan([note]), state);
 }
-assert.equal(noteProblem({ type: 'learn', path: 'bestiary/wriggler.md', content: 'seen', message: 'Record it' }), null);
-validatePlan(plan([{ type: 'learn', path: 'bestiary/wriggler.md', content: 'Observed', message: 'Record the cycle' }]), state);
+const body = '---\ndescription: Wriggler intent graph\nkeys: wriggler\n---\n# Wriggler\nEmpower, then Strategic.\n';
+assert.equal(noteProblem({ type: 'learn', path: 'bestiary/wriggler.md', content: body, message: 'Record it' }), null);
+validatePlan(plan([{ type: 'learn', path: 'bestiary/wriggler.md', content: body, message: 'Record the cycle' }]), state);
+
+// Every run is a different seed, so a note is refused when it journals one run
+// or when it carries no front matter for the retriever to find it by.
+assert.match(noteProblem({ type: 'learn', path: 'events/act1-floor4-card-offer.md', content: body, message: 'Record the offer' }), /names one moment of this run/);
+assert.match(noteProblem({ type: 'learn', path: 'bestiary/nibbit-round2.md', content: body, message: 'Record it' }), /names one moment of this run/);
+assert.equal(noteProblem({ type: 'learn', path: 'pools/act1.md', content: body, message: 'Record the act 1 pools' }), null);
+assert.equal(noteProblem({ type: 'learn', path: 'problems/block-shortfall.md', content: body, message: 'Record the problem' }), null);
+assert.match(noteProblem({ type: 'learn', path: 'bestiary/nibbit.md', content: '# Nibbit\nEmpower.\n', message: 'Record it' }), /front matter/);
+assert.match(noteProblem({ type: 'learn', path: 'bestiary/nibbit.md', content: '---\ndescription: d\n---\nbody\n', message: 'Record it' }), /front matter/);
 validatePlan(plan([{ type: 'recall' }]), state);
 
 const calls = [];
@@ -115,23 +125,24 @@ const executor = new Executor({
   },
 });
 executor.sleep = async () => {};
-const wrote = await executor.execute(plan([{ type: 'learn', path: 'events/wood-carvings.md', content: 'Bird, Snake, Torus.', message: 'Record Wood Carvings options' }]), state);
+const carvings = '---\ndescription: How to judge Wood Carvings\nkeys: wood carvings, event\n---\nJudge the options by the deck the act demands.\n';
+const wrote = await executor.execute(plan([{ type: 'learn', path: 'events/wood-carvings.md', content: carvings, message: 'Record how to judge Wood Carvings' }]), state);
 assert.equal(wrote.error, undefined);
 assert.equal(wrote.completed[0].commit, 'abc1234567');
-assert.equal(fs.readFileSync(path.join(roomTwo, 'learned', 'events', 'wood-carvings.md'), 'utf8'), 'Bird, Snake, Torus.\n');
-assert.deepEqual(calls.filter((c) => c.op === 'skill-commit'), [{ op: 'skill-commit', message: 'Record Wood Carvings options' }]);
+assert.equal(fs.readFileSync(path.join(roomTwo, 'learned', 'events', 'wood-carvings.md'), 'utf8'), carvings);
+assert.deepEqual(calls.filter((c) => c.op === 'skill-commit'), [{ op: 'skill-commit', message: 'Record how to judge Wood Carvings' }]);
 
 // A note may close a plan, recording what that plan just verified.
 const withNote = plan([
   { type: 'input', buttons: ['left'], probe: true },
-  { type: 'learn', path: 'controls/map.md', content: 'Left/right move between reachable nodes.', message: 'Record map focus movement' },
+  { type: 'learn', path: 'controls/map.md', content: '---\ndescription: Moving between reachable map nodes\nkeys: map, focus\n---\nLeft and right move between the reachable options; read their count from state.\n', message: 'Record map focus movement' },
 ]);
 validatePlan(withNote, state);
 const both = await executor.execute(withNote, state);
 assert.equal(both.error, undefined);
 assert.equal(both.completed.length, 2);
 assert.equal(both.completed[1].commit, 'abc1234567');
-assert.equal(fs.readFileSync(path.join(roomTwo, 'learned', 'controls', 'map.md'), 'utf8').trim(), 'Left/right move between reachable nodes.');
+assert.match(fs.readFileSync(path.join(roomTwo, 'learned', 'controls', 'map.md'), 'utf8'), /read their count from state/);
 
 // The same badly formed note reaches the executor as a result, and the plan's
 // other verified work survives it.
@@ -146,7 +157,7 @@ assert.match(rejected.completed[1].error, /note not kept/);
 assert.ok(!fs.existsSync(path.join(root, 'room-two', 'skills', 'escape.md')));
 
 const read = await executor.execute(plan([{ type: 'recall', path: 'events/wood-carvings.md' }]), state);
-assert.match(read.completed[0].text, /Bird, Snake, Torus/);
+assert.match(read.completed[0].text, /the deck the act demands/);
 const listed = await executor.execute(plan([{ type: 'recall' }]), state);
 assert.ok(listed.completed[0].learned_files.includes('events/wood-carvings.md'));
 const missing = await executor.execute(plan([{ type: 'recall', path: 'events/nothing.md' }]), state);
@@ -179,4 +190,27 @@ assert.equal(htmlToText('<h1>Wriggler</h1><script>evil()</script><p>Deal 9 &amp;
 assert.ok(learnedFiles(roomTwo).includes('events/wood-carvings.md'));
 
 fs.rmSync(root, { recursive: true, force: true });
-console.log(JSON.stringify({ result: 'passed', verified: ['seed', 'inherit', 'commit-back', 'run state excluded', 'template never clobbers notes', 'git-style history', 'path escapes', 'learn/recall/research', 'a note may close a plan', 'a bad note never ends a run', 'note areas', 'single reference site pinned to beta'], gameInputs: 0 }));
+console.log(JSON.stringify({ result: 'passed', verified: ['seed', 'inherit', 'commit-back', 'run state excluded', 'template never clobbers notes', 'git-style history', 'path escapes', 'learn/recall/research', 'a note may close a plan', 'a bad note never ends a run', 'note areas', 'seed-specific notes refused', 'front matter required', 'single reference site pinned to beta'], gameInputs: 0 }));
+
+
+// --- a legacy <skill>-astra library is renamed, not stranded ---------------
+// The learning player used to have its own tree. Rooms now share one skill per
+// game, so an existing library must carry its notes and its history across.
+const legacyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-legacy-'));
+const legacyCfg = { runtimeDir: path.join(legacyRoot, 'runtime') };
+await library.ensureSkill(legacyCfg, 'sts2-astra', template);
+const legacyRoom = path.join(legacyRoot, 'room', 'skills', 'sts2');
+library.checkoutInto(legacyCfg, 'sts2-astra', legacyRoom);
+fs.mkdirSync(path.join(legacyRoom, 'learned', 'bestiary'), { recursive: true });
+fs.writeFileSync(path.join(legacyRoom, 'learned', 'bestiary', 'wriggler.md'), 'Empower then Strategic.\n');
+await library.commitFromRoom(legacyCfg, { skill: 'sts2-astra', roomSkillDir: legacyRoom, roomId: 'cccc3333', player: 'STS2-Pi-Luna-v0.1', message: 'Record the Wriggler intent cycle' });
+
+const migrated = await library.ensureSkill(legacyCfg, 'sts2', template);
+assert.ok(!fs.existsSync(path.join(library.libraryDir(legacyCfg), 'sts2-astra')), 'the legacy tree is gone');
+assert.equal(fs.readFileSync(path.join(migrated.dir, 'learned', 'bestiary', 'wriggler.md'), 'utf8').trim(), 'Empower then Strategic.', 'the note survived the rename');
+const migratedLog = await library.history(legacyCfg, { limit: 20 });
+assert.ok(migratedLog.some((entry) => /Record the Wriggler intent cycle/.test(entry.subject)), 'the history that produced the note survived too');
+assert.ok(migratedLog.some((entry) => /Rename sts2-astra to sts2/.test(entry.subject)), 'the rename is an ordinary commit');
+fs.rmSync(legacyRoot, { recursive: true, force: true });
+
+console.log('learning-library: legacy skill rename ok');

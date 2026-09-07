@@ -1,49 +1,78 @@
 ---
 name: sts2
-description: How to play Slay the Spire 2 through steambench: sensors (sts2_state, sts2_look, wiki), the virtual Xbox pad (pad_dpad, pad_press), verified controls, screen-by-screen tips, survival rules, and where to keep notes.
+description: How to play Slay the Spire 2 through steambench - sensors, the virtual Xbox pad, verified controls, the learning player's execution contract, and where notes go so they outlive the room.
 ---
 
 # Slay the Spire 2 (steambench)
 
-You are connected to a running Slay the Spire 2 game. You cannot see the screen directly.
-You have two sensors and one actuator, all exposed as tools:
+One skill, shared by every player that plays this game. You are connected to a
+running copy of Slay the Spire 2 and cannot see the screen directly.
 
-- `sts2_state`: exact structured game state from the STS2MCP mod. Cheap. Primary sensor.
-- `sts2_look`: a vision model describes a screenshot. Slow. Use it only when `sts2_state` reports a menu,
-  popup, or unknown screen, or when the state did not change after your input.
-- `sts2_wiki`, `sts2_compendium`, `sts2_profile`, `sts2_profiles`: reference data. Use `sts2_wiki`
-  before picking or playing a card or relic whose effect you do not know.
-- `pad_dpad`, `pad_press`, `pad_stick`, `pad_neutral`, `pad_status`: the virtual Xbox pad. This is the only way to act.
-- `run_over`: call this once when the run ends (death, victory, or the game cannot continue). It ends the session.
+## Folders
 
-## Folders in this skill
+| Folder | What it is |
+|---|---|
+| `controls/` | Verified pad mapping and the execution contract. Read it before the first input. |
+| `wiki/` | Game basics, characters, and the policy for using outside reference data. |
+| `learned/` | Durable notes written by players, kept in git across rooms. See `learned/README.md`. |
+| `scratchpad/` | This run only. Archived with the room, never inherited. |
 
-- `controls/` (read only): verified button mapping and cursor rules. Read `controls/CONTROLS.md` before the first input.
-- `wiki/` (read only): game basics and character notes. Do not edit these files.
-- `scratchpad/`: yours. Keep notes here (deck plan, relics, what worked, cursor quirks you discovered).
-  Write a short `scratchpad/run.md` and update it every few floors. Never write anywhere else.
+`learned/` is the part that survives. A note written there is inherited by every
+later room; anything in `scratchpad/` dies with this one.
 
-## Loop
+## The learning player (STS2-Pi-Luna-v0.1)
 
-1. Call `sts2_state`.
-2. If you have not started your run yet, follow "Starting a run" in
-   `controls/CONTROLS.md`: abandon any run already in progress, confirm, then
-   start a new singleplayer run with the character and ascension you were given.
-3. Decide one small step from the state. Think in game terms: energy, block, enemy intents, card effects.
-4. Send one or a few pad actions. Keep holds short (default 80 ms). Do not send long sequences blind.
-5. Call `sts2_state` again. If nothing changed, call `sts2_look` ("where is the highlight? is a popup open?"),
-   then adjust. Never repeat the same blind input more than twice.
-6. Repeat. Narrate each decision in one or two short sentences before acting; do not pad your messages.
+Fresh Pi RPC sessions against OpenRouter GPT-5.6 Luna at max reasoning. The
+runtime rebuilds context from a fresh game observation for every bounded plan;
+no raw conversation history carries forward. The runtime, not the planner,
+writes facts and sends controller input - never infer success from a button
+acknowledgement.
 
-## Rules
+It runs a four-part learning loop:
 
-- Never quit the game, change profiles, or change settings. Abandoning a run is allowed only as step 1 of
-  "Starting a run"; at any other time, decline a quit or abandon prompt with `b`.
-- If pad actions have no visible effect twice in a row, call `pad_status`; if it reports a problem, say so and stop.
-- If `sts2_state` says the mod is unreachable, wait a few seconds, retry once, then report and stop.
-- Prefer safe, incremental inputs over clever multi-press combos.
-- When the run is over, write a final summary to `scratchpad/run.md`, then call `run_over` with the result.
-- Only call `run_over` when the game itself says the run ended: `sts2_state` reports `state_type` of
-  `game_over`, or you are back at the main menu with no run in progress. Losing a fight you can still
-  act in, or a screen you cannot read, is not the end of a run. steambench records the game's own state
-  next to your report and flags a mismatch.
+1. **Objective.** A curriculum proposes one concrete objective at a time from
+   the live run and from what earlier rooms already completed or failed. The
+   objective is in every decision's context.
+2. **Act.** Bounded plans are executed and verified against fresh mod state.
+3. **Verify.** A separate critic reads the objective and the evidence and
+   answers success, failure or pending. Only the critic closes an objective; a
+   failure's critique comes back in the next decision.
+4. **Keep.** What the run verified is written to `learned/` and committed, so
+   the next room starts from it.
+
+Learning accurate controls and mechanics matters more than winning the first
+run. Every decision carries a scoped evidence note; the runtime records the
+observed outcome separately. Candidate lessons are hypotheses and are never
+promoted automatically. Accepted input memory is frozen at room creation.
+
+A plan the runtime rejects before any input is refined, with the reason in
+context, for a bounded number of rounds. Once input has actually reached the
+game and failed, the player stops and preserves incident evidence; only explicit
+supervisor review or a chat reply continues it. Do not improvise recovery.
+
+After a player reload the run continues. Task, startup verification, counters
+and unresolved issues come from the checkpoint, not from a fresh-start
+instruction.
+
+## The built-in tool player
+
+The older built-in player drives the same game through tools rather than through
+the bounded planner: `sts2_state` (structured mod state, the primary sensor),
+`sts2_look` (a vision model describes a screenshot; slow, for unknown screens),
+`sts2_wiki` / `sts2_compendium` / `sts2_profile` for reference data, the
+`pad_*` family for input, and `run_over` once when the run genuinely ends.
+
+Its loop: read state, decide one small step, send one or a few pad actions, read
+state again, and never repeat a blind input more than twice. It writes to
+`scratchpad/` only.
+
+## Rules for every player
+
+- Never quit the game, change profiles, or change settings. Abandoning a run is
+  allowed only as the first step of starting one; decline any other quit or
+  abandon prompt with `b`.
+- Only report a run finished when the game says so: `state_type` of `game_over`,
+  or the main menu with no run in progress. Losing a fight you can still act in
+  is not the end of a run, and steambench records the game's own state next to
+  the report and flags a mismatch.
+- Prefer safe, incremental input over clever multi-press combos.

@@ -311,6 +311,7 @@ export class Room extends EventEmitter {
       agentStatus: this.agent?.status || 'stopped', frames: this.reader?.frames || 0, lastFrameAt: this.reader?.latestAt || 0,
       attention: this.agent?.attention || null,
       lastLibraryCommit: this.lastLibraryCommit || null,
+      curriculum: this.curriculum(),
       media: {
         ready: Boolean(this.media?.init), codecs: this.media?.codecs || '', fragments: this.media?.fragments || 0, bytes: this.media?.bytes || 0,
         audioReady: Boolean(this.mediaAudio?.init), audioCodecs: this.mediaAudio?.codecs || '', audioFragments: this.mediaAudio?.fragments || 0,
@@ -560,9 +561,10 @@ export class Room extends EventEmitter {
     fs.writeFileSync(path.join(mods, 'STS2_MCP.conf'), JSON.stringify({ port: this.modPort }, null, 2) + '\n');
     const skills = path.join(this.home, 'skills');
     fs.rmSync(skills, { recursive: true, force: true });
-    const skillSource = this.setup.player.kind === 'astra' ? 'sts2-astra' : game.skill;
-    // Knowledge comes from the persistent library, which the image template only
-    // seeds. A room inherits what earlier rooms learned instead of starting blank.
+    // One skill per game, shared by every player kind. Knowledge comes from the
+    // persistent library, which the image template only seeds, so a room inherits
+    // what earlier rooms learned instead of starting blank.
+    const skillSource = game.skill;
     this.librarySkill = skillSource;
     const roomSkillDir = path.join(skills, game.skill);
     try {
@@ -703,7 +705,7 @@ export class Room extends EventEmitter {
     this.setDetail('starting the player');
     const agent = new PiAgent({
       name: `steambench-player-${this.id}`, image: this.playerImage,
-      env: { OPENROUTER_API_KEY: this.setup.player.kind === 'astra' ? this.cfg.learningKey : this.cfg.openrouterKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_MODEL: this.cfg.model, STEAMBENCH_VISION_MODEL: this.cfg.visionModel, STEAMBENCH_PLAYER_MODE: 'rpc' },
+      env: { OPENROUTER_API_KEY: this.setup.player.kind === 'astra' ? this.cfg.learningKey : this.cfg.openrouterKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_MODEL: this.cfg.model, STEAMBENCH_VISION_MODEL: this.cfg.visionModel, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
       mounts: [`${this.hostHome}/skills:/workspace/skills`],
     });
     this.agent = agent;
@@ -837,6 +839,30 @@ export class Room extends EventEmitter {
       this.m.emit('rooms');
     }
     return hash;
+  }
+
+  /**
+   * The room's live objective ladder. The library copy only updates when the
+   * room commits, so the dashboard reads this one to show what the player is
+   * working towards right now. Cached on mtime: summary() is called often.
+   */
+  curriculum() {
+    const file = this.roomSkillDir && path.join(this.roomSkillDir, 'learned', 'curriculum.json');
+    let stat = null;
+    try { stat = fs.statSync(file); } catch { return null; }
+    if (this._curriculumAt === stat.mtimeMs) return this._curriculum;
+    try {
+      const ledger = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const objectives = Array.isArray(ledger?.objectives) ? ledger.objectives : [];
+      this._curriculum = {
+        active: objectives.find((item) => item.status === 'active') || null,
+        completed: objectives.filter((item) => item.status === 'completed').length,
+        failed: objectives.filter((item) => item.status === 'failed').length,
+        recent: objectives.slice(-12).reverse(),
+      };
+      this._curriculumAt = stat.mtimeMs;
+    } catch { this._curriculum = null; }
+    return this._curriculum;
   }
 
   /** Newest knowledge-file mtime, so an uncommitted edit can settle first. */

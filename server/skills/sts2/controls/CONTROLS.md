@@ -1,76 +1,100 @@
-# Controls (verified in game, Settings → Input)
+# Controls and the execution contract
 
-The pad is a virtual Xbox controller. Names used by the tools: `a b x y lb rb lt rt back start guide ls rs`,
-d-pad directions `up down left right`.
+The pad is a virtual Xbox controller: `a b x y lb rb lt rt back start guide ls rs`
+and d-pad directions `up down left right`. It is the only way to act. The
+STS2MCP mod adds read-only UI focus and card-instance observation; it has no
+action endpoint.
+
+## Verified button mapping (Settings -> Input)
 
 | Input | Meaning |
 |---|---|
 | d-pad / left stick | move the highlight between cards, targets, map nodes, rewards, menu entries |
-| `a` | Select the highlighted element (play a card, choose a node, pick a reward, pick a menu entry) |
-| `y` | Confirm (End Turn in combat, Proceed on reward screens, confirm a selection) |
-| `b` | Cancel / Exit; deselects a lifted card; closes an overlay |
-| `back` | View Map |
-| `x` | Top panel (deck, relics, potions) |
-| `lb` | View draw pile / page left |
-| `rb` | View exhaust pile / page right |
-| `lt` | View draw pile |
-| `rt` | View discard pile |
-| `start` | pause / settings. Never change settings, never quit. |
+| `a` | select the highlighted element |
+| `y` | confirm: End Turn in combat, Proceed on reward screens, confirm a selection |
+| `b` | cancel / back; deselects a lifted card; closes an overlay |
+| `x` | top panel (deck, relics, potions) |
+| `back` | view map |
+| `lb` / `rb` | page left / right; draw and exhaust pile overlays |
+| `lt` / `rt` | draw pile / discard pile |
+| `start` | pause and settings. Never change settings, never quit. |
 
-## Screen-specific behaviour
+Outside combat, `lb`, `rb`, `lt`, `rt`, `x` and `back` open overlays. If an
+overlay listing the whole deck appears, `b` closes it.
 
-- Outside combat never press `lb`, `rb`, `lt`, `rt`, `x`, or `back`: they open deck, pile, or map overlays.
-  If an overlay listing your whole deck appears, press `b` to close it.
-- Pack / bundle and card-selection screens: `dpad left/right` moves between choices, `a` opens a preview
-  (state shows "Preview is showing"), `y` confirms, `b` cancels the preview.
-- Events and rewards: `dpad up/down` moves between options, `a` picks. After moving, use `sts2_look`
-  with the question "which option is highlighted?" before pressing `a`.
-- Map: `dpad left/right` moves between the available next nodes, `a` travels. Confirm with `sts2_state`
-  that the floor changed.
+## Screen behaviour observed on this build
 
-## Combat cursor rules (verified)
+- **Map.** The reachable next options occupy one row: LEFT and RIGHT move
+  between them in visual left-to-right order, up and down do nothing.
+  `map.current_position` is the last visited run location, not the cursor - a
+  next node may already be highlighted. Prefer `map.nodes` and
+  `next_options` over tracing a route from a screenshot. Numeric Godot node
+  suffixes are not map coordinates.
+- **Pack, bundle and card-selection screens.** LEFT/RIGHT moves between choices,
+  `a` opens a preview, `y` confirms, `b` cancels the preview.
+- **Transform preview.** Choosing a card shows it beside a card that re-rolls
+  about once a second. That roll is animation and never determines the result:
+  confirm immediately with `y`. It is not a timing challenge.
+- **Events and rewards.** UP/DOWN moves between options and `a` picks, but
+  sibling focus paths are auto-generated (`@Control@1386`) and name no item.
+  When the label is opaque, find the focused item in the screenshot: it is drawn
+  raised and enlarged, usually with a tooltip, overlapping its neighbours, and
+  it is not simply the topmost or leftmost one.
+- **Combat.** `a` first selects a card and then confirms it, Defend included.
+  Null Godot focus can mean a self-target card is selected, not lost input. Read
+  `in_card_play` and `selected_card`; never blindly double-`a` or navigate the
+  hand during targeting. Do not assume first-card or last-card focus, or stable
+  hand indices.
 
-- The state lists hand indices (0-based), energy, and enemy intents.
-- At the start of your turn the cursor is on the FIRST card (index 0).
-- After you play a card the cursor jumps to the LAST card in hand.
-- Press `a` once to lift the highlighted card and `a` again to play it (the second press confirms the target;
-  with a single enemy no aiming is needed). With several enemies, `dpad left/right` moves the target while lifted.
-- First play of a turn: `pad_dpad right N` where N is the card index, then `a`, `a`.
-- Later plays: `pad_dpad left M` where M = (hand size - 1 - index), then `a`, `a`.
-- `y` ends the turn.
-- Re-read `sts2_state` after every play and check that the hand changed as expected. If it did not, press `b`
-  and use `sts2_look` to find the cursor.
+A directional press that changes nothing means the focus was already at that
+edge of the reachable options. One standalone exploratory press is always safe;
+re-read the highlight before assuming a move is still needed.
 
-## Survival rules
+## Execution contract (learning player)
 
-- Below 40% HP prefer rest sites over fights and rest (do not smith).
-- Never enter an Elite below 60% HP.
-- When an enemy intends to attack for more than your current HP, play block first.
+- Prefer `play` keyed by an observed card `instance_id`. The executor computes
+  the hand-navigation segment, verifies its destination once, then checks
+  selection and the completed play. A transport failure cancels the remainder.
+- Self-target and multi-enemy targeting go through the same helper, which
+  verifies the selected card and the enemy's combat identity before confirming.
+  Ally-target cards still need observed navigation.
+- At most eight actions per plan. Draws, random effects, choices, replay,
+  return-to-hand effects and unexpected hand changes stop the batch.
+- UI navigation allows 1-12 d-pad presses per sequence with one fresh state
+  check at its boundary. Navigation and activation may share a decision when the
+  destination focus is known exactly. Unknown transitions, purchases, event
+  choices and abandonment end the plan. Only the known Singleplayer ->
+  Standard -> character-select transitions continue after an activation, and
+  each is observed and verified.
+- `scout` scrolls the map with the joystick, up/down, left or right stick,
+  100-600 ms, released automatically. Up is y=-1. Camera motion may leave the
+  mod JSON unchanged: inspect the next screenshot rather than concluding the
+  input failed, and do not repeat a scout on an unchanged view.
+- Animation waits and cheap state checks stay inside the executor. Legal free
+  cards remain playable at zero energy.
+- Be quick with low-risk UI hypotheses: one brief prediction, bounded input,
+  fresh state. Do not re-analyse the whole route before every button.
+- A plan the runtime rejects before any input is refined with the reason in
+  context for a bounded number of rounds. Once input has reached the game and
+  failed, the player pauses: do not repeat the input, back out, play a different
+  card or change scenes to debug. `report_issue` is for contradictory state,
+  unsupported or risky activation, and suspected bugs - not for an untested
+  reversible hypothesis.
+- Stale plans, repeated identical plans and prolonged lack of progress pause
+  rather than generating unbounded input.
+- Reloading the player does not restart the game. Resume the supervisor-reviewed
+  interaction from fresh state; never repeat the startup sequence.
 
-## Starting a run (do this exactly, every time)
+## Survival defaults
 
-steambench always wants a fresh run, and the game may resume an old one. From
-the main menu:
+- Below 40% HP prefer a rest site to a fight, and rest rather than smith.
+- Never enter an elite below 60% HP.
+- When an enemy intends more damage than your current HP, block first.
 
-1. Call `sts2_state`. If `state_type` is anything other than `menu`, a run is
-   already in progress: open the pause menu with `start`, choose **Abandon Run**,
-   and **confirm** it. Check with `sts2_state` that you are back at the menu.
-2. On the main menu choose **Singleplayer** (not Continue, not multiplayer).
-   If a **Continue** entry is highlighted, move off it first.
-3. Pick the character you were told to play, set the ascension level you were
-   told to use, then Embark.
-4. Confirm with `sts2_state` that `run.floor` is 1 and `player.character` is the
-   character you were asked for. If it is not, abandon and start again.
+## Starting a run
 
-Never continue somebody else's run: the benchmark only counts a run you started.
-
-## Main menu details (verify with `sts2_look`)
-
-- The game opens on the main menu. `dpad up/down` moves between entries (Continue, New Run / Play, Compendium,
-  Settings, Quit); `a` selects. Never select Quit or Settings.
-- If a "Continue" option exists and you were told to start fresh, choose New Run instead; abandoning a run from
-  the menu asks for confirmation (`dpad` to the confirm button, then `a`).
-- Character select: `dpad left/right` moves between characters; the state or `sts2_look` tells you which one is
-  highlighted. Ascension is a toggle or counter on the same screen: move to it with the d-pad and change it with
-  `dpad up/down` or `a`, then move to Embark / Start and press `a`.
-- Mods popup on first launch: if a dialog about mods appears, choose the option that keeps mods enabled.
+steambench always wants a fresh run and the game may resume an old one. At
+startup only: abandon any run in progress and confirm, choose Singleplayer then
+Standard, pick the requested character and ascension, Embark, and verify that
+`run.floor` is 1 and the character matches. Never continue somebody else's run.
+Once startup is verified, never abandon or restart, including after a reload.
