@@ -19,8 +19,8 @@ const log = (...a) => console.log(new Date().toISOString(), ...a);
 const TOKEN = env.STEAMBENCH_TOKEN;
 if (!TOKEN) { console.error('STEAMBENCH_TOKEN is required'); process.exit(2); }
 const here = path.dirname(fileURLToPath(import.meta.url));
-const learningKeyFile = env.STEAMBENCH_LEARNING_KEY_FILE || path.join(env.STEAMBENCH_RUNTIME_DIR || '/etc/wolf', 'learning', 'openrouter.key');
-const learningKey = env.STEAMBENCH_LEARNING_OPENROUTER_API_KEY || (fs.existsSync(learningKeyFile) ? fs.readFileSync(learningKeyFile, 'utf8').trim() : '');
+import { learningReadiness } from '../lib/readiness.mjs';
+const learningKey = env.ORCA_KEY || '';
 
 const cfg = {
   log,
@@ -45,14 +45,10 @@ const cfg = {
   hostSts2: env.STEAMBENCH_HOST_STS2 || '/host/sts2',
   roomImage: env.STEAMBENCH_ROOM_IMAGE || 'ghcr.io/games-on-whales/steam:edge',
   roomExtraEnv: (env.STEAMBENCH_ROOM_ENV || '').split(';').map((s) => s.trim()).filter(Boolean),
-  agentImage: env.STEAMBENCH_AGENT_IMAGE || 'steambench-pi',
   learningImage: learningProfile.image,
   learningProfile,
   learningKey,
   gatewayForAgents: env.STEAMBENCH_GATEWAY_FOR_AGENTS || 'host.docker.internal:28771',
-  openrouterKey: env.OPENROUTER_API_KEY || '',
-  model: env.STEAMBENCH_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free',
-  visionModel: env.STEAMBENCH_VISION_MODEL || 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
   renderNode: env.WOLF_RENDER_NODE || '/dev/dri/renderD128',
   bufferCaps: env.WOLF_VIDEO_BUFFER_CAPS || NVIDIA_BUFFER_CAPS,
   roomWidth: Number(env.STEAMBENCH_ROOM_WIDTH || 1280), roomHeight: Number(env.STEAMBENCH_ROOM_HEIGHT || 720), roomFps: Number(env.STEAMBENCH_ROOM_FPS || 60),
@@ -67,7 +63,7 @@ const cfg = {
 };
 const PORT = Number(env.PORT || 8787);
 const GATEWAY_PORT = Number(env.STEAMBENCH_GATEWAY_PORT || 28771);
-if (!cfg.openrouterKey) log('warning: OPENROUTER_API_KEY is empty; the built-in player cannot call its model');
+if (!cfg.learningKey) log('ORCA_KEY is absent; the built-in player is unready');
 
 const manager = new RoomManager(cfg);
 startGateway({ port: GATEWAY_PORT, resolveInstance: (t) => manager.resolveToken(t), log });
@@ -114,13 +110,15 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'DELETE') { manager.forgetLogin(); return json(res, 200, { ok: true }); }
     }
     if (parts[1] === 'meta' && req.method === 'GET') {
-      return json(res, 200, { savedLogin: manager.loginInfo(), cache: manager.cacheInfo(), games: Object.entries(SUPPORTED_GAMES).map(([key, g]) => ({ key, appid: g.appid, name: g.name })), characters: ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'], builtinPlayer: { name: 'steambench-pi (Pi + Nemotron)', model: cfg.model, visionModel: cfg.visionModel }, astraPlayer: { name: cfg.learningProfile.name, model: cfg.learningProfile.model, reasoning: cfg.learningProfile.reasoning, configured: Boolean(cfg.learningKey) }, maxRooms: cfg.maxRooms, observerSlots: manager.observerClients.length, referenceHosts: WEB_ALLOWLIST, librarySkills: librarySkills(cfg) });
+      return json(res, 200, { savedLogin: manager.loginInfo(), cache: manager.cacheInfo(), games: Object.entries(SUPPORTED_GAMES).map(([key, g]) => ({ key, appid: g.appid, name: g.name })), characters: ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'], builtinPlayer: { name: cfg.learningProfile.name, model: cfg.learningProfile.model, reasoning: cfg.learningProfile.reasoning, configured: Boolean(cfg.learningKey), ready: learningReadiness(cfg).ready, reason: learningReadiness(cfg).reason }, maxRooms: cfg.maxRooms, observerSlots: manager.observerClients.length, referenceHosts: WEB_ALLOWLIST, librarySkills: librarySkills(cfg) });
     }
     // The persistent skill library: what the players have learned, as commits.
     if (parts[1] === 'library') {
       const skill = url.searchParams.get('skill') || undefined;
+      if (skill && !/^[a-z0-9_-]+$/.test(skill)) return json(res, 400, { error: 'invalid skill' });
+      if (parts[2] === 'objectives' && req.method === 'GET') return json(res, 200, library.objectivePage(path.join(library.libraryDir(cfg), '.objectives', skill || 'sts2', 'history.json'), Object.fromEntries(url.searchParams)));
       if (parts.length === 2 && req.method === 'GET') {
-        return json(res, 200, { skills: librarySkills(cfg), commits: await library.history(cfg, { limit: Number(url.searchParams.get('limit')) || 50, skill }) });
+        return json(res, 200, { skills: librarySkills(cfg), ...await library.historyPage(cfg, { ...Object.fromEntries(url.searchParams), skill }) });
       }
       if (parts[2] === 'commits' && parts[3] && req.method === 'GET') {
         try { return json(res, 200, await library.diff(cfg, parts[3])); }
@@ -151,6 +149,7 @@ const server = http.createServer(async (req, res) => {
       if (!sub && req.method === 'GET') return json(res, 200, { ...room.summary(), transcript: room.agent?.transcript || [], padHistory: room.padHistory, log: room.log });
       if (!sub && req.method === 'DELETE') { await manager.remove(room.id, { keepHome: url.searchParams.get('keepHome') === '1', reason: 'deleted by user' }); return json(res, 200, { ok: true, archive: room.archiveDir ? path.basename(room.archiveDir) : null }); }
       if (sub === 'setup' && req.method === 'POST') { const body = await readJson(req); return json(res, 200, await room.applySetup(body)); }
+      if (sub === 'objectives' && req.method === 'GET') return json(res, 200, library.objectivePage(path.join(room.home, 'skills', room.setup?.game || 'sts2', 'scratchpad', 'objectives.json'), Object.fromEntries(url.searchParams)));
       if (sub === 'library' && req.method === 'GET') return json(res, 200, { games: room.library(), login: room.login });
       if (sub === 'chat' && req.method === 'POST') { const body = await readJson(req); if (!body.message) return json(res, 400, { error: 'message required' }); await room.chat(String(body.message)); return json(res, 200, { ok: true }); }
       if (sub === 'abort' && req.method === 'POST') { await room.agent?.abort(); return json(res, 200, { ok: true }); }
@@ -167,7 +166,13 @@ const server = http.createServer(async (req, res) => {
         cors(res); res.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'no-store', 'content-length': frame.length }); return res.end(frame);
       }
       if (sub === 'stream.mjpg' && req.method === 'GET') return streamMjpeg(room, req, res);
-      if (sub === 'sts2' && req.method === 'GET') { const result = await room.gatewayOp('sts2-get', { path: url.searchParams.get('path') || '/', query: url.searchParams.get('format') ? { format: url.searchParams.get('format') } : {} }); return json(res, 200, result); }
+      if (sub === 'sts2' && req.method === 'GET') {
+        const query = {};
+        for (const key of ['format', 'query', 'item_type']) if (url.searchParams.has(key)) query[key] = url.searchParams.get(key);
+        if (url.searchParams.has('limit')) query.limit = Number(url.searchParams.get('limit'));
+        const result = await room.gatewayOp('sts2-get', { path: url.searchParams.get('path') || '/', query });
+        return json(res, 200, result);
+      }
     }
     return json(res, 404, { error: 'not found' });
   } catch (e) {
@@ -289,7 +294,7 @@ function attachRoomSocket(ws, room) {
 }
 
 await manager.init(log);
-server.listen(PORT, '0.0.0.0', () => log(`steambench server listening on :${PORT} (rooms ${cfg.roomsDir}, host rooms ${cfg.hostRoomsDir}, player image ${cfg.agentImage})`));
+server.listen(PORT, '0.0.0.0', () => log(`steambench server listening on :${PORT} (rooms ${cfg.roomsDir}, host rooms ${cfg.hostRoomsDir}, player image ${cfg.learningImage})`));
 
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => {

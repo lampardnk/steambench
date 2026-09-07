@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { Executor } from '../client/astra/executor.mjs';
-import { PROFILE } from '../client/astra/profile.mjs';
-import { compactState, stateId, validatePlan, needsScreenshot, plannerResult, plannerState, mapId } from '../client/astra/state.mjs';
+import { Executor } from '../client/learning/executor.mjs';
+import { PROFILE } from '../client/learning/profile.mjs';
+import { compactState, stateId, validatePlan, needsScreenshot, plannerResult, plannerState, mapId } from '../client/learning/state.mjs';
 
 const planFor = (state, actions) => ({ observation: stateId(state), summary: 'fixture batch', note: 'Test verified local execution.', actions });
 const initialCombat = () => ({
@@ -239,12 +239,10 @@ test('unknown transitions and irreversible activations cannot have a remainder',
   }
 });
 
-test('configuration matches exact Luna/max with no provider restrictions or stale price metadata', () => {
-  const config = JSON.parse(fs.readFileSync(new URL('../client/astra/models.json', import.meta.url)));
+test('configuration matches exact OrcaRouter profile with no provider restrictions or stale price metadata', () => {
+  const config = JSON.parse(fs.readFileSync(new URL('../client/learning/models.json', import.meta.url)));
   const model = config.providers[PROFILE.provider].models[0];
   assert.equal(model.id, PROFILE.model);
-  assert.equal(model.samplingParams.reasoning.effort, 'max');
-  assert.deepEqual(model.samplingParams.provider, { require_parameters: true });
   assert.equal(model.cost, undefined);
   assert.equal(needsScreenshot(initialCombat()), false);
   assert.equal(needsScreenshot({ state_type: 'rewards', ui: { focus_path: '/RewardsContainer/RewardButton' } }), true);

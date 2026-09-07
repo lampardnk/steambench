@@ -13,7 +13,7 @@ const manager = new EventEmitter();
 manager.cfg = { mediaDir: directory, roomsDir: directory, hostRoomsDir: directory, learningKey: 'fixture-only', learningProfile: PROFILE, gatewayForAgents: 'fixture:1' };
 const room = new Room(manager, { id: '1234abcd', name: 'Fixture' });
 room.stage = 'playing';
-room.setup = { game: 'sts2', player: { kind: 'astra' }, task: { character: 'Ironclad', ascension: 1 } };
+room.setup = { game: 'sts2', player: { kind: 'builtin' }, task: { character: 'Ironclad', ascension: 1 } };
 room.lobbyId = 'preserve-lobby';
 room.roomContainer = 'preserve-game';
 room.sessionId = 'preserve-observer';
@@ -31,14 +31,14 @@ const checkpoint = path.join(room.home, 'skills/sts2/scratchpad/checkpoint.json'
 fs.mkdirSync(path.dirname(checkpoint), { recursive: true });
 await assert.rejects(() => room.restartPlayer(), /compatible learning checkpoint/);
 assert.equal(stopped, 0);
-fs.writeFileSync(checkpoint, JSON.stringify({ version: 'STS2-Pi-Learn-v0.1' }));
+fs.writeFileSync(checkpoint, JSON.stringify({ version: PROFILE.checkpointVersion }));
 const original = Object.fromEntries(['start', 'send', 'prompt', 'stop'].map(key => [key, PiAgent.prototype[key]]));
 let compatible = true;
 let handshakeModel = PROFILE.model;
 PiAgent.prototype.start = function () { this.status = 'idle'; this.attention = { id: 'fixture-issue' }; return this; };
 PiAgent.prototype.send = async function (command) {
   if (command.type === 'resume') return command.issueId === 'fixture-issue' ? { success: true } : { success: false, error: 'wrong issue' };
-  return { success: true, data: { player: 'STS2-Pi-Learn-v0.1', model: handshakeModel, thinkingLevel: PROFILE.reasoning, checkpointRestored: compatible } };
+  return { success: true, data: { player: PROFILE.checkpointVersion, model: handshakeModel, thinkingLevel: PROFILE.reasoning, checkpointRestored: compatible } };
 };
 PiAgent.prototype.prompt = async () => { prompts++; };
 PiAgent.prototype.stop = async function () { stopped++; this.status = 'stopped'; };

@@ -1,0 +1,27 @@
+{
+  "providers": {
+    "orcarouter": {
+      "baseUrl": "https://api.orcarouter.ai/v1",
+      "api": "openai-completions",
+      "apiKey": "$ORCA_KEY",
+      "models": [
+        {
+          "id": "z-ai/glm-5.3-flash-free",
+          "name": "OrcaRouter GLM 5.3 Flash Free",
+          "reasoning": false,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 128000,
+          "maxTokens": 4096,
+          "compat": {
+            "supportsStore": false,
+            "supportsReasoningEffort": false,
+            "maxTokensField": "max_tokens"
+          }
+        }
+      ]
+    }
+  }
+}

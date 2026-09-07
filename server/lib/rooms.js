@@ -1,3 +1,5 @@
+import { normalizePlayerKind } from './learning-profile.mjs';
+import { learningReadiness } from './readiness.mjs';
 // Room lifecycle. One room = one Wolf lobby (Steam + game in a container with
 // its own virtual display, audio sink and virtual Xbox pad) + one observer
 // stream session (MJPEG video, MP3 audio, pad input) + one player container.
@@ -312,6 +314,7 @@ export class Room extends EventEmitter {
       attention: this.agent?.attention || null,
       lastLibraryCommit: this.lastLibraryCommit || null,
       curriculum: this.curriculum(),
+      act1Timer: this.act1Timer(),
       media: {
         ready: Boolean(this.media?.init), codecs: this.media?.codecs || '', fragments: this.media?.fragments || 0, bytes: this.media?.bytes || 0,
         audioReady: Boolean(this.mediaAudio?.init), audioCodecs: this.mediaAudio?.codecs || '', audioFragments: this.mediaAudio?.fragments || 0,
@@ -488,19 +491,15 @@ export class Room extends EventEmitter {
     if (!setup || typeof setup !== 'object') throw new Error('setup must be an object');
     const game = String(setup.game || 'sts2');
     if (!SUPPORTED_GAMES[game]) throw new Error(`unsupported game: ${game} (supported: ${Object.keys(SUPPORTED_GAMES).join(', ')})`);
-    const player = setup.player || { kind: 'builtin' };
-    if (player.kind === 'dockerfile') {
-      if (typeof player.dockerfile !== 'string' || !/^\s*(#.*\n\s*)*(ARG|FROM)\b/im.test(player.dockerfile)) throw new Error('player.dockerfile must be a Dockerfile starting with FROM');
-      if (player.dockerfile.length > 200000) throw new Error('player.dockerfile is too large');
-    } else if (!['builtin', 'astra'].includes(player.kind)) throw new Error('player.kind must be builtin, astra or dockerfile');
-    if (player.kind === 'astra' && !this.cfg.learningKey) throw new Error('the learning player requires its configured OpenRouter key');
+    normalizePlayerKind(setup.player?.kind);
+    if (!learningReadiness(this.cfg).ready) throw new Error(learningReadiness(this.cfg).reason);
     const task = setup.task || {};
     const ascension = Number(task.ascension ?? 1);
     if (!Number.isInteger(ascension) || ascension < 0 || ascension > 20) throw new Error('task.ascension must be 0..20');
     const character = String(task.character || 'Ironclad');
     if (!CHARACTERS.includes(character)) throw new Error(`task.character must be one of ${CHARACTERS.join(', ')}`);
     const prompt = task.prompt ? String(task.prompt).slice(0, 4000) : '';
-    return { game, player: { kind: player.kind, name: player.kind === 'astra' ? this.cfg.learningProfile.name : player.name ? String(player.name).slice(0, 60) : (player.kind === 'builtin' ? 'steambench-pi (Pi + Nemotron)' : 'custom Dockerfile'), dockerfile: player.dockerfile }, task: { ascension, character, prompt } };
+    return { game, player: { kind: 'builtin', name: this.cfg.learningProfile.name }, task: { ascension, character, prompt } };
   }
 
   async applySetup(setup) {
@@ -516,15 +515,8 @@ export class Room extends EventEmitter {
   // ---- stage: installing ----------------------------------------------------
   async _install() {
     const game = SUPPORTED_GAMES[this.setup.game];
-    // Player image
-    if (this.setup.player.kind === 'builtin') this.playerImage = this.cfg.agentImage;
-    else if (this.setup.player.kind === 'astra') this.playerImage = this.cfg.learningImage;
-    else {
-      this.playerImage = `steambench-player-${this.id}`;
-      this.setDetail('building player image from Dockerfile');
-      await docker(['build', '-t', this.playerImage, '-'], { input: this.setup.player.dockerfile, timeoutMs: 20 * 60 * 1000 });
-      this._log(`player image ${this.playerImage} built`);
-    }
+    // Every room uses the one verified OrcaRouter player image.
+    this.playerImage = this.cfg.learningImage;
     if (this.destroyed) return;
     // Game install
     let st = installState(this.home, game.appid);
@@ -549,9 +541,7 @@ export class Room extends EventEmitter {
     // build). The published 0.4.0 release does not load on v0.111 and fails
     // with a ReflectionTypeLoadException, which looks from the outside like the
     // game simply never coming up.
-    const modSources = this.setup.player.kind === 'astra'
-      ? [path.join(this.cfg.modDir, 'astra-out')]
-      : [path.join(this.cfg.modDir, 'src', 'out'), this.cfg.modDir];
+    const modSources = [path.join(this.cfg.modDir, 'learning-out')];
     for (const f of ['STS2_MCP.dll', 'STS2_MCP.json']) {
       const src = modSources.map((d) => path.join(d, f)).find((p2) => fs.existsSync(p2));
       if (src) fs.copyFileSync(src, path.join(mods, f));
@@ -577,10 +567,6 @@ export class Room extends EventEmitter {
       fs.cpSync(path.join(this.cfg.skillsDir, skillSource), roomSkillDir, { recursive: true });
     }
     fs.mkdirSync(path.join(roomSkillDir, 'scratchpad'), { recursive: true });
-    if (this.setup.player.kind === 'astra') {
-      const accepted = path.join(this.cfg.runtimeDir, 'astra-memory', 'accepted.json');
-      if (fs.existsSync(accepted) && fs.statSync(accepted).size <= 12000) fs.copyFileSync(accepted, path.join(skills, game.skill, 'scratchpad', 'accepted.json'));
-    }
     const modsInRoom = path.join(steamRoot('/room'), 'steamapps', 'common', game.installdir, 'mods');
     try { await docker(['run', '--rm', '-v', `${this.hostHome}:/room`, 'alpine', 'chown', '-R', '1000:1000', '/room/skills', modsInRoom]); } catch (e) { this._log(`chown: ${e.message}`); }
     if (this.destroyed) return;
@@ -699,13 +685,12 @@ export class Room extends EventEmitter {
   }
 
   async _startPlayer({ resume = false, transcript = [] } = {}) {
-    const game = SUPPORTED_GAMES[this.setup.game];
-    this._log(`player: ${this.setup.player.name}; image=${this.playerImage}${this.setup.player.kind === 'astra' ? `; model=${this.cfg.learningProfile.model}; reasoning=${this.cfg.learningProfile.reasoning}` : ''}`);
+    this._log(`player: ${this.setup.player.name}; image=${this.playerImage}; model=${this.cfg.learningProfile.model}; reasoning=${this.cfg.learningProfile.reasoning}`);
     this._log('game and mod reachable');
     this.setDetail('starting the player');
     const agent = new PiAgent({
       name: `steambench-player-${this.id}`, image: this.playerImage,
-      env: { OPENROUTER_API_KEY: this.setup.player.kind === 'astra' ? this.cfg.learningKey : this.cfg.openrouterKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_MODEL: this.cfg.model, STEAMBENCH_VISION_MODEL: this.cfg.visionModel, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
+      env: { ORCA_KEY: this.cfg.learningKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
       mounts: [`${this.hostHome}/skills:/workspace/skills`],
     });
     this.agent = agent;
@@ -725,25 +710,16 @@ export class Room extends EventEmitter {
     agent.start();
     await sleep(4000);
     if (this.destroyed) { await agent.stop(); return; }
-    if (this.setup.player.kind === 'astra') {
-      try {
-        const response = await agent.send({ type: 'get_state' });
-        if (!response.success || response.data?.player !== this.cfg.learningProfile.checkpointVersion || response.data.model !== this.cfg.learningProfile.model || response.data.thinkingLevel !== this.cfg.learningProfile.reasoning) throw new Error('learning player model/configuration handshake failed');
-        if (resume && !response.data.checkpointRestored) throw new Error('learning player did not restore its checkpoint; refusing to resume');
-      } catch (error) {
-        this.setStage('error', `learning player startup failed; game preserved: ${error.message}`);
-        throw error;
-      }
+    try {
+      const response = await agent.send({ type: 'get_state' });
+      if (!response.success || response.data?.player !== this.cfg.learningProfile.checkpointVersion || response.data.model !== this.cfg.learningProfile.model || response.data.thinkingLevel !== this.cfg.learningProfile.reasoning) throw new Error('learning player model/configuration handshake failed');
+      if (resume && !response.data.checkpointRestored) throw new Error('learning player did not restore its checkpoint; refusing to resume');
+    } catch (error) {
+      this.setStage('error', `learning player startup failed; game preserved: ${error.message}`);
+      throw error;
     }
     const t = this.setup.task;
-    const kickoff = this.setup.player.kind === 'astra'
-      ? `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. Prioritize accurate, transferable learning over winning this first run. Take a concrete learning note every decision. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`
-      : `You are connected to ${game.name} through steambench. First read /workspace/skills/${game.skill}/SKILL.md and /workspace/skills/${game.skill}/controls/CONTROLS.md. ` +
-      `Goal: beat Ascension ${t.ascension} as ${t.character}. ` +
-      'Start by following "Starting a run" in CONTROLS.md exactly: if any run is already in progress, abandon it and confirm, ' +
-      `then start a new singleplayer run as ${t.character} at Ascension ${t.ascension}. Do not continue a run you did not start. ` +
-      'Then play until the game itself reports the run is over, keep notes in scratchpad/, and call run_over once with the result.' +
-      (t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : '');
+    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. Play efficiently to win. Target verified Act 1 completion within one hour of the first fresh Neow decision; continue if over time. Use the strategy guide and keep supplementary learning brief. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
     this.setStage('playing', `${t.character} · Ascension ${t.ascension}`);
     if (!resume) agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
     else this.setDetail('learning player reloaded; awaiting explicit supervisor resume');
@@ -846,8 +822,16 @@ export class Room extends EventEmitter {
    * room commits, so the dashboard reads this one to show what the player is
    * working towards right now. Cached on mtime: summary() is called often.
    */
+  act1Timer() {
+    try {
+      const timer = JSON.parse(fs.readFileSync(path.join(this.roomSkillDir, 'scratchpad', 'act1-timer.json'), 'utf8'));
+      const elapsedMs = timer.startedAt ? Math.max(0, (timer.completedAt || Date.now()) - timer.startedAt) : 0;
+      return { ...timer, elapsedMs, remainingMs: Math.max(0, timer.targetMs - elapsedMs), overrun: elapsedMs > timer.targetMs };
+    } catch { return null; }
+  }
+
   curriculum() {
-    const file = this.roomSkillDir && path.join(this.roomSkillDir, 'learned', 'curriculum.json');
+    const file = this.roomSkillDir && path.join(this.roomSkillDir, 'scratchpad', 'objectives.json');
     let stat = null;
     try { stat = fs.statSync(file); } catch { return null; }
     if (this._curriculumAt === stat.mtimeMs) return this._curriculum;
@@ -857,8 +841,7 @@ export class Room extends EventEmitter {
       this._curriculum = {
         active: objectives.find((item) => item.status === 'active') || null,
         completed: objectives.filter((item) => item.status === 'completed').length,
-        failed: objectives.filter((item) => item.status === 'failed').length,
-        recent: objectives.slice(-12).reverse(),
+        abandoned: objectives.filter((item) => ['failed', 'abandoned'].includes(item.status)).length,
       };
       this._curriculumAt = stat.mtimeMs;
     } catch { this._curriculum = null; }
@@ -951,7 +934,7 @@ export class Room extends EventEmitter {
   async chat(message) { if (!this.agent) throw new Error('the player has not started yet'); return this.agent.prompt(message); }
 
   async restartPlayer() {
-    if (this.setup?.player.kind !== 'astra' || !['playing', 'error'].includes(this.stage) || this.finish || this.destroyed) throw new Error('only an unfinished learning room supports player-only restart');
+    if (!['playing', 'error'].includes(this.stage) || this.finish || this.destroyed) throw new Error('only an unfinished learning room supports player-only restart');
     if (this.playerRestarting) throw new Error('player restart already in progress');
     if (this.agent && !['idle', 'error', 'stopped'].includes(this.agent.status)) throw new Error('pause the player and wait for idle before reloading');
     const checkpoint = path.join(this.home, 'skills', 'sts2', 'scratchpad', 'checkpoint.json');
@@ -970,9 +953,8 @@ export class Room extends EventEmitter {
       throw error;
     } finally { this.playerRestarting = false; }
   }
-
   async resumePlayer({ issueId, message }) {
-    if (this.playerRestarting || this.setup?.player.kind !== 'astra' || this.stage !== 'playing' || this.agent?.status !== 'idle' || this.finish) throw new Error('learning player must be idle in an unfinished playing room');
+    if (this.playerRestarting || this.stage !== 'playing' || this.agent?.status !== 'idle' || this.finish) throw new Error('learning player must be idle in an unfinished playing room');
     const response = await this.agent.send({ type: 'resume', issueId, message });
     if (response.success === false) throw new Error(response.error || 'resume rejected');
     return { ok: true };
@@ -990,8 +972,7 @@ export class Room extends EventEmitter {
     if (this.lobbyId) { try { await this.m.wolf.stopLobby(this.lobbyId); } catch (e) { this._log(`lobby stop: ${e.message}`); } }
     for (const f of [this.videoFifo, this.audioFifo]) { try { fs.rmSync(f, { force: true }); } catch { /* ignore */ } }
     if (this.roomContainer) { await sleep(2000); await rmForce(this.roomContainer); }
-    if (this.playerImage && ![this.cfg.agentImage, this.cfg.learningImage].includes(this.playerImage)) { try { await docker(['rmi', '-f', this.playerImage]); } catch { /* ignore */ } }
-    if (!keepHome) { try { await docker(['run', '--rm', '-v', `${path.dirname(this.hostHome)}:/rooms`, 'alpine', 'rm', '-rf', `/rooms/${this.id}`]); } catch (e) { this._log(`home cleanup: ${e.message}`); } }
+    if (this.playerImage && this.playerImage !== this.cfg.learningImage) { try { await docker(['rmi', '-f', this.playerImage]); } catch { /* ignore */ } }
     this.setStage('deleted', reason);
   }
 
@@ -1007,7 +988,7 @@ export class Room extends EventEmitter {
 
   // ---- gateway ops (called by the player through the JSON-line gateway) ----
   async gatewayOp(op, request) {
-    if (this.setup?.player.kind === 'astra' && this.agent?.attention && ['pad-press', 'pad-dpad', 'pad-stick', 'room-finish'].includes(op)) throw new GatewayError('supervisor_required', 'pending incident requires explicit supervisor review before gameplay');
+    if (this.setup?.player.kind === 'builtin' && this.agent?.attention && ['pad-press', 'pad-dpad', 'pad-stick', 'room-finish'].includes(op)) throw new GatewayError('supervisor_required', 'pending incident requires explicit supervisor review before gameplay');
     switch (op) {
       case 'hello': return { room: this.id, stage: this.stage, ops: ['sts2-get', 'screenshot', 'pad-status', 'pad-press', 'pad-stick', 'pad-dpad', 'pad-neutral', 'room-finish', 'skill-commit', 'web-get'] };
       case 'skill-commit': {

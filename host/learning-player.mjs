@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs, parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { compactState } from '../client/astra/state.mjs';
+import { compactState } from '../client/learning/state.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { positionals, values } = parseArgs({ allowPositionals: true, options: { issue: { type: 'string' }, message: { type: 'string' }, timeout: { type: 'string', default: '600' } } });

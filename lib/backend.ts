@@ -93,7 +93,7 @@ export type TranscriptItem = {
 export type RoomSetup = {
   game: string
   gameName?: string
-  player: { kind: 'builtin' | 'astra' | 'dockerfile'; name?: string; dockerfile?: string }
+  player: { kind: 'builtin'; name?: string }
   task: { ascension: number; character: string; prompt?: string }
 }
 
@@ -104,7 +104,7 @@ export type Objective = {
   why?: string
   done_when?: string
   area?: string
-  status: 'active' | 'completed' | 'failed'
+  status: 'active' | 'completed' | 'failed' | 'abandoned'
   attempts?: number
   critiques?: string[]
   opened?: { room?: string | null; decision?: number; at?: number; act?: number | null; floor?: number | null; by?: string }
@@ -153,11 +153,10 @@ export type Meta = {
   savedLogin: { savedAt: number | null } | null
   games: { key: string; appid: string; name: string }[]
   characters: string[]
-  builtinPlayer: { name: string; model: string; visionModel: string }
-  astraPlayer?: { name: string; model: string; reasoning: string; configured: boolean }
+  builtinPlayer: { name: string; model: string; reasoning: string; configured: boolean; ready: boolean; reason?: string | null }
   maxRooms: number
   observerSlots: number
-  /** Reference sites the player may fetch, and the persistent skill libraries. */
+  /** Reference sites the player may fetch, and the persistent strategy guides. */
   referenceHosts?: string[]
   librarySkills?: string[]
 }

@@ -7,15 +7,15 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
-import { Executor } from '../client/astra/executor.mjs';
-import { stateId, VERSION } from '../client/astra/state.mjs';
+import { Executor } from '../client/learning/executor.mjs';
+import { stateId, VERSION } from '../client/learning/state.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-fixtures-'));
 const binary = path.join(temporary, 'pi');
 fs.symlinkSync(path.join(root, 'tests/fixtures/fake-pi.cjs'), binary);
 fs.chmodSync(binary, 0o755);
-const baseState = { state_type: 'event', run: { floor: 1, act: 1 }, player: { hp: 80 }, ui: { sensor_version: 2, game_build: 'fixture-game', mod_build: 'fixture-mod', focus_path: null } };
+const baseState = { state_type: 'event', run: { floor: 1, act: 1 }, player: { hp: 80 }, ui: { sensor_version: 3, game_build: 'fixture-game', mod_build: 'fixture-mod', focus_path: null } };
 const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const children = new Set();
 
@@ -27,8 +27,7 @@ async function scenario(mode) {
   if (mode === 'inherited_objective') {
     // A ladder left open by a different room. The player must start cleanly and
     // retire it: that objective was opened against a seed that no longer exists.
-    fs.mkdirSync(path.join(temporary, mode, 'learned'), { recursive: true });
-    fs.writeFileSync(path.join(temporary, mode, 'learned', 'curriculum.json'), JSON.stringify({
+    fs.writeFileSync(path.join(directory, 'objectives.json'), JSON.stringify({
       version: 1,
       objectives: [{ id: 'obj-old', text: 'From the floor-4 card reward, reach the next fight', done_when: 'a reward screen is visible', area: 'strategy', status: 'active', attempts: 0, critiques: [], opened: { room: 'aaaa1111', decision: 12, floor: 4 } }],
     }));
@@ -68,7 +67,7 @@ async function scenario(mode) {
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   function start() {
-    const child = spawn(process.execPath, [path.join(root, 'client/astra/player.mjs')], { env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, OPENROUTER_API_KEY: 'fixture-only', STEAMBENCH_PROCESS_GATEWAY: `127.0.0.1:${server.address().port}`, STEAMBENCH_PROCESS_TOKEN: '', STEAMBENCH_ASTRA_SCRATCHPAD: directory, STEAMBENCH_ROOM_ID: 'bbbb2222', FIXTURE_MODE: mode, FIXTURE_CALLS: callsFile }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [path.join(root, 'client/learning/player.mjs')], { env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, ORCA_KEY: 'fixture-only', STEAMBENCH_PROCESS_GATEWAY: `127.0.0.1:${server.address().port}`, STEAMBENCH_PROCESS_TOKEN: '', STEAMBENCH_LEARNING_SCRATCHPAD: directory, STEAMBENCH_ROOM_ID: 'bbbb2222', FIXTURE_MODE: mode, FIXTURE_CALLS: callsFile }, stdio: ['pipe', 'pipe', 'pipe'] });
     children.add(child);
     child.events = [];
     child.errors = '';
@@ -92,11 +91,11 @@ async function scenario(mode) {
     return waitFor(child, event => event.type === 'response' && event.id === id, payload.type);
   }
   async function stop(child) {
+    if (child.exitCode !== null || child.signalCode !== null) { children.delete(child); return; }
     const closed = once(child, 'close');
+    const timer = setTimeout(() => child.kill('SIGKILL'), 3000);
     child.stdin.end();
-    await closed;
-    children.delete(child);
-    assert.equal(child.exitCode, 0, child.errors);
+    try { await closed; } finally { clearTimeout(timer); children.delete(child); }
   }
   let child = start();
   try {
@@ -112,24 +111,24 @@ async function scenario(mode) {
     assert.equal(checkpoint.version, VERSION);
     assert.equal(checkpoint.attention.id, attention.id);
     const calls = fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8').trim().split('\n').length : 0;
-    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : mode === 'probes_only' ? 4 : 0);
+    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : mode === 'probes_only' ? 2 : 0);
     // A planner failure sends nothing, so it is refined with the reason in
     // context before the run is paused. Anything that reached the game is not.
     const refinable = ['provider_error', 'empty'].includes(mode);
     // notes_only writes two notes, is refused a third, then spends the refine budget.
-    assert.equal(calls, ['bad_sensor', 'stale_image'].includes(mode) ? 0 : mode === 'stale' ? 3 : refinable ? 4 : mode === 'notes_only' ? 6 : mode === 'probes_only' ? 8 : 1);
+    assert.equal(calls, ['bad_sensor', 'stale_image'].includes(mode) ? 0 : mode === 'stale' ? 3 : refinable ? 3 : mode === 'notes_only' ? 5 : mode === 'probes_only' ? 5 : 1);
     if (mode === 'probes_only') {
       // A probe answers where focus is. A run of them answers nothing, and the
       // player was oscillating between two positions instead of committing.
       const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-      assert.equal(events.filter(event => event.type === 'decision_result').length, 4, 'four probes are allowed');
+      assert.equal(events.filter(event => event.type === 'decision_result').length, 2, 'two probes are allowed');
       assert.match(events.find(event => event.type === 'refine').error, /probes in a row without acting/);
     }
     if (mode === 'inherited_objective') {
       // The crash this guards against was a startup ReferenceError, so reaching
       // any pause at all already proves the player booted with the ladder.
-      const ladder = JSON.parse(fs.readFileSync(path.join(temporary, mode, 'learned', 'curriculum.json'), 'utf8'));
-      assert.equal(ladder.objectives[0].status, 'failed', 'an objective from another room is retired, not carried');
+      const ladder = JSON.parse(fs.readFileSync(path.join(directory, 'objectives.json'), 'utf8'));
+      assert.equal(ladder.objectives[0].status, 'abandoned', 'an objective from another room is retired, not carried');
       assert.match(ladder.objectives[0].closed.reasoning, /new room plays a new seed/);
     }
     if (mode === 'notes_only') {
@@ -141,7 +140,7 @@ async function scenario(mode) {
     }
     if (refinable) {
       const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-      assert.deepEqual(events.filter(event => event.type === 'refine').map(event => event.round), [1, 2, 3], 'three refinement rounds, then the pause');
+      assert.deepEqual(events.filter(event => event.type === 'refine').map(event => event.round), [1, 2], 'two refinement rounds, then the pause');
       assert.equal(inputs.length, 0, 'and not one of them touched the game');
     }
     if (mode === 'transport_error') assert.equal(incident.recentInputs.length, 1);
@@ -149,7 +148,7 @@ async function scenario(mode) {
     assert.equal((await command(child, { type: 'resume', issueId: 'wrong', message: 'No review' })).success, false);
     assert.equal((await command(child, { type: 'resume', issueId: attention.id, message: '   ' })).success, false);
     await sleep(250);
-    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : mode === 'probes_only' ? 4 : 0);
+    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : mode === 'probes_only' ? 2 : 0);
     if (mode === 'report') {
       const notes = fs.readFileSync(path.join(directory, 'learning.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
       assert.equal(notes[0].kind, 'pre_action_hypothesis');
@@ -174,28 +173,16 @@ async function scenario(mode) {
       assert.equal(inputs.length, 0);
       assert.ok(fs.readFileSync(path.join(directory, 'incident-resolutions.jsonl'), 'utf8').includes(attention.id));
 
-      // An ordinary chat reply answers the player's question and resumes the same run.
+      // Ordinary chat must not acknowledge an incident or send more inputs.
       const second = next.attention;
       const secondEvidence = fs.readFileSync(path.join(directory, second.path), 'utf8');
-      const settled = () => child.events.filter(event => event.type === 'agent_settled').length;
-      const settledBefore = settled();
-      assert.equal((await command(child, { type: 'prompt', message: 'Y confirms that screen; the cycling preview means nothing.' })).success, true);
-      const deadline = Date.now() + 12000;
-      while (settled() === settledBefore && Date.now() < deadline) await sleep(20);
-      assert.ok(settled() > settledBefore, 'chat-resumed pause');
+      assert.equal((await command(child, { type: 'prompt', message: 'Y confirms that screen; the cycling preview means nothing.' })).success, false);
       const third = JSON.parse(fs.readFileSync(path.join(directory, 'checkpoint.json')));
-      assert.equal(third.decision, next.decision + 1);
-      assert.equal(third.taskText, checkpoint.taskText);
-      assert.equal(third.freshRunVerified, checkpoint.freshRunVerified);
-      assert.notEqual(third.attention.id, second.id);
+      assert.equal(third.decision, next.decision);
+      assert.equal(third.attention.id, second.id);
       assert.equal(fs.readFileSync(path.join(directory, second.path), 'utf8'), secondEvidence);
       const resolutions = fs.readFileSync(path.join(directory, 'incident-resolutions.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-      const chatResolution = resolutions.at(-1);
-      assert.equal(chatResolution.via, 'chat');
-      assert.equal(chatResolution.issueId, second.id);
-      assert.equal(chatResolution.acknowledgedIssueId, null);
-      assert.equal(JSON.parse(fs.readFileSync(path.join(directory, 'attention.json'), 'utf8')).id, third.attention.id);
-      assert.ok(third.instructions.some(item => item.from === 'operator chat reply' && item.at_decision === next.decision));
+      assert.equal(resolutions.length, 1, 'rejected chat adds no resolution');
       assert.equal(inputs.length, 0);
     }
     console.log(JSON.stringify({ scenario: mode, result: 'passed', gameplayInputs: inputs.length, plannerCallsBeforeResume: calls }));

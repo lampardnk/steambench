@@ -8,11 +8,10 @@
 // as an instruction. Live mod state always outranks a fetched page.
 import { GatewayError } from './gateway.js';
 
-// One reference site, one version. slaythespire2.net serves several game
-// versions from the same paths, so every fetch is pinned to the beta profile
-// that matches the installed build; anything else would quietly describe a
-// different game.
-export const WEB_ALLOWLIST = ['slaythespire2.net', 'www.slaythespire2.net'];
+// Reference sites: slaythespire2.net and slaythespire.wiki.gg.
+// slaythespire2.net serves several game versions from the same paths, so fetches to it
+// are pinned to the beta profile that matches the installed build.
+export const WEB_ALLOWLIST = ['slaythespire2.net', 'slaythespire.wiki.gg'];
 export const REFERENCE_VERSION = 'beta';
 export const INSTALLED_BUILD = 'v0.111.0';
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -48,11 +47,13 @@ function checkUrl(raw) {
   try { url = new URL(String(raw)); }
   catch { throw new GatewayError('invalid_url', 'url must be an absolute http(s) URL'); }
   if (url.protocol !== 'https:') throw new GatewayError('invalid_url', 'only https URLs are fetched');
-  if (!WEB_ALLOWLIST.includes(url.hostname)) throw new GatewayError('host_not_allowed', `only https://slaythespire2.net/?v=${REFERENCE_VERSION} pages are reachable`, { allowed: WEB_ALLOWLIST });
+  if (!WEB_ALLOWLIST.includes(url.hostname)) throw new GatewayError('host_not_allowed', `only https://slaythespire2.net/ and https://slaythespire.wiki.gg/ pages are reachable`, { allowed: WEB_ALLOWLIST });
   if (url.href.length > 400) throw new GatewayError('invalid_url', 'url is too long');
-  const version = url.searchParams.get('v');
-  if (version && version !== REFERENCE_VERSION) throw new GatewayError('wrong_version', `only the ${REFERENCE_VERSION} profile is allowed; it is the one matching the installed ${INSTALLED_BUILD} build`);
-  url.searchParams.set('v', REFERENCE_VERSION);
+  if (url.hostname.includes('slaythespire2.net')) {
+    const version = url.searchParams.get('v');
+    if (version && version !== REFERENCE_VERSION) throw new GatewayError('wrong_version', `only the ${REFERENCE_VERSION} profile is allowed; it is the one matching the installed ${INSTALLED_BUILD} build`);
+    url.searchParams.set('v', REFERENCE_VERSION);
+  }
   return url;
 }
 

@@ -1,5 +1,0 @@
-# Downloaded VOD media — large, and not ours to redistribute
-vods/
-# Session/fingerprint cookies — never commit
-raw/cookie.txt
-raw/*cookie*

@@ -5,15 +5,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Curriculum, situation } from '../client/astra/curriculum.mjs';
-import { indexNotes, parseNote, retrieve, situationTerms } from '../client/astra/retrieval.mjs';
+import { Curriculum, situation } from '../client/learning/curriculum.mjs';
+import { indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-curriculum-'));
 const skillDir = path.join(root, 'skills', 'sts2');
-fs.mkdirSync(path.join(skillDir, 'learned'), { recursive: true });
+fs.mkdirSync(skillDir, { recursive: true });
 
 const note = (relative, text) => {
-  const file = path.join(skillDir, 'learned', relative);
+  const file = path.join(skillDir, relative);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, text);
 };
@@ -35,7 +35,7 @@ const inRun = { state_type: 'map', run: { act: 1, floor: 3, ascension: 1, charac
 
 // --- proposing -------------------------------------------------------------
 const planner = new FakePlanner();
-let curriculum = new Curriculum({ skillDir, planner, playerName: 'STS2-Pi-Luna-v0.1', roomId: 'aaaa1111' });
+let curriculum = new Curriculum({ skillDir, planner, playerName: 'STS2-Pi-OrcaRouter', roomId: 'aaaa1111' });
 assert.equal(curriculum.active, null, 'a fresh ladder has no objective');
 assert.ok(curriculum.needsObjective(inRun));
 assert.ok(!curriculum.needsObjective({ state_type: 'menu' }), 'no objective is proposed outside a run');
@@ -51,8 +51,8 @@ assert.deepEqual(planner.asked[0].context.learned_notes, ['bestiary/wriggler.md'
 planner.queue({ objective: 'Something vague', why: 'because' });
 await assert.rejects(() => curriculum.propose(inRun, { task: 't', decision: 5 }), /completion condition/, 'an objective without an observable condition is refused');
 
-// The ladder is a file in the skill library, so the next room inherits it.
-const ledgerFile = path.join(skillDir, 'learned', 'curriculum.json');
+// The active ladder is per-room scratch state and survives a player reload.
+const ledgerFile = path.join(skillDir, 'scratchpad', 'objectives.json');
 assert.ok(fs.existsSync(ledgerFile));
 const reloaded = new Curriculum({ skillDir, planner: new FakePlanner() });
 assert.equal(reloaded.active?.text, proposed.text, 'the objective survives a reload');
@@ -99,10 +99,10 @@ assert.equal(won.verdict, 'success');
 assert.equal(curriculum.completed.length, 1);
 assert.equal(curriculum.active, null);
 
-// A failed objective's reason is carried forward so the proposer does not repeat it.
+// Decision context carries aggregate progress, not seed-specific old objectives.
 const frontier = curriculum.context();
-assert.equal(frontier.failed_objectives[0].why_it_failed, 'and again');
-assert.equal(frontier.completed_objectives.at(-1), 'Beat the act 1 boss');
+assert.equal(Object.values(frontier.curriculum_summary).reduce((n, x) => n + x.abandoned, 0), 2);
+assert.equal(Object.values(frontier.curriculum_summary).reduce((n, x) => n + x.completed, 0), 1);
 
 // --- checking happens at progress boundaries, not every decision -----------
 planner.queue({ objective: 'Learn the Wriggler intent cycle', why: 'unknown elite', done_when: 'two full cycles observed', area: 'bestiary' });
@@ -129,7 +129,7 @@ assert.equal(curriculum.active?.opened.room, 'aaaa1111');
 const nextRoom = new Curriculum({ skillDir, planner: new FakePlanner(), roomId: 'bbbb2222' });
 assert.equal(nextRoom.active, null, 'the previous room left nothing open');
 assert.match(nextRoom.failed.at(-1).closed.reasoning, /new room plays a new seed/);
-assert.ok(nextRoom.context().completed_objectives.includes('Beat the act 1 boss'), 'but the frontier still crosses rooms');
+assert.equal(Object.values(nextRoom.context().curriculum_summary).reduce((n, x) => n + x.completed, 0), 1, 'completed counts survive reload');
 // Reopening the same room is not a new seed and must not retire anything.
 planner.queue({ objective: 'Survive to floor 8', why: 'x', done_when: 'floor 8 reached', area: 'strategy' });
 await new Curriculum({ skillDir, planner, roomId: 'bbbb2222' }).propose(inRun, { task: 't', decision: 70 });
@@ -147,7 +147,7 @@ note('strategy/elites.md', '---\ndescription: When to take an elite\nkeys: elite
 note('setups/ironclad-a1/openers.md', '---\ndescription: Ironclad ascension 1 opening priorities\nkeys: ironclad-a1, ironclad\n---\nTake block early.\n');
 note('events/README.md', '# events/\n\nThis guide must never be retrieved as a note.\n');
 
-const parsed = parseNote('bestiary/wriggler.md', fs.readFileSync(path.join(skillDir, 'learned', 'bestiary', 'wriggler.md'), 'utf8'));
+const parsed = parseNote('bestiary/wriggler.md', fs.readFileSync(path.join(skillDir, 'bestiary', 'wriggler.md'), 'utf8'));
 assert.deepEqual(parsed.keys, ['wriggler', 'elite']);
 assert.equal(parsed.area, 'bestiary');
 assert.ok(parsed.hasFrontMatter);
@@ -166,7 +166,7 @@ assert.ok(!index.some((item) => /floor4/.test(item.path)), 'a note naming one mo
 
 const fighting = { state_type: 'battle', run: { act: 1, floor: 5, ascension: 1, character: 'The Ironclad' }, battle: { enemies: [{ name: 'Wriggler', hp: 40 }] }, player: { hp: 60, max_hp: 80, hand: [] } };
 const terms = situationTerms(fighting, { text: 'Learn the Wriggler intent cycle', area: 'bestiary' });
-assert.equal(terms.weights.get('wriggler'), 4, 'the enemy in front of the player is the most specific term');
+assert.equal(terms.weights.get('wriggler'), 8, 'the enemy in front of the player is the most specific term');
 assert.equal(terms.weights.get('ironclad-a1'), 2, 'this exact character and ascension is a weaker retrieval key');
 assert.equal(terms.weights.get('battle'), 1);
 

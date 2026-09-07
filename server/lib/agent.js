@@ -1,5 +1,5 @@
-// Runs one steambench-pi agent container in Pi's RPC mode and turns its
-// JSONL event stream into a compact transcript the dashboard can render.
+// Runs one learning player container in Pi's RPC mode and turns its JSONL event
+// stream into a compact transcript the dashboard can render.
 import { EventEmitter } from 'node:events';
 import { spawnRun, rmForce, allContainers } from './docker.js';
 
@@ -11,7 +11,7 @@ export class PiAgent extends EventEmitter {
   /**
    * @param {object} o
    * @param {string} o.name          container name
-   * @param {string} o.image         agent image (steambench-pi)
+   * @param {string} o.image         learning player image
    * @param {Record<string,string>} o.env  environment for the container
    * @param {string[]} [o.piArgs]    extra Pi arguments
    */

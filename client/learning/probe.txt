@@ -1,0 +1,1 @@
+Return only JSON: {"ok":true,"color":"none"}. If an image is attached, replace "none" with the name of its dominant color. No tools or game actions.

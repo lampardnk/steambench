@@ -182,6 +182,7 @@ export default function RoomPage() {
                 </div>
                 <Learning
                   settings={settings}
+                  roomId={room.id}
                   curriculum={room.curriculum}
                   refreshKey={`${room.lastLibraryCommit?.hash || ''}:${room.curriculum?.active?.id || ''}`}
                 />
@@ -209,8 +210,6 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
   const [meta, setMeta] = useState<Meta | null>(null)
   const [library, setLibrary] = useState<LibraryGame[]>([])
   const [game, setGame] = useState('sts2')
-  const [playerKind, setPlayerKind] = useState<'builtin' | 'astra' | 'dockerfile'>('builtin')
-  const [dockerfile, setDockerfile] = useState(DEFAULT_DOCKERFILE)
   const [character, setCharacter] = useState('Ironclad')
   const [ascension, setAscension] = useState(1)
   const [prompt, setPrompt] = useState('')
@@ -219,13 +218,14 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
 
   const load = useCallback(async () => {
     try {
-      const [m, l] = await Promise.all([api<Meta>(settings, '/api/meta'), api<{ games: LibraryGame[] }>(settings, `/api/rooms/${room.id}/library`)])
+      const [m, l] = await Promise.all([api<Meta>(settings, '/api/meta'), api<{ games: LibraryGame[] }>(settings, `/api/rooms/${room.id}/library`)]);
       setMeta(m)
       setLibrary(l.games)
     } catch (e) {
       setErr((e as Error).message)
     }
   }, [settings, room.id])
+
   useEffect(() => {
     load()
   }, [load])
@@ -236,7 +236,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
     try {
       await api(settings, `/api/rooms/${room.id}/setup`, {
         method: 'POST',
-        body: JSON.stringify({ game, player: playerKind !== 'dockerfile' ? { kind: playerKind } : { kind: 'dockerfile', dockerfile, name: 'custom Dockerfile' }, task: { character, ascension, prompt } }),
+        body: JSON.stringify({ game, player: { kind: 'builtin' }, task: { character, ascension, prompt } }),
       })
       onDone({ ...room, stage: 'installing' })
     } catch (e) {
@@ -266,9 +266,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Character</span>
           <select value={character} onChange={(e) => setCharacter(e.target.value)} className="rounded-md border border-border bg-background px-2 py-1">
-            {(meta?.characters || ['Ironclad']).map((c) => (
-              <option key={c}>{c}</option>
-            ))}
+            {(meta?.characters || ['Ironclad']).map((c) => <option key={c}>{c}</option>)}
           </select>
         </label>
         <label className="flex flex-col gap-1">
@@ -277,22 +275,11 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Player</span>
-          <select value={playerKind} onChange={(e) => setPlayerKind(e.target.value as 'builtin' | 'astra' | 'dockerfile')} className="rounded-md border border-border bg-background px-2 py-1">
-            <option value="builtin">{meta?.builtinPlayer.name || 'steambench-pi (Pi + Nemotron)'}</option>
-            <option value="astra" disabled={!meta?.astraPlayer?.configured}>{meta?.astraPlayer?.name || 'STS2-Pi-Luna-v0.1'} · {meta?.astraPlayer?.reasoning || 'max'} reasoning</option>
-            <option value="dockerfile">custom Dockerfile</option>
-          </select>
+          <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs">
+            {meta?.builtinPlayer.name || 'STS2-Pi-OrcaRouter'} · {meta?.builtinPlayer.model || 'z-ai/glm-5.3-flash-free'}
+          </div>
         </label>
       </div>
-      {playerKind === 'dockerfile' && (
-        <label className="mt-3 flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">
-            Dockerfile (built without a context). Contract: with STEAMBENCH_PLAYER_MODE=rpc the container must speak Pi&apos;s JSONL RPC on stdin/stdout and use the
-            STEAMBENCH_PROCESS_GATEWAY/STEAMBENCH_PROCESS_TOKEN gateway; skills are mounted at /workspace/skills.
-          </span>
-          <textarea value={dockerfile} onChange={(e) => setDockerfile(e.target.value)} rows={12} className="rounded-md border border-border bg-background px-2 py-1 font-mono text-xs" />
-        </label>
-      )}
       <label className="mt-3 flex flex-col gap-1">
         <span className="text-xs text-muted-foreground">Extra instructions for the player (optional)</span>
         <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} className="rounded-md border border-border bg-background px-2 py-1" placeholder="e.g. prefer a Strength build; skip shops" />
@@ -439,13 +426,3 @@ function RoomInfo({ room, log }: { room: RoomSummary; log: string[] }) {
     </div>
   )
 }
-
-const DEFAULT_DOCKERFILE = `# Reference player. Contract:
-#  - env STEAMBENCH_PROCESS_GATEWAY (host:port) + STEAMBENCH_PROCESS_TOKEN: JSON-line gateway
-#    with ops sts2-get, screenshot, pad-press, pad-dpad, pad-stick, pad-neutral, pad-status, room-finish
-#  - env STEAMBENCH_PLAYER_MODE=rpc: speak Pi's JSONL RPC (https://pi.dev/docs/latest/rpc) on stdin/stdout
-#  - skills are mounted read/write at /workspace/skills (keep notes only in <skill>/scratchpad/)
-FROM steambench-pi
-# Example customisation: a different OpenRouter model for the reasoning step.
-ENV STEAMBENCH_MODEL=nvidia/nemotron-3-super-120b-a12b:free
-`

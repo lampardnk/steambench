@@ -1,11 +1,18 @@
-// Shared by the backend and learning image; keep storage/checkpoint aliases stable.
+// Shared identity for the backend, player, and isolated capability probe.
 export const PROFILE = Object.freeze({
-  name: 'STS2-Pi-Luna-v0.1',
-  image: 'sts2-pi-luna:0.1',
-  checkpointVersion: 'STS2-Pi-Learn-v0.1',
-  provider: 'openrouter',
-  model: 'openai/gpt-5.6-luna',
-  reasoning: 'max',
-  apiKeyEnv: 'OPENROUTER_API_KEY',
-  plannerDeadlineMs: 180000,
+  name: 'STS2-Pi-OrcaRouter',
+  image: 'steambench-learning:latest',
+  checkpointVersion: 'STS2-Pi-Learn-v0.2',
+  provider: 'orcarouter',
+  baseUrl: 'https://api.orcarouter.ai/v1',
+  model: 'z-ai/glm-5.3-flash-free',
+  reasoning: 'default',
+  apiKeyEnv: 'ORCA_KEY',
+  maxTokens: 4096,
+  plannerDeadlineMs: 120000,
 });
+
+export function normalizePlayerKind(kind = 'builtin') {
+  if (kind === 'builtin') return kind;
+  throw new Error('player.kind must be builtin; custom and legacy players are not supported');
+}

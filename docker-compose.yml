@@ -6,7 +6,7 @@ services:
     image: ghcr.io/games-on-whales/wolf:stable
     container_name: steambench-wolf
     network_mode: host
-    restart: unless-stopped
+    restart: "no"
     environment:
       - WOLF_SOCKET_PATH=/etc/wolf/wolf.sock
       - NVIDIA_DRIVER_VOLUME_NAME=nvidia-driver-vol
@@ -45,14 +45,13 @@ services:
     image: steambench-server
     container_name: steambench-server
     network_mode: host
-    restart: unless-stopped
+    restart: "no"
     depends_on:
       - wolf
     environment:
-      # Dashboard/API token and the agents' model key come from .env (gitignored).
+      # API token is local; ORCA_KEY is passed only from the system environment.
       - STEAMBENCH_TOKEN=${STEAMBENCH_TOKEN:?set STEAMBENCH_TOKEN in .env}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - STEAMBENCH_LEARNING_OPENROUTER_API_KEY=${STEAMBENCH_LEARNING_OPENROUTER_API_KEY:-}
+      - ORCA_KEY
       - WOLF_SOCKET_PATH=/etc/wolf/wolf.sock
       - WOLF_CFG_FILE=/etc/wolf/cfg/config.toml
       - WOLF_VIDEO_PING_PORT=${WOLF_VIDEO_PING_PORT:-58100}
@@ -65,8 +64,6 @@ services:
       - STEAMBENCH_HOST_STEAM=/host/steam
       - STEAMBENCH_HOST_STEAM_PATH=${STEAMBENCH_HOST_STEAM:-${HOME}/.local/share/Steam}
       - STEAMBENCH_HOST_STS2=/host/sts2
-      - STEAMBENCH_MODEL=${STEAMBENCH_MODEL:-nvidia/nemotron-3-super-120b-a12b:free}
-      - STEAMBENCH_VISION_MODEL=${STEAMBENCH_VISION_MODEL:-nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free}
       - PORT=8787
     volumes:
       - ./.runtime/wolf:/etc/wolf:rw
@@ -82,7 +79,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: steambench-tunnel
     network_mode: host
-    restart: unless-stopped
+    restart: "no"
     profiles: ["tunnel"]
     command: tunnel --no-autoupdate --url http://127.0.0.1:8787
 

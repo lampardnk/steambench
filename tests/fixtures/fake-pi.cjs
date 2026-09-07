@@ -17,7 +17,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
   }
   const actions = mode === 'report' ? [{ type: 'report_issue', issue: 'Unknown fixture interaction; please inspect before further input.' }]
     : mode === 'probes_only' ? [{ type: 'input', buttons: ['right'] }]
-    : mode === 'notes_only' ? [{ type: 'learn', path: `controls/fixture-${context.consecutive_notes_without_acting}.md`, content: '---\ndescription: fixture\nkeys: fixture\n---\nObserved.\n', message: 'Record a fixture observation' }]
+    : mode === 'notes_only' ? [{ type: 'learn', path: `ironclad/a1/controls/fixture-${context.consecutive_notes_without_acting}.md`, content: '---\ndescription: fixture\nkeys: fixture\n---\nObserved.\n', message: 'Record a fixture observation' }]
     : [{ type: 'input', buttons: ['a'] }];
   const plan = { observation: context.observation_id, summary: 'Fixture decision', actions, note: 'Observed fixture focus; test one known A input or report uncertainty.' };
   if (mode === 'final_only') {
