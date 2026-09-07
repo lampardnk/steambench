@@ -210,7 +210,10 @@ export class Executor {
     // A note closing the plan records what the plan verified, so it is written
     // after the gameplay actions - including when a barrier stopped them early.
     const note = plan.actions.length > 1 && plan.actions.at(-1).type === 'learn' ? plan.actions.at(-1) : null;
-    for (const action of note ? plan.actions.slice(0, -1) : plan.actions) {
+    // A trailing note sends nothing, so everything downstream reasons about the
+    // gameplay actions alone - the same slice validatePlan checks against.
+    const steps = note ? plan.actions.slice(0, -1) : plan.actions;
+    for (const action of steps) {
       const before = state;
       try {
         if (action.type === 'play') {
@@ -250,7 +253,7 @@ export class Executor {
           // One reversible directional press is a probe whether or not it says so: an unchanged
           // focus is the answer (already at that edge), not a fault. Opaque @Control@NNNN labels
           // make this the only way to locate focus. Every other sequence still pauses.
-          const probing = action.probe || (plan.actions.length === 1 && action.buttons.length === 1
+          const probing = action.probe || (steps.length === 1 && action.buttons.length === 1
             && DIRECTIONS.includes(action.buttons[0]) && !action.expect && !isCombat(before));
           if (probing && stateId(state) === stateId(before)) {
             completed.push({ action, buttons: action.buttons, verified: true, moved: false, detail: 'Focus did not move, so it was already at that edge of the reachable options.' });

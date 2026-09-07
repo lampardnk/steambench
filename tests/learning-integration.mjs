@@ -20,8 +20,19 @@ const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, millise
 const children = new Set();
 
 async function scenario(mode) {
-  const directory = path.join(temporary, mode);
-  fs.mkdirSync(directory);
+  // Mirror a room's layout: skills/<game>/scratchpad, so each scenario gets its
+  // own learned/ tree rather than sharing one.
+  const directory = path.join(temporary, mode, 'scratchpad');
+  fs.mkdirSync(directory, { recursive: true });
+  if (mode === 'inherited_objective') {
+    // A ladder left open by a different room. The player must start cleanly and
+    // retire it: that objective was opened against a seed that no longer exists.
+    fs.mkdirSync(path.join(temporary, mode, 'learned'), { recursive: true });
+    fs.writeFileSync(path.join(temporary, mode, 'learned', 'curriculum.json'), JSON.stringify({
+      version: 1,
+      objectives: [{ id: 'obj-old', text: 'From the floor-4 card reward, reach the next fight', done_when: 'a reward screen is visible', area: 'strategy', status: 'active', attempts: 0, critiques: [], opened: { room: 'aaaa1111', decision: 12, floor: 4 } }],
+    }));
+  }
   const callsFile = path.join(directory, 'calls.txt');
   const inputs = [];
   let reads = 0;
@@ -39,7 +50,10 @@ async function scenario(mode) {
         if (mode === 'stale') state.ui.focus_path = String(reads);
         result = { body: JSON.stringify(state) };
       } else if (request.op === 'screenshot') result = { data_base64: Buffer.from('fixture-image').toString('base64'), age_ms: mode === 'stale_image' ? 5000 : 0 };
-      else if (request.op !== 'pad-neutral') {
+      // Only pad traffic is gameplay input. Knowledge ops such as skill-commit
+      // reach the gateway too but never touch the game, which is the whole point
+      // of the bound being tested here.
+      else if (/^pad-/.test(request.op) && request.op !== 'pad-neutral') {
         inputs.push(request);
         if (mode === 'transport_error') {
           socket.end(JSON.stringify({ ok: false, error: { code: 'fixture_input', message: 'input acknowledgement lost' } }) + '\n');
@@ -51,7 +65,7 @@ async function scenario(mode) {
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   function start() {
-    const child = spawn(process.execPath, [path.join(root, 'client/astra/player.mjs')], { env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, OPENROUTER_API_KEY: 'fixture-only', STEAMBENCH_PROCESS_GATEWAY: `127.0.0.1:${server.address().port}`, STEAMBENCH_PROCESS_TOKEN: '', STEAMBENCH_ASTRA_SCRATCHPAD: directory, FIXTURE_MODE: mode, FIXTURE_CALLS: callsFile }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [path.join(root, 'client/astra/player.mjs')], { env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, OPENROUTER_API_KEY: 'fixture-only', STEAMBENCH_PROCESS_GATEWAY: `127.0.0.1:${server.address().port}`, STEAMBENCH_PROCESS_TOKEN: '', STEAMBENCH_ASTRA_SCRATCHPAD: directory, STEAMBENCH_ROOM_ID: 'bbbb2222', FIXTURE_MODE: mode, FIXTURE_CALLS: callsFile }, stdio: ['pipe', 'pipe', 'pipe'] });
     children.add(child);
     child.events = [];
     child.errors = '';
@@ -95,14 +109,37 @@ async function scenario(mode) {
     assert.equal(checkpoint.version, VERSION);
     assert.equal(checkpoint.attention.id, attention.id);
     const calls = fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8').trim().split('\n').length : 0;
-    assert.equal(inputs.length, ['input', 'transport_error'].includes(mode) ? 1 : 0);
-    assert.equal(calls, ['bad_sensor', 'stale_image'].includes(mode) ? 0 : mode === 'stale' ? 3 : 1);
+    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : 0);
+    // A planner failure sends nothing, so it is refined with the reason in
+    // context before the run is paused. Anything that reached the game is not.
+    const refinable = ['provider_error', 'empty'].includes(mode);
+    // notes_only writes two notes, is refused a third, then spends the refine budget.
+    assert.equal(calls, ['bad_sensor', 'stale_image'].includes(mode) ? 0 : mode === 'stale' ? 3 : refinable ? 4 : mode === 'notes_only' ? 6 : 1);
+    if (mode === 'inherited_objective') {
+      // The crash this guards against was a startup ReferenceError, so reaching
+      // any pause at all already proves the player booted with the ladder.
+      const ladder = JSON.parse(fs.readFileSync(path.join(temporary, mode, 'learned', 'curriculum.json'), 'utf8'));
+      assert.equal(ladder.objectives[0].status, 'failed', 'an objective from another room is retired, not carried');
+      assert.match(ladder.objectives[0].closed.reasoning, /new room plays a new seed/);
+    }
+    if (mode === 'notes_only') {
+      const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+      assert.equal(events.filter(event => event.type === 'decision_result').length, 2, 'two note-writing decisions are allowed');
+      assert.match(events.find(event => event.type === 'refine').error, /without touching the game/, 'the third is refused, and not as being stuck');
+      assert.ok(!/no gameplay progress/.test(attention.error), 'writing notes is never mistaken for a stuck player');
+      assert.equal(inputs.length, 0);
+    }
+    if (refinable) {
+      const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+      assert.deepEqual(events.filter(event => event.type === 'refine').map(event => event.round), [1, 2, 3], 'three refinement rounds, then the pause');
+      assert.equal(inputs.length, 0, 'and not one of them touched the game');
+    }
     if (mode === 'transport_error') assert.equal(incident.recentInputs.length, 1);
     const before = fs.readFileSync(path.join(directory, attention.path), 'utf8');
     assert.equal((await command(child, { type: 'resume', issueId: 'wrong', message: 'No review' })).success, false);
     assert.equal((await command(child, { type: 'resume', issueId: attention.id, message: '   ' })).success, false);
     await sleep(250);
-    assert.equal(inputs.length, ['input', 'transport_error'].includes(mode) ? 1 : 0);
+    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : 0);
     if (mode === 'report') {
       const notes = fs.readFileSync(path.join(directory, 'learning.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
       assert.equal(notes[0].kind, 'pre_action_hypothesis');
@@ -159,7 +196,7 @@ async function scenario(mode) {
 }
 
 try {
-  for (const mode of ['report', 'input', 'transport_error', 'provider_error', 'empty', 'bad_sensor', 'stale_image', 'stale']) await scenario(mode);
+  for (const mode of ['report', 'input', 'transport_error', 'provider_error', 'empty', 'bad_sensor', 'stale_image', 'stale', 'notes_only', 'inherited_objective']) await scenario(mode);
   const state = { state_type: 'combat', ui: { hand_mode: 'Play', focused_card: 1, in_card_play: false }, player: { hand: [{ instance_id: 1, index: 0, can_play: true, target_type: 'Self' }, { instance_id: 2, index: 1, can_play: true, target_type: 'Self' }] }, battle: { is_play_phase: true, turn: 'player', enemies: [], round: 1 } };
   const inputs = [];
   const executor = new Executor({ call: async request => { if (request.op === 'sts2-get') return { body: JSON.stringify(state) }; inputs.push(request); return {}; } });

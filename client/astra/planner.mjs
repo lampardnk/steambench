@@ -9,42 +9,52 @@ export class Planner {
     this.record = record;
   }
 
+  /** One bounded decision against the player prompt. */
   decide(context, image) {
-    this.lastDiagnostics = null;
+    return this.ask({ role: 'decision', prompt: 'prompt.txt', context, image, stream: true });
+  }
+
+  /**
+   * One model call with its own system prompt. The curriculum and the critic are
+   * separate reasoners over the same provider, so they share this machinery and
+   * their token usage is recorded like any other call. Only the decision call
+   * streams its thinking to the dashboard; the auxiliary calls would drown it.
+   */
+  ask({ role = 'decision', prompt: promptFile, context, image = null, stream = false, deadlineMs = PROFILE.plannerDeadlineMs }) {
+    if (role === 'decision') this.lastDiagnostics = null;
     if (!process.env[PROFILE.apiKeyEnv]) throw new Error(`${PROFILE.apiKeyEnv} is required`);
-    const prompt = fs.readFileSync(new URL('./prompt.txt', import.meta.url), 'utf8');
+    const prompt = fs.readFileSync(new URL(`./${promptFile}`, import.meta.url), 'utf8');
     return new Promise((resolve, reject) => {
       const child = spawn('pi', ['--mode', 'rpc', '--no-session', '--provider', PROFILE.provider, '--model', PROFILE.model, '--thinking', PROFILE.reasoning, '--no-tools', '--no-extensions', '--no-skills', '--no-context-files', '--no-prompt-templates', '--offline', '--system-prompt', prompt], { stdio: ['pipe', 'pipe', 'pipe'] });
-      this.child = child;
+      if (role === 'decision') this.child = child;
       let answer = '';
       let stderr = '';
       let finished = false;
       let assistant = null;
       const events = { messages: 0, textChunks: 0, thinkingCharacters: 0 };
       const started = Date.now();
-      const timer = setTimeout(() => finish(new Error(`planner exceeded ${PROFILE.plannerDeadlineMs / 1000}-second deadline`)), PROFILE.plannerDeadlineMs);
+      const timer = setTimeout(() => finish(new Error(`${role} exceeded ${deadlineMs / 1000}-second deadline`)), deadlineMs);
       const finish = (error) => {
         if (finished) return;
         finished = true;
         clearTimeout(timer);
         child.kill('SIGTERM');
-        this.child = null;
-        this.cancel = null;
+        if (role === 'decision') { this.child = null; this.cancel = null; }
         const diagnostics = { assistant, events, responseText: answer.slice(0, 12000), stderr: stderr.slice(-1500), latencyMs: Date.now() - started };
         const fail = failure => {
-          this.lastDiagnostics = diagnostics;
-          this.record({ type: 'planner_response_failure', error: failure.message, ...diagnostics });
+          if (role === 'decision') this.lastDiagnostics = diagnostics;
+          this.record({ type: 'planner_response_failure', role, error: failure.message, ...diagnostics });
           reject(failure);
         };
         if (error) return fail(error);
         try {
           const clean = answer.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-          if (!clean) throw new Error(`empty planner response: ${events.messages} assistant messages, ${events.textChunks} text chunks, stop reason ${assistant?.stopReason || 'missing'}`);
-          if (clean.length > 12000) throw new Error('planner output exceeds limit');
+          if (!clean) throw new Error(`empty ${role} response: ${events.messages} assistant messages, ${events.textChunks} text chunks, stop reason ${assistant?.stopReason || 'missing'}`);
+          if (clean.length > 12000) throw new Error(`${role} output exceeds limit`);
           resolve(JSON.parse(clean));
         } catch (error) { fail(error); }
       };
-      this.cancel = () => finish(new Error('planner aborted'));
+      if (role === 'decision') this.cancel = () => finish(new Error('planner aborted'));
       child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-1500); });
       child.on('error', finish);
       child.on('close', code => { if (!finished) finish(new Error(`Pi exited ${code}: ${stderr}`)); });
@@ -58,7 +68,7 @@ export class Planner {
           const update = event.assistantMessageEvent;
           if (update?.type === 'text_delta') { answer += update.delta; events.textChunks++; }
           if (update?.type === 'thinking_delta') events.thinkingCharacters += update.delta?.length || 0;
-          if (update?.type === 'thinking_delta' || update?.type === 'thinking_end') this.emit(event);
+          if (stream && (update?.type === 'thinking_delta' || update?.type === 'thinking_end')) this.emit(event);
         }
         if (event.type === 'message_end' && event.message?.role === 'assistant') {
           events.messages++;
@@ -66,12 +76,12 @@ export class Planner {
           assistant = { model: message.model, provider: message.provider, responseId: message.responseId, stopReason: message.stopReason, contentTypes: message.content?.map(part => part.type), usage: message.usage };
           const finalText = message.content?.filter(part => part.type === 'text').map(part => part.text).join('');
           if (finalText) answer = finalText;
-          this.record({ type: 'model_usage', model: event.message.model, usage: event.message.usage, stopReason: event.message.stopReason, latencyMs: Date.now() - started });
+          this.record({ type: 'model_usage', role, model: event.message.model, usage: event.message.usage, stopReason: event.message.stopReason, latencyMs: Date.now() - started });
           if (event.message.stopReason === 'error' || event.message.stopReason === 'aborted') return finish(new Error(event.message.errorMessage || 'model failed'));
         }
         if (event.type === 'agent_settled') finish();
       });
-      child.stdin.write(JSON.stringify({ type: 'prompt', id: 'decision', message: JSON.stringify(context), ...(image ? { images: [{ type: 'image', data: image.data_base64, mimeType: 'image/jpeg' }] } : {}) }) + '\n');
+      child.stdin.write(JSON.stringify({ type: 'prompt', id: role, message: JSON.stringify(context), ...(image ? { images: [{ type: 'image', data: image.data_base64, mimeType: 'image/jpeg' }] } : {}) }) + '\n');
     });
   }
 

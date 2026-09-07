@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test:learning": "node --test tests/learning-batching.test.mjs && node tests/learning-integration.mjs && node tests/learning-backend.mjs && node tests/learning-library.mjs",
+    "test:learning": "node --test tests/learning-batching.test.mjs && node tests/learning-integration.mjs && node tests/learning-backend.mjs && node tests/learning-library.mjs && node tests/learning-curriculum.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start"

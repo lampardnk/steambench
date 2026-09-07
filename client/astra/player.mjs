@@ -8,6 +8,15 @@ import { Executor, learnedFiles } from './executor.mjs';
 import { VERSION, SENSOR_VERSION, compactState, digest, needsScreenshot, plannerResult, plannerState, stateId, validatePlan } from './state.mjs';
 import { encounterReferences } from './references.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
+import { Curriculum } from './curriculum.mjs';
+import { indexNotes, retrieve } from './retrieval.mjs';
+
+// Actions that read or write knowledge and never touch the pad. A decision made
+// only of these cannot change the game, which matters twice below: an unchanged
+// observation after one proves nothing about being stuck, and a run of them is
+// note-taking crowding out play.
+const BOOKKEEPING = new Set(['learn', 'recall', 'research', 'lookup']);
+const bookkeepingOnly = (plan) => plan.actions.every(action => BOOKKEEPING.has(action.type));
 import { PROFILE } from './profile.mjs';
 import { learningDelta, saveIncident } from './incidents.mjs';
 
@@ -21,7 +30,7 @@ if (checkpoint?.version !== VERSION) checkpoint = null;
 const sessionId = randomUUID().slice(0, 8);
 const emit = event => process.stdout.write(JSON.stringify(event) + '\n');
 const usage = { requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, modelLatencyMs: 0, ...checkpoint?.usage };
-const policyHash = digest([PROFILE, ...['prompt.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'references.mjs', 'references.json', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
+const policyHash = digest([PROFILE, ...['prompt.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'curriculum.mjs', 'retrieval.mjs', 'references.mjs', 'references.json', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
 const catalog = new ObservationCatalog(directory);
 const started = checkpoint?.started || Date.now();
 let totalInputs = checkpoint?.totalInputs || 0;
@@ -78,8 +87,16 @@ try {
   if (fs.statSync(file).size <= 12000) memorySeed = JSON.parse(fs.readFileSync(file, 'utf8'));
 } catch { }
 
+// Voyager's two load-bearing components: a curriculum that proposes the next
+// objective, and a critic that decides whether it was met. The ladder lives in
+// the skill library, so it is inherited rather than restarted with each room.
+// Constructed after the counters above, because it journals through record(),
+// which reads `decision`.
+const curriculum = new Curriculum({ skillDir, planner, record, playerName: PROFILE.name, roomId: process.env.STEAMBENCH_ROOM_ID || null });
+let noteIndex = indexNotes(skillDir);
+
 function saveMetrics() {
-  fs.writeFileSync(path.join(directory, 'metrics.json'), JSON.stringify({ version: VERSION, playerName: PROFILE.name, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, lifecycle, decisions: decision, inputs: totalInputs, verifiedPlays, actionFailures, executionMetrics, elapsedMs: Date.now() - started, floor: lastState?.run?.floor, act: lastState?.run?.act, attention, acceptedMemoryHash: digest(accepted), usage }, null, 2));
+  fs.writeFileSync(path.join(directory, 'metrics.json'), JSON.stringify({ version: VERSION, playerName: PROFILE.name, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, lifecycle, decisions: decision, inputs: totalInputs, verifiedPlays, actionFailures, executionMetrics, elapsedMs: Date.now() - started, floor: lastState?.run?.floor, act: lastState?.run?.act, attention, acceptedMemoryHash: digest(accepted), objective: curriculum.active, objectivesCompleted: curriculum.completed.length, objectivesFailed: curriculum.failed.length, usage }, null, 2));
   const saved = { version: VERSION, policyHash, started, taskText, instructions, strategy, decision, lastResult, lastState, freshRunVerified, sawCharacterSelect, attention, usage, totalInputs, verifiedPlays, actionFailures, executionMetrics };
   const temporary = path.join(directory, 'checkpoint.tmp');
   fs.writeFileSync(temporary, JSON.stringify(saved));
@@ -117,12 +134,33 @@ async function run(task) {
   message(`${PROFILE.name} · ${PROFILE.provider}/${PROFILE.model} · ${PROFILE.reasoning} reasoning`);
   let unchanged = 0;
   let stalePlans = 0;
+  let refines = 0;
+  let quiet = 0;
   let previous = '';
   let previousInput = '';
   let repeatedInput = 0;
   let observation = lastState;
   let beforeImage = null;
   let plan = null;
+  let objectiveCheck = null;
+  // What the critic reads: the outcomes this run actually verified, not what any
+  // plan intended. Bounded, newest last.
+  const evidence = [];
+  /**
+   * Voyager refines a rejected program with the error in its next prompt rather
+   * than escalating. That is safe here only while nothing has reached the game:
+   * a plan the runtime rejected, or one that was already stale, sent no input,
+   * so the scene is untouched and re-planning cannot compound a mistake. Once
+   * input has been sent and failed, the first-error pause still holds exactly as
+   * before.
+   */
+  const refine = (error, guidance) => {
+    if (refines >= 3) throw new Error(`${error} (${refines} refinement rounds already spent without reaching a usable plan)`);
+    refines++;
+    lastResult = { error, refine_round: refines, no_input_sent: true, guidance };
+    record({ type: 'refine', round: refines, error });
+    saveMetrics();
+  };
   try {
     while (decision < 800) {
       decision++;
@@ -136,9 +174,15 @@ async function run(task) {
       if (state.ui?.sensor_version !== SENSOR_VERSION || state.ui.error) throw new Error('read-only learning UI sensor is missing or incompatible; install the matching sensor mod build');
       accepted = acceptedLessons(memorySeed, build);
       const current = stateId(state);
-      unchanged = current === previous ? unchanged + 1 : 0;
+      // A refinement round and a note-writing decision both deliberately send
+      // no input, so an unchanged observation after either proves nothing and
+      // must not count as being stuck. Each is bounded on its own instead.
+      const refining = Boolean(lastResult?.refine_round);
+      if (!refining && !quiet) {
+        unchanged = current === previous ? unchanged + 1 : 0;
+        if (unchanged >= 3) throw new Error('three observations without gameplay progress; requesting supervisor inspection');
+      }
       previous = current;
-      if (unchanged >= 3) throw new Error('three observations without gameplay progress; requesting supervisor inspection');
       if (state.menu_screen === 'character_select') sawCharacterSelect = true;
       if (state.run?.floor === 1 && sawCharacterSelect) freshRunVerified = true;
       const compact = compactState(state);
@@ -148,6 +192,7 @@ async function run(task) {
       if (state.state_type === 'game_over' && freshRunVerified) {
         const result = state.game_over?.win === true || state.game_over?.victory === true ? 'won' : state.game_over?.win === false || state.game_over?.victory === false || state.player?.hp === 0 ? 'lost' : null;
         if (!result) throw new Error('game_over result needs verification; refusing to guess');
+        curriculum.closeRun(state, { decision, result });
         const summary = `${PROFILE.name}: ${result}; act ${state.run?.act}, floor ${state.run?.floor}; ${decision} decisions.`;
         const finished = await gateway.call({ op: 'room-finish', result, summary });
         lifecycle = result;
@@ -162,22 +207,56 @@ async function run(task) {
         if (beforeImage.age_ms > 2000) throw new Error('screenshot is stale; refusing to act without current visual evidence');
       }
       const image = beforeImage;
-      const context = { version: VERSION, task: task.slice(0, 6000), fresh_run_verified: freshRunVerified, observation_id: stateId(state), state: plannerState(state, lastResult, strategy), strategy, reference_data: encounterReferences(state), accepted_lessons: accepted, learned_notes: learnedFiles(skillDir), last_result: lastResult, user_instructions: instructions.slice(-3), consecutive_no_progress: unchanged };
-      record({ type: 'decision_context', characters: JSON.stringify(context).length, screenshot: Boolean(image), acceptedMemoryHash: digest(accepted) });
+
+      // Self-verification, at a real progress boundary. The critic is the only
+      // thing that closes an objective; a failure's critique goes straight into
+      // the next decision, which is where Voyager gets most of its value.
+      const notes = learnedFiles(skillDir).filter(file => file.endsWith('.md'));
+      if (!refining && curriculum.dueForCheck(state, decision)) {
+        const checked = await curriculum.verify(state, { decision, evidence, notes }).catch(error => {
+          record({ type: 'critic_failure', error: error.message });
+          return null;
+        });
+        if (checked && checked.verdict !== 'pending') objectiveCheck = checked;
+      }
+      curriculum.observe(state);
+      // Nothing to work towards: ask the curriculum for the next objective. A
+      // failure here is not fatal - the player simply plays without one.
+      if (!refining && freshRunVerified && curriculum.needsObjective(state)) {
+        await curriculum.propose(state, { task, notes, decision }).catch(error => record({ type: 'curriculum_failure', error: error.message }));
+      }
+      const ladder = curriculum.context();
+      // Skill retrieval: the notes this exact situation is about, read for the
+      // planner instead of waiting for it to spend a decision recalling them.
+      const retrieved = retrieve(skillDir, noteIndex, state, ladder.objective);
+
+      const context = { version: VERSION, task: task.slice(0, 6000), fresh_run_verified: freshRunVerified, observation_id: stateId(state), state: plannerState(state, lastResult, strategy), strategy, ...ladder, objective_check: objectiveCheck, retrieved_notes: retrieved, reference_data: encounterReferences(state), accepted_lessons: accepted, learned_notes: notes, last_result: lastResult, user_instructions: instructions.slice(-3), consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet };
+      objectiveCheck = null;
+      record({ type: 'decision_context', characters: JSON.stringify(context).length, screenshot: Boolean(image), acceptedMemoryHash: digest(accepted), objective: ladder.objective?.text || null, retrieved: retrieved.map(note => note.path) });
+      // Retrieved notes are the one part of the context that grows without
+      // bound, so they are what gets dropped when the budget is tight.
+      if (JSON.stringify(context).length > 40000) context.retrieved_notes = retrieved.map(({ content, ...rest }) => rest);
       if (JSON.stringify(context).length > 40000) throw new Error('decision context exceeds 40,000 characters; refusing silent truncation');
       emit({ type: 'message_start' });
       try { plan = validatePlan(await planner.decide(context, image), state); }
       catch (error) {
         controller.signal.throwIfAborted();
-        lastResult = { error: `planner: ${error.message}` };
         record({ type: 'planner_failure', error: error.message });
-        throw error;
+        refine(`planner: ${error.message}`, 'The plan was rejected before any input was sent, so the scene is unchanged. Fix exactly what this message names and answer again from the same observation.');
+        continue;
       }
       controller.signal.throwIfAborted();
+      if (bookkeepingOnly(plan) && quiet >= 2) {
+        refine(`${quiet} decisions in a row without touching the game`, 'Notes are worth a decision, but not three in a row. Act on the screen in front of you now, and attach the learn as the final action of that plan instead of spending another decision on it.');
+        continue;
+      }
       const signature = digest({ state: stateId(state), actions: plan.actions });
       repeatedInput = signature === previousInput ? repeatedInput + 1 : 0;
       previousInput = signature;
-      if (repeatedInput >= 1) throw new Error('same plan against unchanged state; requesting supervisor before repeating it');
+      if (repeatedInput >= 1) {
+        refine('same plan against unchanged state', 'The previous plan was identical and the game did not change. Send something different, or report_issue if the screen genuinely blocks you.');
+        continue;
+      }
       message(plan.summary);
       const toolCallId = `learn-${sessionId}-${decision}`;
       fs.appendFileSync(path.join(directory, 'learning.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, kind: 'pre_action_hypothesis', note: plan.note, evidence: toolCallId, compatibility: build }) + '\n');
@@ -198,9 +277,24 @@ async function run(task) {
       if (plan.lesson) fs.appendFileSync(path.join(directory, 'candidates.jsonl'), JSON.stringify({ id: digest({ decision, lesson: plan.lesson }), version: VERSION, compatibility: build, status: 'candidate', text: plan.lesson, decision, evidence: toolCallId, verifiedActions: result.completed, error: result.error }) + '\n');
       fs.writeFileSync(path.join(directory, 'run.md'), `# ${PROFILE.name}\n\nDecision: ${decision}\n\nStrategy (hypothesis): ${strategy}\n\nLatest verified result: ${JSON.stringify(lastResult)}\n`);
       saveMetrics();
+      evidence.push({ decision, act: state.run?.act ?? null, floor: state.run?.floor ?? null, actions: plan.actions.map(action => action.type), completed: result.completed.map(item => ({ type: item.action?.type, verified: item.verified === true, detail: item.error || item.detail || null })), error: result.error || null, after: lastResult?.after || null });
+      if (evidence.length > 24) evidence.shift();
+      if (plan.actions.some(action => action.type === 'learn')) noteIndex = indexNotes(skillDir);
+      quiet = bookkeepingOnly(plan) ? quiet + 1 : 0;
       if (result.code === 'stale_observation' && ++stalePlans < 3) continue;
-      if (result.error) throw new Error(result.error);
+      if (result.error) {
+        // Nothing reached the pad, so re-planning cannot compound a mistake and
+        // the first-error pause has nothing to protect yet. A stale observation
+        // is already bounded by stalePlans above and must not spend this budget
+        // a second time.
+        if (result.code !== 'stale_observation' && executor.inputs === batchInputs) {
+          refine(result.error, 'No input reached the game and the scene is unchanged. Re-plan from this observation.');
+          continue;
+        }
+        throw new Error(result.error);
+      }
       stalePlans = 0;
+      refines = 0;
     }
     throw new Error('800-decision run budget reached');
   } catch (error) {

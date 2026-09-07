@@ -15,7 +15,9 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     console.log(JSON.stringify({ type: 'agent_settled' }));
     return;
   }
-  const actions = mode === 'report' ? [{ type: 'report_issue', issue: 'Unknown fixture interaction; please inspect before further input.' }] : [{ type: 'input', buttons: ['a'] }];
+  const actions = mode === 'report' ? [{ type: 'report_issue', issue: 'Unknown fixture interaction; please inspect before further input.' }]
+    : mode === 'notes_only' ? [{ type: 'learn', path: `controls/fixture-${context.consecutive_notes_without_acting}.md`, content: '---\ndescription: fixture\nkeys: fixture\n---\nObserved.\n', message: 'Record a fixture observation' }]
+    : [{ type: 'input', buttons: ['a'] }];
   const plan = { observation: context.observation_id, summary: 'Fixture decision', actions, note: 'Observed fixture focus; test one known A input or report uncertainty.' };
   if (mode === 'final_only') {
     console.log(JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text: JSON.stringify(plan) }], stopReason: 'stop' } }));

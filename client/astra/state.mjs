@@ -110,6 +110,11 @@ export function ready(state) {
   return !isCombat(state) || /select|overlay|reward/.test(state.state_type) || (state.battle.is_play_phase === true && state.battle.turn === 'player');
 }
 
+// A path that names one moment of one run - a floor number, a specific round -
+// is journalling a seed, not recording something a later run can use. The next
+// run has a different map, different offers and different fights.
+const MOMENT_IN_PATH = /(?:^|[/_-])(?:floor|round|turn|decision)-?\d/;
+
 /**
  * Why a learned note cannot be kept, or null when it is fine. Kept separate from
  * validatePlan so a badly formed note is reported rather than ending the run.
@@ -118,7 +123,13 @@ export function noteProblem(action) {
   if (typeof action?.path !== 'string' || !/^[a-z0-9][a-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('//') || action.path.includes('..')) {
     return 'learn.path must be a lowercase .md path inside learned/, for example bestiary/wriggler.md';
   }
+  if (MOMENT_IN_PATH.test(action.path)) {
+    return `learn.path names one moment of this run (${action.path}); every run is a different seed, so a note about "what happened at floor 4" helps nobody. Write the repeatable thing instead: the enemy's intent graph, what the screen always does, the problem this situation is an instance of`;
+  }
   if (typeof action.content !== 'string' || !action.content.trim() || action.content.length > 8000) return 'learn.content must be 1-8000 characters';
+  if (!/^---\r?\n[\s\S]*?\bdescription:\s*\S[\s\S]*?\r?\n---/.test(action.content) || !/\bkeys:\s*\S/.test(action.content.slice(0, 600))) {
+    return 'learn.content must open with front matter carrying description and keys, between --- lines; the keys are how the runtime finds this note again';
+  }
   if (typeof action.message !== 'string' || action.message.trim().length < 3 || action.message.length > 200) return 'learn.message must be a 3-200 character commit message';
   return null;
 }

@@ -338,6 +338,18 @@ test('a standalone probe reports an unmoved edge instead of failing, and stays b
   assert.equal(plain.error, undefined);
   assert.equal(plain.completed[0].moved, false);
 
+  // A trailing note sends nothing, so the press before it is still one
+  // standalone probe. Counting the note as a second action turned a harmless
+  // "already at that edge" answer into a paused run.
+  const withNote = fixture(map(), { onInput: state => state });
+  const noted = await withNote.executor.execute(planFor(map(), [
+    { type: 'input', buttons: ['down'] },
+    { type: 'learn', path: 'controls/rewards.md', content: '---\ndescription: Reward rows\nkeys: rewards\n---\nRead the row count from state.\n', message: 'Record the reward row rule' },
+  ]), map());
+  assert.equal(noted.error, undefined);
+  assert.equal(noted.completed[0].moved, false);
+  assert.equal(noted.completed[1].action.type, 'learn');
+
   // A batched sequence, an activation and a predicted destination still pause when nothing moves.
   const batched = fixture(map(), { onInput: state => state });
   assert.match((await batched.executor.execute(planFor(map(), [{ type: 'input', buttons: ['left', 'left'] }]), map())).error, /produced no observed change/);
