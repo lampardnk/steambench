@@ -48,6 +48,9 @@ async function scenario(mode) {
         const state = structuredClone(baseState);
         if (mode === 'bad_sensor') state.ui.sensor_version = 0;
         if (mode === 'stale') state.ui.focus_path = String(reads);
+        // Focus moves only when a press arrives, so each probe succeeds and
+        // nothing is stale: only the bound stops the run.
+        if (mode === 'probes_only') state.ui.focus_path = `focus-${inputs.length}`;
         result = { body: JSON.stringify(state) };
       } else if (request.op === 'screenshot') result = { data_base64: Buffer.from('fixture-image').toString('base64'), age_ms: mode === 'stale_image' ? 5000 : 0 };
       // Only pad traffic is gameplay input. Knowledge ops such as skill-commit
@@ -109,12 +112,19 @@ async function scenario(mode) {
     assert.equal(checkpoint.version, VERSION);
     assert.equal(checkpoint.attention.id, attention.id);
     const calls = fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8').trim().split('\n').length : 0;
-    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : 0);
+    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : mode === 'probes_only' ? 4 : 0);
     // A planner failure sends nothing, so it is refined with the reason in
     // context before the run is paused. Anything that reached the game is not.
     const refinable = ['provider_error', 'empty'].includes(mode);
     // notes_only writes two notes, is refused a third, then spends the refine budget.
-    assert.equal(calls, ['bad_sensor', 'stale_image'].includes(mode) ? 0 : mode === 'stale' ? 3 : refinable ? 4 : mode === 'notes_only' ? 6 : 1);
+    assert.equal(calls, ['bad_sensor', 'stale_image'].includes(mode) ? 0 : mode === 'stale' ? 3 : refinable ? 4 : mode === 'notes_only' ? 6 : mode === 'probes_only' ? 8 : 1);
+    if (mode === 'probes_only') {
+      // A probe answers where focus is. A run of them answers nothing, and the
+      // player was oscillating between two positions instead of committing.
+      const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+      assert.equal(events.filter(event => event.type === 'decision_result').length, 4, 'four probes are allowed');
+      assert.match(events.find(event => event.type === 'refine').error, /probes in a row without acting/);
+    }
     if (mode === 'inherited_objective') {
       // The crash this guards against was a startup ReferenceError, so reaching
       // any pause at all already proves the player booted with the ladder.
@@ -139,7 +149,7 @@ async function scenario(mode) {
     assert.equal((await command(child, { type: 'resume', issueId: 'wrong', message: 'No review' })).success, false);
     assert.equal((await command(child, { type: 'resume', issueId: attention.id, message: '   ' })).success, false);
     await sleep(250);
-    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : 0);
+    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : mode === 'probes_only' ? 4 : 0);
     if (mode === 'report') {
       const notes = fs.readFileSync(path.join(directory, 'learning.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
       assert.equal(notes[0].kind, 'pre_action_hypothesis');
@@ -196,7 +206,7 @@ async function scenario(mode) {
 }
 
 try {
-  for (const mode of ['report', 'input', 'transport_error', 'provider_error', 'empty', 'bad_sensor', 'stale_image', 'stale', 'notes_only', 'inherited_objective']) await scenario(mode);
+  for (const mode of ['report', 'input', 'transport_error', 'provider_error', 'empty', 'bad_sensor', 'stale_image', 'stale', 'notes_only', 'probes_only', 'inherited_objective']) await scenario(mode);
   const state = { state_type: 'combat', ui: { hand_mode: 'Play', focused_card: 1, in_card_play: false }, player: { hand: [{ instance_id: 1, index: 0, can_play: true, target_type: 'Self' }, { instance_id: 2, index: 1, can_play: true, target_type: 'Self' }] }, battle: { is_play_phase: true, turn: 'player', enemies: [], round: 1 } };
   const inputs = [];
   const executor = new Executor({ call: async request => { if (request.op === 'sts2-get') return { body: JSON.stringify(state) }; inputs.push(request); return {}; } });

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, SENSOR_VERSION, compactState, digest, needsScreenshot, plannerResult, plannerState, stateId, validatePlan } from './state.mjs';
+import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, needsScreenshot, plannerResult, plannerState, stateId, validatePlan } from './state.mjs';
 import { encounterReferences } from './references.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
 import { Curriculum } from './curriculum.mjs';
@@ -17,6 +17,13 @@ import { indexNotes, retrieve } from './retrieval.mjs';
 // note-taking crowding out play.
 const BOOKKEEPING = new Set(['learn', 'recall', 'research', 'lookup']);
 const bookkeepingOnly = (plan) => plan.actions.every(action => BOOKKEEPING.has(action.type));
+// One reversible directional press, sent to find out where focus actually is.
+// It answers a question, so a run of them means the question is not the problem.
+const probeOnly = (plan) => {
+  const steps = plan.actions.filter(action => !BOOKKEEPING.has(action.type));
+  return steps.length === 1 && steps[0].type === 'input' && steps[0].buttons?.length === 1
+    && DIRECTIONS.includes(steps[0].buttons[0]) && !steps[0].expect;
+};
 import { PROFILE } from './profile.mjs';
 import { learningDelta, saveIncident } from './incidents.mjs';
 
@@ -136,6 +143,7 @@ async function run(task) {
   let stalePlans = 0;
   let refines = 0;
   let quiet = 0;
+  let probes = 0;
   let previous = '';
   let previousInput = '';
   let repeatedInput = 0;
@@ -230,7 +238,7 @@ async function run(task) {
       // planner instead of waiting for it to spend a decision recalling them.
       const retrieved = retrieve(skillDir, noteIndex, state, ladder.objective);
 
-      const context = { version: VERSION, task: task.slice(0, 6000), fresh_run_verified: freshRunVerified, observation_id: stateId(state), state: plannerState(state, lastResult, strategy), strategy, ...ladder, objective_check: objectiveCheck, retrieved_notes: retrieved, reference_data: encounterReferences(state), accepted_lessons: accepted, learned_notes: notes, last_result: lastResult, user_instructions: instructions.slice(-3), consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet };
+      const context = { version: VERSION, task: task.slice(0, 6000), fresh_run_verified: freshRunVerified, observation_id: stateId(state), state: plannerState(state, lastResult, strategy), strategy, ...ladder, objective_check: objectiveCheck, retrieved_notes: retrieved, reference_data: encounterReferences(state), accepted_lessons: accepted, learned_notes: notes, last_result: lastResult, user_instructions: instructions.slice(-3), consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet, consecutive_probes_without_acting: probes };
       objectiveCheck = null;
       record({ type: 'decision_context', characters: JSON.stringify(context).length, screenshot: Boolean(image), acceptedMemoryHash: digest(accepted), objective: ladder.objective?.text || null, retrieved: retrieved.map(note => note.path) });
       // Retrieved notes are the one part of the context that grows without
@@ -246,6 +254,10 @@ async function run(task) {
         continue;
       }
       controller.signal.throwIfAborted();
+      if (probeOnly(plan) && probes >= 4) {
+        refine(`${probes} probes in a row without acting`, 'A probe tells you where focus is; five of them tell you nothing more. The focus path names the item unless it is an @Control@NNNN, the screenshot shows which one is raised, and the live state lists the options. Choose one and act on it.');
+        continue;
+      }
       if (bookkeepingOnly(plan) && quiet >= 2) {
         refine(`${quiet} decisions in a row without touching the game`, 'Notes are worth a decision, but not three in a row. Act on the screen in front of you now, and attach the learn as the final action of that plan instead of spending another decision on it.');
         continue;
@@ -281,6 +293,7 @@ async function run(task) {
       if (evidence.length > 24) evidence.shift();
       if (plan.actions.some(action => action.type === 'learn')) noteIndex = indexNotes(skillDir);
       quiet = bookkeepingOnly(plan) ? quiet + 1 : 0;
+      probes = probeOnly(plan) ? probes + 1 : 0;
       if (result.code === 'stale_observation' && ++stalePlans < 3) continue;
       if (result.error) {
         // Nothing reached the pad, so re-planning cannot compound a mistake and
