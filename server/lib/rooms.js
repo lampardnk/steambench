@@ -18,6 +18,8 @@ import { MjpegReader } from './mjpeg.js';
 import { Fmp4Relay } from './fmp4.js';
 import { PiAgent } from './agent.js';
 import { GatewayError } from './gateway.js';
+import * as library from './library.js';
+import { webGet } from './web.js';
 import { docker, runningContainers, allContainers, containerIp, rmForce, execDetached, execIn, restart as dockerRestart } from './docker.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -307,6 +309,8 @@ export class Room extends EventEmitter {
       finish: this.finish, gameReady: this.gameReady,
       lobbyId: this.lobbyId, roomContainer: this.roomContainer, roomIp: this.roomIp, playerImage: this.playerImage,
       agentStatus: this.agent?.status || 'stopped', frames: this.reader?.frames || 0, lastFrameAt: this.reader?.latestAt || 0,
+      attention: this.agent?.attention || null,
+      lastLibraryCommit: this.lastLibraryCommit || null,
       media: {
         ready: Boolean(this.media?.init), codecs: this.media?.codecs || '', fragments: this.media?.fragments || 0, bytes: this.media?.bytes || 0,
         audioReady: Boolean(this.mediaAudio?.init), audioCodecs: this.mediaAudio?.codecs || '', audioFragments: this.mediaAudio?.fragments || 0,
@@ -487,21 +491,22 @@ export class Room extends EventEmitter {
     if (player.kind === 'dockerfile') {
       if (typeof player.dockerfile !== 'string' || !/^\s*(#.*\n\s*)*(ARG|FROM)\b/im.test(player.dockerfile)) throw new Error('player.dockerfile must be a Dockerfile starting with FROM');
       if (player.dockerfile.length > 200000) throw new Error('player.dockerfile is too large');
-    } else if (player.kind !== 'builtin') throw new Error('player.kind must be builtin or dockerfile');
+    } else if (!['builtin', 'astra'].includes(player.kind)) throw new Error('player.kind must be builtin, astra or dockerfile');
+    if (player.kind === 'astra' && !this.cfg.learningKey) throw new Error('the learning player requires its configured OpenRouter key');
     const task = setup.task || {};
     const ascension = Number(task.ascension ?? 1);
     if (!Number.isInteger(ascension) || ascension < 0 || ascension > 20) throw new Error('task.ascension must be 0..20');
     const character = String(task.character || 'Ironclad');
     if (!CHARACTERS.includes(character)) throw new Error(`task.character must be one of ${CHARACTERS.join(', ')}`);
     const prompt = task.prompt ? String(task.prompt).slice(0, 4000) : '';
-    return { game, player: { kind: player.kind, name: player.name ? String(player.name).slice(0, 60) : (player.kind === 'builtin' ? 'steambench-pi (Pi + Nemotron)' : 'custom Dockerfile'), dockerfile: player.dockerfile }, task: { ascension, character, prompt } };
+    return { game, player: { kind: player.kind, name: player.kind === 'astra' ? this.cfg.learningProfile.name : player.name ? String(player.name).slice(0, 60) : (player.kind === 'builtin' ? 'steambench-pi (Pi + Nemotron)' : 'custom Dockerfile'), dockerfile: player.dockerfile }, task: { ascension, character, prompt } };
   }
 
   async applySetup(setup) {
     const valid = this.validateSetup(setup);
     if (!['login', 'setup', 'error'].includes(this.stage) && !(this.stage === 'creating')) throw new Error(`room is ${this.stage}; setup can only be changed before installation`);
     this.setup = valid;
-    this._log(`setup: game=${valid.game} player=${valid.player.kind} task=${valid.task.character} A${valid.task.ascension}`);
+    this._log(`setup: game=${valid.game} player=${valid.player.name} task=${valid.task.character} A${valid.task.ascension}`);
     if (this.stage === 'setup') { this.setStage('installing', 'preparing game and player'); this._install().catch((e) => this.setStage('error', e.message)); }
     else this.emit('room', this.summary());
     return valid;
@@ -512,6 +517,7 @@ export class Room extends EventEmitter {
     const game = SUPPORTED_GAMES[this.setup.game];
     // Player image
     if (this.setup.player.kind === 'builtin') this.playerImage = this.cfg.agentImage;
+    else if (this.setup.player.kind === 'astra') this.playerImage = this.cfg.learningImage;
     else {
       this.playerImage = `steambench-player-${this.id}`;
       this.setDetail('building player image from Dockerfile');
@@ -542,7 +548,9 @@ export class Room extends EventEmitter {
     // build). The published 0.4.0 release does not load on v0.111 and fails
     // with a ReflectionTypeLoadException, which looks from the outside like the
     // game simply never coming up.
-    const modSources = [path.join(this.cfg.modDir, 'src', 'out'), this.cfg.modDir];
+    const modSources = this.setup.player.kind === 'astra'
+      ? [path.join(this.cfg.modDir, 'astra-out')]
+      : [path.join(this.cfg.modDir, 'src', 'out'), this.cfg.modDir];
     for (const f of ['STS2_MCP.dll', 'STS2_MCP.json']) {
       const src = modSources.map((d) => path.join(d, f)).find((p2) => fs.existsSync(p2));
       if (src) fs.copyFileSync(src, path.join(mods, f));
@@ -552,7 +560,25 @@ export class Room extends EventEmitter {
     fs.writeFileSync(path.join(mods, 'STS2_MCP.conf'), JSON.stringify({ port: this.modPort }, null, 2) + '\n');
     const skills = path.join(this.home, 'skills');
     fs.rmSync(skills, { recursive: true, force: true });
-    fs.cpSync(path.join(this.cfg.skillsDir, game.skill), path.join(skills, game.skill), { recursive: true });
+    const skillSource = this.setup.player.kind === 'astra' ? 'sts2-astra' : game.skill;
+    // Knowledge comes from the persistent library, which the image template only
+    // seeds. A room inherits what earlier rooms learned instead of starting blank.
+    this.librarySkill = skillSource;
+    const roomSkillDir = path.join(skills, game.skill);
+    try {
+      const ready = await library.ensureSkill(this.cfg, skillSource, path.join(this.cfg.skillsDir, skillSource));
+      library.checkoutInto(this.cfg, skillSource, roomSkillDir);
+      this._log(`skills from the persistent library${ready.commit ? ` (${ready.commit})` : ''}`);
+    } catch (e) {
+      this.librarySkill = null;
+      this._log(`skill library unavailable, using the image template only: ${e.message}`);
+      fs.cpSync(path.join(this.cfg.skillsDir, skillSource), roomSkillDir, { recursive: true });
+    }
+    fs.mkdirSync(path.join(roomSkillDir, 'scratchpad'), { recursive: true });
+    if (this.setup.player.kind === 'astra') {
+      const accepted = path.join(this.cfg.runtimeDir, 'astra-memory', 'accepted.json');
+      if (fs.existsSync(accepted) && fs.statSync(accepted).size <= 12000) fs.copyFileSync(accepted, path.join(skills, game.skill, 'scratchpad', 'accepted.json'));
+    }
     const modsInRoom = path.join(steamRoot('/room'), 'steamapps', 'common', game.installdir, 'mods');
     try { await docker(['run', '--rm', '-v', `${this.hostHome}:/room`, 'alpine', 'chown', '-R', '1000:1000', '/room/skills', modsInRoom]); } catch (e) { this._log(`chown: ${e.message}`); }
     if (this.destroyed) return;
@@ -670,17 +696,22 @@ export class Room extends EventEmitter {
     return true;
   }
 
-  async _startPlayer() {
+  async _startPlayer({ resume = false, transcript = [] } = {}) {
     const game = SUPPORTED_GAMES[this.setup.game];
+    this._log(`player: ${this.setup.player.name}; image=${this.playerImage}${this.setup.player.kind === 'astra' ? `; model=${this.cfg.learningProfile.model}; reasoning=${this.cfg.learningProfile.reasoning}` : ''}`);
     this._log('game and mod reachable');
     this.setDetail('starting the player');
-    this.agent = new PiAgent({
+    const agent = new PiAgent({
       name: `steambench-player-${this.id}`, image: this.playerImage,
-      env: { OPENROUTER_API_KEY: this.cfg.openrouterKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_MODEL: this.cfg.model, STEAMBENCH_VISION_MODEL: this.cfg.visionModel, STEAMBENCH_PLAYER_MODE: 'rpc' },
+      env: { OPENROUTER_API_KEY: this.setup.player.kind === 'astra' ? this.cfg.learningKey : this.cfg.openrouterKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_MODEL: this.cfg.model, STEAMBENCH_VISION_MODEL: this.cfg.visionModel, STEAMBENCH_PLAYER_MODE: 'rpc' },
       mounts: [`${this.hostHome}/skills:/workspace/skills`],
     });
-    for (const ev of ['item', 'delta', 'status']) this.agent.on(ev, (p) => this.emit(`agent:${ev}`, p));
-    this.agent.on('status', (status) => {
+    this.agent = agent;
+    agent.transcript = transcript;
+    for (const ev of ['item', 'delta', 'status']) agent.on(ev, (payload) => { if (this.agent === agent) this.emit(`agent:${ev}`, payload); });
+    agent.on('attention', () => { if (this.agent === agent) { this.emit('room', this.summary()); this.m.emit('rooms'); } });
+    agent.on('status', (status) => {
+      if (this.agent !== agent) return;
       this.m.emit('rooms');
       // The player stopping is not the run ending: say so plainly instead of
       // leaving the room looking like it is still being played.
@@ -689,21 +720,36 @@ export class Room extends EventEmitter {
         this.setStage('error', `the player stopped (${why}); the game is still running`);
       }
     });
-    this.agent.start();
+    agent.start();
     await sleep(4000);
+    if (this.destroyed) { await agent.stop(); return; }
+    if (this.setup.player.kind === 'astra') {
+      try {
+        const response = await agent.send({ type: 'get_state' });
+        if (!response.success || response.data?.player !== this.cfg.learningProfile.checkpointVersion || response.data.model !== this.cfg.learningProfile.model || response.data.thinkingLevel !== this.cfg.learningProfile.reasoning) throw new Error('learning player model/configuration handshake failed');
+        if (resume && !response.data.checkpointRestored) throw new Error('learning player did not restore its checkpoint; refusing to resume');
+      } catch (error) {
+        this.setStage('error', `learning player startup failed; game preserved: ${error.message}`);
+        throw error;
+      }
+    }
     const t = this.setup.task;
-    const kickoff = `You are connected to ${game.name} through steambench. First read /workspace/skills/${game.skill}/SKILL.md and /workspace/skills/${game.skill}/controls/CONTROLS.md. ` +
+    const kickoff = this.setup.player.kind === 'astra'
+      ? `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. Prioritize accurate, transferable learning over winning this first run. Take a concrete learning note every decision. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`
+      : `You are connected to ${game.name} through steambench. First read /workspace/skills/${game.skill}/SKILL.md and /workspace/skills/${game.skill}/controls/CONTROLS.md. ` +
       `Goal: beat Ascension ${t.ascension} as ${t.character}. ` +
       'Start by following "Starting a run" in CONTROLS.md exactly: if any run is already in progress, abandon it and confirm, ' +
       `then start a new singleplayer run as ${t.character} at Ascension ${t.ascension}. Do not continue a run you did not start. ` +
       'Then play until the game itself reports the run is over, keep notes in scratchpad/, and call run_over once with the result.' +
       (t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : '');
     this.setStage('playing', `${t.character} · Ascension ${t.ascension}`);
-    this.agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
-    this._loop(() => this._watchPlaying(), 15000);
+    if (!resume) agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
+    else this.setDetail('learning player reloaded; awaiting explicit supervisor resume');
+    const generation = this.playingWatchGeneration = (this.playingWatchGeneration || 0) + 1;
+    this._loop(() => generation === this.playingWatchGeneration ? this._watchPlaying() : false, 15000);
     // Refresh the caches in the background: they copy gigabytes, and the player
     // must not wait on that. Only worth doing when the cache is stale.
-    this._refreshCaches();
+    if (!resume) this._refreshCaches();
   }
 
   /** Snapshot Steam's settled state for future rooms, off the critical path. */
@@ -719,6 +765,13 @@ export class Room extends EventEmitter {
 
   async _watchPlaying() {
     if (this.stage !== 'playing') return false;
+    // A player that edits its skill files without committing still shows up on
+    // the dashboard, once the edit has stopped moving.
+    const edited = this._skillEditedAt();
+    if (edited && Date.now() - edited > 45000 && edited !== this._committedEditAt) {
+      this._committedEditAt = edited;
+      await this.commitLibrary({ by: 'room', message: `Uncommitted notes from room ${this.id}` }).catch((e) => this._log(`skill library commit failed: ${e.message}`));
+    }
     try {
       const r = await this._sts2Fetch('/api/v1/singleplayer', { format: 'json' });
       try { const s = JSON.parse(r.body); this.lastState = pickState(s); } catch { /* keep last */ }
@@ -734,8 +787,15 @@ export class Room extends EventEmitter {
   async finishRun({ result, summary, by = 'player' }) {
     if (this.finish) return this.finish;
     // Keep the game's own view next to the player's claim: a player that says
-    // it died while the mod still reports a live run is worth seeing.
-    const state = this.lastState;
+    // it died while the mod still reports a live run is worth seeing. Ask the mod now
+    // rather than trusting the 15-second poll: a death arrives between two polls, and a
+    // stale snapshot disputed real losses that the player had already observed.
+    let state = this.lastState;
+    try {
+      const fresh = await this._sts2Fetch('/api/v1/singleplayer', { format: 'json' });
+      state = pickState(JSON.parse(fresh.body));
+      this.lastState = state;
+    } catch (e) { this._log(`could not re-read the game before finishing; using the last poll: ${e.message}`); }
     this.finish = {
       result, summary: String(summary || '').slice(0, 2000), by, at: Date.now(),
       gameState: state || null,
@@ -753,6 +813,49 @@ export class Room extends EventEmitter {
     return this.finish;
   }
 
+  /** The room's own copy of the skill tree, or null when it has none yet. */
+  get roomSkillDir() {
+    const game = SUPPORTED_GAMES[this.setup?.game || 'sts2'];
+    return game ? path.join(this.home, 'skills', game.skill) : null;
+  }
+
+  /**
+   * Fold the room's knowledge edits into the persistent library. The player
+   * supplies its own message through the gateway; the fallback only runs when
+   * files have been sitting changed and uncommitted.
+   */
+  async commitLibrary({ message, by = 'player' } = {}) {
+    if (!this.librarySkill || !this.roomSkillDir) return null;
+    const hash = await library.commitFromRoom(this.cfg, {
+      skill: this.librarySkill, roomSkillDir: this.roomSkillDir, roomId: this.id,
+      player: this.setup?.player.name, message,
+    });
+    if (hash) {
+      this.lastLibraryCommit = { hash, message, by, at: Date.now() };
+      this._log(`skill library commit ${hash}: ${message}`);
+      this.emit('room', this.summary());
+      this.m.emit('rooms');
+    }
+    return hash;
+  }
+
+  /** Newest knowledge-file mtime, so an uncommitted edit can settle first. */
+  _skillEditedAt() {
+    const base = this.roomSkillDir;
+    if (!base || !fs.existsSync(base)) return 0;
+    let newest = 0;
+    const walk = (dir, top) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (top && (entry.name === 'scratchpad' || entry.name === '.git')) continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full, false);
+        else if (entry.isFile()) newest = Math.max(newest, fs.statSync(full).mtimeMs);
+      }
+    };
+    try { walk(base, true); } catch { /* room home may be going away */ }
+    return newest;
+  }
+
   async archive(reason) {
     const dir = path.join(this.cfg.historyDir, `${new Date(this.createdAt).toISOString().replace(/[:.]/g, '-')}-${this.id}`);
     fs.mkdirSync(dir, { recursive: true });
@@ -763,6 +866,10 @@ export class Room extends EventEmitter {
     if (this.reader?.latest) fs.writeFileSync(path.join(dir, 'last-frame.jpg'), this.reader.latest);
     const scratch = path.join(this.home, 'skills', this.setup?.game || 'sts2', 'scratchpad');
     if (fs.existsSync(scratch)) fs.cpSync(scratch, path.join(dir, 'scratchpad'), { recursive: true });
+    // Last chance to keep what this room learned: the home is deleted next.
+    const state = this.lastState;
+    await this.commitLibrary({ by: 'room', message: `Keep what room ${this.id} learned${state?.floor != null ? ` up to act ${state.act ?? '?'} floor ${state.floor}` : ''}` })
+      .catch((e) => this._log(`skill library commit failed: ${e.message}`));
     const gameLog = path.join(this.home, '.local', 'share', 'SlayTheSpire2', 'logs', 'godot.log');
     if (fs.existsSync(gameLog)) fs.copyFileSync(gameLog, path.join(dir, 'godot.log'));
     this.archiveDir = dir;
@@ -817,6 +924,34 @@ export class Room extends EventEmitter {
 
   async chat(message) { if (!this.agent) throw new Error('the player has not started yet'); return this.agent.prompt(message); }
 
+  async restartPlayer() {
+    if (this.setup?.player.kind !== 'astra' || !['playing', 'error'].includes(this.stage) || this.finish || this.destroyed) throw new Error('only an unfinished learning room supports player-only restart');
+    if (this.playerRestarting) throw new Error('player restart already in progress');
+    if (this.agent && !['idle', 'error', 'stopped'].includes(this.agent.status)) throw new Error('pause the player and wait for idle before reloading');
+    const checkpoint = path.join(this.home, 'skills', 'sts2', 'scratchpad', 'checkpoint.json');
+    if (!fs.existsSync(checkpoint) || JSON.parse(fs.readFileSync(checkpoint, 'utf8')).version !== this.cfg.learningProfile.checkpointVersion) throw new Error('a compatible learning checkpoint is required; refusing to reset the run');
+    this.playerRestarting = true;
+    try {
+      const previous = this.agent;
+      const transcript = [...(previous?.transcript || [])];
+      this.agent = null;
+      await previous?.stop();
+      this._log('reloading only the learning player; game, lobby, sensors and evidence are preserved');
+      await this._startPlayer({ resume: true, transcript });
+      return { ok: true, room: this.id, attention: this.agent?.attention || null, requiresResume: true };
+    } catch (error) {
+      this.setStage('error', `player reload failed; game preserved: ${error.message}`);
+      throw error;
+    } finally { this.playerRestarting = false; }
+  }
+
+  async resumePlayer({ issueId, message }) {
+    if (this.playerRestarting || this.setup?.player.kind !== 'astra' || this.stage !== 'playing' || this.agent?.status !== 'idle' || this.finish) throw new Error('learning player must be idle in an unfinished playing room');
+    const response = await this.agent.send({ type: 'resume', issueId, message });
+    if (response.success === false) throw new Error(response.error || 'resume rejected');
+    return { ok: true };
+  }
+
   async destroy({ keepHome = false, reason = '' } = {}) {
     this.destroyed = true;
     for (const t of this.loops) clearTimeout(t);
@@ -829,7 +964,7 @@ export class Room extends EventEmitter {
     if (this.lobbyId) { try { await this.m.wolf.stopLobby(this.lobbyId); } catch (e) { this._log(`lobby stop: ${e.message}`); } }
     for (const f of [this.videoFifo, this.audioFifo]) { try { fs.rmSync(f, { force: true }); } catch { /* ignore */ } }
     if (this.roomContainer) { await sleep(2000); await rmForce(this.roomContainer); }
-    if (this.playerImage && this.playerImage !== this.cfg.agentImage) { try { await docker(['rmi', '-f', this.playerImage]); } catch { /* ignore */ } }
+    if (this.playerImage && ![this.cfg.agentImage, this.cfg.learningImage].includes(this.playerImage)) { try { await docker(['rmi', '-f', this.playerImage]); } catch { /* ignore */ } }
     if (!keepHome) { try { await docker(['run', '--rm', '-v', `${path.dirname(this.hostHome)}:/rooms`, 'alpine', 'rm', '-rf', `/rooms/${this.id}`]); } catch (e) { this._log(`home cleanup: ${e.message}`); } }
     this.setStage('deleted', reason);
   }
@@ -846,8 +981,18 @@ export class Room extends EventEmitter {
 
   // ---- gateway ops (called by the player through the JSON-line gateway) ----
   async gatewayOp(op, request) {
+    if (this.setup?.player.kind === 'astra' && this.agent?.attention && ['pad-press', 'pad-dpad', 'pad-stick', 'room-finish'].includes(op)) throw new GatewayError('supervisor_required', 'pending incident requires explicit supervisor review before gameplay');
     switch (op) {
-      case 'hello': return { room: this.id, stage: this.stage, ops: ['sts2-get', 'screenshot', 'pad-status', 'pad-press', 'pad-stick', 'pad-dpad', 'pad-neutral', 'room-finish'] };
+      case 'hello': return { room: this.id, stage: this.stage, ops: ['sts2-get', 'screenshot', 'pad-status', 'pad-press', 'pad-stick', 'pad-dpad', 'pad-neutral', 'room-finish', 'skill-commit', 'web-get'] };
+      case 'skill-commit': {
+        const message = String(request.message || '').trim();
+        if (message.length < 3 || message.length > 200) throw new GatewayError('invalid_message', 'a commit message of 3-200 characters is required');
+        if (!this.librarySkill) throw new GatewayError('library_unavailable', 'this room has no persistent skill library');
+        const hash = await this.commitLibrary({ message, by: 'player' });
+        this._committedEditAt = this._skillEditedAt();
+        return hash ? { committed: true, commit: hash, message } : { committed: false, detail: 'no knowledge file changed since the last commit' };
+      }
+      case 'web-get': return webGet(request);
       case 'sts2-get': return this._sts2Get(request);
       case 'screenshot': return this._screenshot();
       case 'pad-status': return { device: 'wolf-virtual-xbox', session: this.sessionId, held: [], grabbed_by_other: false, readers: this.roomContainer ? [this.roomContainer] : [], history: this.padHistory.slice(-5) };

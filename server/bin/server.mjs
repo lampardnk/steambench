@@ -2,6 +2,7 @@
 // steambench server: HTTP + WebSocket API for the dashboard, JSON-line
 // gateway for player containers, orchestration of Wolf rooms.
 import http from 'node:http';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
@@ -9,12 +10,17 @@ import { RoomManager } from '../lib/rooms.js';
 import { startGateway } from '../lib/gateway.js';
 import { NVIDIA_BUFFER_CAPS } from '../lib/wolf.js';
 import { SUPPORTED_GAMES } from '../lib/steam.js';
+import { PROFILE as learningProfile } from '../lib/learning-profile.mjs';
+import * as library from '../lib/library.js';
+import { WEB_ALLOWLIST } from '../lib/web.js';
 
 const env = process.env;
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 const TOKEN = env.STEAMBENCH_TOKEN;
 if (!TOKEN) { console.error('STEAMBENCH_TOKEN is required'); process.exit(2); }
 const here = path.dirname(fileURLToPath(import.meta.url));
+const learningKeyFile = env.STEAMBENCH_LEARNING_KEY_FILE || path.join(env.STEAMBENCH_RUNTIME_DIR || '/etc/wolf', 'learning', 'openrouter.key');
+const learningKey = env.STEAMBENCH_LEARNING_OPENROUTER_API_KEY || (fs.existsSync(learningKeyFile) ? fs.readFileSync(learningKeyFile, 'utf8').trim() : '');
 
 const cfg = {
   log,
@@ -40,6 +46,9 @@ const cfg = {
   roomImage: env.STEAMBENCH_ROOM_IMAGE || 'ghcr.io/games-on-whales/steam:edge',
   roomExtraEnv: (env.STEAMBENCH_ROOM_ENV || '').split(';').map((s) => s.trim()).filter(Boolean),
   agentImage: env.STEAMBENCH_AGENT_IMAGE || 'steambench-pi',
+  learningImage: learningProfile.image,
+  learningProfile,
+  learningKey,
   gatewayForAgents: env.STEAMBENCH_GATEWAY_FOR_AGENTS || 'host.docker.internal:28771',
   openrouterKey: env.OPENROUTER_API_KEY || '',
   model: env.STEAMBENCH_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free',
@@ -78,6 +87,15 @@ async function readJson(req) {
   return body ? JSON.parse(body) : {};
 }
 
+/** Skill directories the library currently holds, newest knowledge first. */
+function librarySkills(cfg) {
+  try {
+    return fs.readdirSync(library.libraryDir(cfg), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== '.git')
+      .map((entry) => entry.name).sort();
+  } catch { return []; }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const parts = url.pathname.split('/').filter(Boolean);
@@ -96,7 +114,26 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'DELETE') { manager.forgetLogin(); return json(res, 200, { ok: true }); }
     }
     if (parts[1] === 'meta' && req.method === 'GET') {
-      return json(res, 200, { savedLogin: manager.loginInfo(), cache: manager.cacheInfo(), games: Object.entries(SUPPORTED_GAMES).map(([key, g]) => ({ key, appid: g.appid, name: g.name })), characters: ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'], builtinPlayer: { name: 'steambench-pi (Pi + Nemotron)', model: cfg.model, visionModel: cfg.visionModel }, maxRooms: cfg.maxRooms, observerSlots: manager.observerClients.length });
+      return json(res, 200, { savedLogin: manager.loginInfo(), cache: manager.cacheInfo(), games: Object.entries(SUPPORTED_GAMES).map(([key, g]) => ({ key, appid: g.appid, name: g.name })), characters: ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'], builtinPlayer: { name: 'steambench-pi (Pi + Nemotron)', model: cfg.model, visionModel: cfg.visionModel }, astraPlayer: { name: cfg.learningProfile.name, model: cfg.learningProfile.model, reasoning: cfg.learningProfile.reasoning, configured: Boolean(cfg.learningKey) }, maxRooms: cfg.maxRooms, observerSlots: manager.observerClients.length, referenceHosts: WEB_ALLOWLIST, librarySkills: librarySkills(cfg) });
+    }
+    // The persistent skill library: what the players have learned, as commits.
+    if (parts[1] === 'library') {
+      const skill = url.searchParams.get('skill') || undefined;
+      if (parts.length === 2 && req.method === 'GET') {
+        return json(res, 200, { skills: librarySkills(cfg), commits: await library.history(cfg, { limit: Number(url.searchParams.get('limit')) || 50, skill }) });
+      }
+      if (parts[2] === 'commits' && parts[3] && req.method === 'GET') {
+        try { return json(res, 200, await library.diff(cfg, parts[3])); }
+        catch (e) { return json(res, 404, { error: e.message }); }
+      }
+      if (parts[2] === 'files' && req.method === 'GET') {
+        const name = url.searchParams.get('skill') || librarySkills(cfg)[0];
+        if (!name) return json(res, 404, { error: 'the skill library is empty' });
+        const file = url.searchParams.get('path');
+        if (!file) return json(res, 200, { skill: name, files: library.tree(cfg, name) });
+        try { return json(res, 200, { skill: name, path: file, text: library.readFile(cfg, name, file) }); }
+        catch (e) { return json(res, 404, { error: e.message }); }
+      }
     }
     if (parts[1] === 'history') {
       if (parts.length === 2) return json(res, 200, { history: manager.history() });
@@ -117,6 +154,9 @@ const server = http.createServer(async (req, res) => {
       if (sub === 'library' && req.method === 'GET') return json(res, 200, { games: room.library(), login: room.login });
       if (sub === 'chat' && req.method === 'POST') { const body = await readJson(req); if (!body.message) return json(res, 400, { error: 'message required' }); await room.chat(String(body.message)); return json(res, 200, { ok: true }); }
       if (sub === 'abort' && req.method === 'POST') { await room.agent?.abort(); return json(res, 200, { ok: true }); }
+      if (sub === 'player' && parts[4] === 'status' && req.method === 'GET') { return json(res, 200, { id: room.id, stage: room.stage, agentStatus: room.agent?.status || 'stopped', attention: room.agent?.attention || null, lastState: room.lastState, padCount: room.padHistory.length }); }
+      if (sub === 'player' && parts[4] === 'restart' && req.method === 'POST') { return json(res, 200, await room.restartPlayer()); }
+      if (sub === 'player' && parts[4] === 'resume' && req.method === 'POST') { const body = await readJson(req); return json(res, 200, await room.resumePlayer(body)); }
       if (sub === 'health' && req.method === 'GET') return json(res, 200, await room.health());
       if (sub === 'retry' && req.method === 'POST') { await room.retryLaunch(); return json(res, 200, { ok: true }); }
       if (sub === 'click' && req.method === 'POST') { const body = await readJson(req); await room.click(Number(body.x), Number(body.y)); return json(res, 200, { ok: true }); }
