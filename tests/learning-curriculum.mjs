@@ -81,6 +81,16 @@ assert.ok(abandoned.abandoned, 'three failures abandon the objective');
 assert.equal(curriculum.active, null, 'so the curriculum can propose something reachable');
 assert.equal(curriculum.failed.length, 1);
 
+// An objective whose moment has passed is finished now, not failed three times:
+// repeating a critique the player cannot act on wastes the decisions it rides on.
+planner.queue({ objective: 'Resolve the live Trash Heap event', why: 'it is on screen', done_when: 'an events note records its options', area: 'events' });
+await curriculum.propose(inRun, { task: 't', decision: 22 });
+planner.queue({ verdict: 'failure', reachable: false, reasoning: 'the event was resolved and the run is on the map', critique: 'nothing to do' });
+const gone = await curriculum.verify(inRun, { decision: 24, evidence });
+assert.ok(gone.abandoned && gone.unreachable, 'one check settles it');
+assert.equal(curriculum.active, null);
+assert.equal(curriculum.failed.at(-1).attempts, 1, 'without spending the other two attempts');
+
 planner.queue({ objective: 'Beat the act 1 boss', why: 'the deck is ready', done_when: 'act becomes 2', area: 'strategy' });
 await curriculum.propose(inRun, { task: 'Win the run', decision: 21 });
 planner.queue({ verdict: 'success', reasoning: 'the run is on act 2 floor 1' });
@@ -107,8 +117,8 @@ assert.equal(curriculum.dueForCheck(nextFloor, 45), true, 'a floor change is a b
 // --- a run that ends closes whatever was open ------------------------------
 curriculum.closeRun(inRun, { decision: 50, result: 'lost' });
 assert.equal(curriculum.active, null);
-assert.equal(curriculum.failed.length, 2, 'an objective open when the run ended did not succeed');
-assert.equal(JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).objectives.length, 3, 'the refused proposal was never stored');
+assert.equal(curriculum.failed.length, 3, 'an objective open when the run ended did not succeed');
+assert.equal(JSON.parse(fs.readFileSync(ledgerFile, 'utf8')).objectives.length, 4, 'the refused proposal was never stored');
 
 // --- an objective never outlives the room that opened it -------------------
 // The next room plays a different seed, so an objective opened against the last
@@ -187,4 +197,4 @@ assert.deepEqual(summary.enemies, ['Wriggler']);
 assert.equal(summary.hp, 60);
 
 fs.rmSync(root, { recursive: true, force: true });
-console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'frontier carried forward', 'progress-boundary checks', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget'] }));
+console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget'] }));

@@ -208,10 +208,15 @@ export class Curriculum {
     } else if (verdict === 'failure') {
       objective.attempts += 1;
       if (critique) objective.critiques.push(critique);
-      if (objective.attempts >= MAX_ATTEMPTS) {
+      // Three attempts are for an objective another try could still reach. One
+      // whose moment has passed is finished now: repeating a critique the
+      // player cannot act on wastes the decisions it is attached to.
+      const unreachable = answer?.reachable === false;
+      if (unreachable || objective.attempts >= MAX_ATTEMPTS) {
         objective.status = 'failed';
         objective.closed = { decision, at: Date.now(), reasoning: reasoning || critique };
         result.abandoned = true;
+        result.unreachable = unreachable;
       }
     }
     this.save();
