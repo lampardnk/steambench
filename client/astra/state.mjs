@@ -192,6 +192,19 @@ export function validatePlan(plan, state) {
       if (actions.length !== 1 || typeof action.issue !== 'string' || !action.issue.trim() || action.issue.length > 1200) throw new Error('report_issue requires one bounded issue description and no gameplay actions');
     } else throw new Error('unsupported action');
   }
+  // can_play answers "can this card be played right now", one card at a time. A
+  // batch spends energy as it goes, so three individually playable cards can
+  // still cost more than the turn has - and that only surfaced once the earlier
+  // cards had already been played, which pauses the run. Budget it here, while
+  // nothing has been sent. Skipped whenever the arithmetic is not knowable:
+  // an unknown cost, or a card whose effects can change the energy available.
+  const played = actions.filter(action => action.type === 'play')
+    .map(action => state.player?.hand?.find(card => card.instance_id === action.card));
+  if (played.length > 1 && Number.isInteger(state.player?.energy)
+    && played.every(card => card && Number.isInteger(card.cost) && card.cost >= 0 && !uncertainCard(card))) {
+    const total = played.reduce((sum, card) => sum + card.cost, 0);
+    if (total > state.player.energy) throw new Error(`this plan spends ${total} energy and the turn has ${state.player.energy}: ${played.map(card => `${card.name} ${card.cost}`).join(', ')}. Plan what the turn can pay for`);
+  }
   if (plan.strategy != null && (typeof plan.strategy !== 'string' || plan.strategy.length > 1200)) throw new Error('strategy exceeds 1200 characters');
   if (plan.lesson != null && (typeof plan.lesson !== 'string' || plan.lesson.length > 600)) throw new Error('lesson exceeds 600 characters');
   if (typeof plan.note !== 'string' || !plan.note.trim() || plan.note.length > 1200) throw new Error('a learning note of 1–1200 characters is required');

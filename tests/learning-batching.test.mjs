@@ -369,3 +369,36 @@ test('a standalone probe reports an unmoved edge instead of failing, and stays b
   const combat = initialCombat();
   assert.throws(() => validatePlan(planFor(combat, [{ type: 'input', buttons: ['left'], probe: true }]), combat), /standalone noncombat directional press/);
 });
+
+test('a batch that costs more energy than the turn has is refused before any input', async () => {
+  // can_play is true for each of these on its own; together they cost 4 with 3
+  // available, which used to surface only after the first cards were played.
+  const state = initialCombat();
+  state.player.energy = 3;
+  const [bash, strike, defend] = [state.player.hand[0], state.player.hand[1], state.player.hand[2]];
+  Object.assign(bash, { name: 'Bash', cost: 2 });
+  Object.assign(strike, { name: 'Strike', cost: 1 });
+  Object.assign(defend, { name: 'Defend', cost: 1, target_type: 'Self' });
+  for (const card of state.player.hand.slice(3)) card.cost = 1;
+
+  assert.throws(
+    () => validatePlan(planFor(state, [play(bash.instance_id), play(strike.instance_id), { type: 'play', card: defend.instance_id }]), state),
+    /spends 4 energy and the turn has 3/,
+  );
+  const f = fixture(state);
+  await assert.rejects(() => f.run([play(bash.instance_id), play(strike.instance_id), { type: 'play', card: defend.instance_id }]), /spends 4 energy/);
+  assert.equal(f.inputs.length, 0, 'and nothing reached the pad');
+
+  // What the turn can pay for is fine, and so is a single card.
+  validatePlan(planFor(state, [play(bash.instance_id), play(strike.instance_id)]), state);
+  validatePlan(planFor(state, [play(bash.instance_id)]), state);
+
+  // The arithmetic is only trusted when it is knowable: an X-cost card, or one
+  // that can change the energy available, skips the check rather than guessing.
+  const unknown = structuredClone(state);
+  unknown.player.hand[1].cost = -1;
+  validatePlan(planFor(unknown, [play(1), play(2), { type: 'play', card: 3 }]), unknown);
+  const gainsEnergy = structuredClone(state);
+  gainsEnergy.player.hand[1].description = 'Deal 5 damage. Gain 2 energy.';
+  validatePlan(planFor(gainsEnergy, [play(1), play(2), { type: 'play', card: 3 }]), gainsEnergy);
+});
