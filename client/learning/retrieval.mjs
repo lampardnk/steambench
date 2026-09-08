@@ -19,8 +19,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const MAX_RETRIEVED = 5;
-export const RETRIEVAL_BUDGET = 6000;
-const MAX_NOTE_IN_CONTEXT = 2500;
+export const RETRIEVAL_BUDGET = 32000;
+// A note arrives the same size whether it was retrieved for the situation or
+// recalled by name, so this matches executor's MAX_NOTE. The number comes from
+// the corpus rather than a round guess: the act rosters a biome decision has to
+// read whole are the largest notes there are (~12k), and they grow as entries
+// are added. It stays at half the budget above, so one note still cannot fill
+// the decision context on its own.
+export const MAX_NOTE_IN_CONTEXT = 16000;
 const STOP = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'at', 'for', 'with', 'is', 'it', 'this', 'that', 'md', 'readme', 'learned', 'note', 'notes']);
 
 const words = (text) => String(text || '').toLowerCase().match(/[a-z0-9][a-z0-9'-]{1,}/g) || [];

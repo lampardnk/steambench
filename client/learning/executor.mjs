@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DIRECTIONS, isCardPlay, isCombat, noteProblem, progressId, ready, startupTransition, stateId, uiMatches, uncertainCard, validatePlan } from './state.mjs';
 
-export const MAX_NOTE = 8000;
+export const MAX_NOTE = 16000;
 
 /** Files under learned/ outlive the room, so the player can see what it already wrote. */
 export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item => item.path).sort(); }
