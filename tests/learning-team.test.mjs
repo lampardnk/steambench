@@ -1,4 +1,36 @@
 
+// A screen that redraws under the cursor does not spend the recovery budget.
+//
+// Live, on the potion strip: every `right` moves focus to the next holder,
+// which draws its popup, which changes scene_id. Two presses used the whole
+// budget and the run was paused for "navigation recovery budget exhausted"
+// while walking correctly towards the potion it wanted.
+{
+  const holder = (id, x, neighbors) => ({ id, label: null, focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [x, 9, 60, 60], neighbors });
+  const strip = [
+    holder('empty', 503, { right: 'slot1' }),
+    holder('slot1', 565, { right: 'slot2', left: 'empty' }),
+    holder('slot2', 627, { right: 'slot3', left: 'slot1' }),
+    holder('slot3', 689, { left: 'slot2' }),
+  ];
+  // Each press lands correctly AND changes the scene, as the real strip does.
+  const order = ['empty', 'slot1', 'slot2', 'slot3'];
+  const walked = [];
+  let at = 0;
+  const executor = Object.create(Executor.prototype);
+  executor.button = async () => { walked.push('right'); at = Math.min(at + 1, order.length - 1); };
+  executor.observe = async () => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 }, player: { hp: 50, max_hp: 80 },
+    ui: { scene_id: `strip-${at}`, focused_element: order[at], elements: strip } });
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const start = { state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 }, player: { hp: 50, max_hp: 80 },
+    ui: { scene_id: 'strip-0', focused_element: 'empty', elements: strip } };
+  const landed = await executor.navigateElement({ type: 'activate', target: 'slot3', scene: 'strip-0' }, start);
+  assert.equal(landed.ui.focused_element, 'slot3', 'three presses along a redrawing strip still arrive');
+  assert.equal(walked.length, 3, `and it takes exactly three: ${walked.join(',')}`);
+}
+
 // A route ends where it was aimed, whatever the graph predicted on the way.
 //
 // Live, on a reward screen at act 1 floor 6. The screen was still dealing its

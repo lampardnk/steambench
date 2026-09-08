@@ -18,6 +18,9 @@ export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item =>
 // creatures, the hand. `down` walks them and wraps, so one full pass always
 // finds the hand if the hand can be focused at all.
 const COMBAT_FOCUS_ROWS = 4;
+// How many times a screen may change shape under a route before it counts as
+// unstable. One per press along a strip that redraws, plus room to settle.
+const MAX_RESCENES = 12;
 const QUIESCE_MS = 150;
 const QUIESCE_READS = 10;
 
@@ -160,12 +163,21 @@ export class Executor {
     // still fatal; a settling screen only means the route must be recomputed,
     // which costs nothing because directional presses are reversible.
     let scene = action.scene;
+    // A re-scene is not a failed attempt, so it does not spend the recovery
+    // budget - it only has to be bounded. Moving focus along the potion strip
+    // changes scene_id on EVERY press, because the holder under the cursor
+    // draws its popup; a reward screen does the same while it deals its rows
+    // in. Counting those as failures meant the budget was gone after two
+    // presses and a run that was walking correctly towards its target was
+    // paused for "navigation recovery budget exhausted".
+    let rescenes = 0;
     for (let recovery = 0; recovery <= 2; recovery++) {
       if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
       if (state.ui?.scene_id !== scene) {
-        if (recovery === 2) throw new Error('the screen kept changing while routing to this element');
+        if (++rescenes > MAX_RESCENES) throw new Error('the screen kept changing while routing to this element');
         this.record({ type: 'navigation_rescene', from: scene, to: state.ui?.scene_id ?? null });
         scene = state.ui?.scene_id;
+        recovery--;
         continue;
       }
       const target = targetElement(state, action.target);
