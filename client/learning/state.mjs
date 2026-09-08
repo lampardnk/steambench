@@ -87,8 +87,17 @@ const withoutGeometry = (state) => (state?.ui?.elements
   ? { ...state, ui: { ...state.ui, elements: state.ui.elements.map(({ bounds, ...rest }) => rest) } }
   : state);
 
+/**
+ * Short on purpose. The model has to copy this back verbatim, and a run died at
+ * decision 4 because it wrote f97f37503c665f42 for f97c37503c665f42 - one
+ * character out of sixteen. Eight is still specific enough for a value that is
+ * only ever compared against one other value, and it halves what has to be
+ * transcribed. The real staleness gate is not this: the executor re-reads the
+ * game before acting and refuses a plan whose observation no longer matches
+ * what is actually on screen.
+ */
 export function stateId(state) {
-  return digest(withoutGeometry(compactState(state)));
+  return digest(withoutGeometry(compactState(state))).slice(0, 8);
 }
 
 export function progressId(state) {
@@ -319,7 +328,7 @@ export const ROLE_ACTIONS = {
 };
 
 export function validatePlan(plan, state, { role = null } = {}) {
-  if (!plan || plan.observation !== stateId(state)) throw new Error('stale or missing observation ID');
+  if (!plan || String(plan.observation ?? '').trim().toLowerCase() !== stateId(state)) throw new Error('stale or missing observation ID');
   if (!Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > 8) throw new Error('a plan needs 1–8 actions');
   if (typeof plan.summary !== 'string' || plan.summary.length > 300) throw new Error('summary must be at most 300 characters');
   // Writing a note sends no game input, and what is worth recording is usually
