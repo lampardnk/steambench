@@ -80,7 +80,13 @@ overlay listing the whole deck appears, `b` closes it.
   Each collectible row is focused and activated separately, and collecting one
   removes only that row and moves focus to an auto-generated sibling, so re-read
   focus before the next activation. A card row opens the card-reward screen.
-  When `items` is empty and `can_proceed` is true, `y` returns to the map.
+- **A reward screen has no Proceed control.** The one button on it is Skip,
+  bound to `y`, and Skip is also how you leave once you have taken what you
+  want: activate the rows you want with `a`, then press `y`. `can_proceed: true`
+  does not mean a Proceed button exists - it means `y` will leave the screen.
+  Its absence is not a fault and not worth reporting; `y` finishes a reward
+  screen whether `rewards.items` is empty or still holds things you decided to
+  leave behind.
 - **Rest sites.** Read `rest_site.options` and their enabled state; services vary
   by run. An empty `options` with `can_proceed` true is a resolved site, not
   missing UI: `y` proceeds.
