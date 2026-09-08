@@ -4,7 +4,10 @@ import test from 'node:test';
 import { Executor } from '../client/learning/executor.mjs';
 import { navigationPath } from '../client/learning/navigation.mjs';
 import { PROFILE } from '../client/learning/profile.mjs';
-import { compactState, stateId, validatePlan, needsScreenshot, plannerResult, plannerState, mapId, stateDiff } from '../client/learning/state.mjs';
+import { compactState, stateId, validatePlan, needsScreenshot, plannerResult, mapId, stateDiff } from '../client/learning/state.mjs';
+import { actuatorContext, actuatorElements, combatState, encounterKind, strategistState } from '../client/learning/context.mjs';
+import { matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
+import { Roster, encounterLane } from '../client/learning/agents.mjs';
 
 const planFor = (state, actions) => ({ observation: stateId(state), summary: 'fixture batch', note: 'Test verified local execution.', actions });
 const initialCombat = () => ({
@@ -277,8 +280,9 @@ test('configuration matches exact OrcaRouter profile with no provider restrictio
   assert.equal(needsScreenshot(initialCombat()), false);
   assert.equal(needsScreenshot({ state_type: 'rewards', ui: { focus_path: '/RewardsContainer/RewardButton' } }), true);
   const state = initialMap();
-  const compact = plannerState(state, { after: { map_id: mapId(state) } }, 'Keep the chosen route.');
+  const compact = strategistState(state, { mapUnchanged: true });
   assert.equal(compact.map.nodes, undefined);
+  assert.equal(compact.map.node_count, state.map.nodes.length);
   assert.deepEqual(compact.map.next_options, state.map.next_options);
 });
 
@@ -574,18 +578,24 @@ test('semantic navigation refuses a stale scene and keeps read-only queries inpu
   assert.deepEqual(asked.completed[0].path.map(step => step.direction), ['left']);
 });
 
-test('the model is told what it can press without being sent the neighbour graph', () => {
+test('only the actuator is sent the interface, and it is sent what it can press rather than the graph', () => {
   const screen = rewardScreen();
   // A labelled focused element is the whole point of the sensor: no screenshot.
   assert.equal(needsScreenshot(screen), false);
-  const sent = plannerState(screen, null, null);
-  assert.ok(sent.ui.elements.every(item => item.neighbors === undefined));
-  const skip = sent.ui.elements.find(item => item.id === 'element-skip');
+  const sent = actuatorElements(screen);
+  assert.ok(sent.every(item => item.neighbors === undefined && item.bounds === undefined));
+  const skip = sent.find(item => item.id === 'element-skip');
   assert.equal(skip.label, 'Skip');
   assert.equal(skip.press, 'b');
   assert.deepEqual(skip.hotkeys, ['ui_cancel']);
   // The executor still sees the full graph it routes with.
   assert.ok(compactState(screen).ui.elements.every(item => item.neighbors !== undefined));
+  // Nobody who plays the game sees any of it. An element id in front of the
+  // strategist is only something to invent a route through.
+  assert.equal(strategistState(screen).ui, undefined);
+  assert.equal(combatState(initialCombat()).ui, undefined);
+  assert.equal(combatState(initialCombat()).map, undefined);
+  assert.equal(strategistState(initialCombat()).battle, undefined);
 });
 
 test('presentation that moves on its own no longer discards a plan, but a changed scene still does', async () => {

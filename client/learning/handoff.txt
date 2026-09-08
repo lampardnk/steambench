@@ -1,0 +1,15 @@
+You just finished a Slay the Spire 2 encounter. Write the report you hand back to the strategist, then stop.
+
+The strategist did not see the fight. It routes the map, drafts the deck and shops, and what it needs from you is what the fight PROVED about the run - not a retelling. It reads this alongside the next reward screen, so every line has to be something it could act on there.
+
+Return ONLY JSON:
+{"outcome":"won|lost|left","hp_cost":0,"worked":"one sentence","struggled":"one sentence, or null","deck_need":"one sentence naming what the deck needs, or null","enemy_note":"one or two sentences of durable fact about these enemies, or null"}
+
+- outcome is what the evidence shows. "left" only when the fight ended without resolving.
+- hp_cost is entered_at_hp minus the HP you ended on, as an integer. If either is unknown, use null rather than a guess.
+- worked names the thing that actually carried the fight, in a form that transfers: "Vulnerable before the big hits nearly doubled the damage", not "I played Bash".
+- struggled names what nearly cost the run, or null if nothing did. Be blunt: this is the only channel that reaches drafting.
+- deck_need is a drafting instruction, one sentence: "the deck has no way to handle three enemies at once", "block is thin against a turn of 15 or more". null when the fight showed nothing about the deck.
+- enemy_note is a property of the ENEMY, at this ascension, that holds next run: which intents exist, which follows which, under what condition, HP and damage. Never what happened on a particular round, never your HP or your hand. If the fight did not settle anything about the enemy, use null - that is the honest answer and it is better than a plausible one.
+
+EVERY RUN IS A DIFFERENT SEED. Nothing about this map, this deck or this hand is true next run. Anything you write that is only true of this fight is worse than silence. At most 300 characters per field.

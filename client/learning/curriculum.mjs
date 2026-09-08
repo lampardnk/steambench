@@ -36,7 +36,11 @@ const MIN_CHECK_GAP = 3;
 // whole run. Half the decision budget is ample for a short answer and still
 // bounds a hung call.
 const AUXILIARY_DEADLINE_MS = Math.round(PROFILE.plannerDeadlineMs / 2);
-const AREAS = ['meta_strategy', 'controls', 'act1', 'act2', 'act3', 'characters', 'ascension', 'strategy', 'bestiary', 'events', 'setups'];
+// The folders the library actually has. An objective filed under a name no
+// directory answers to - bestiary, setups, pools - reads as a place to put the
+// note and there is nowhere to put it, so every one of those objectives closed
+// with the note unwritten.
+const AREAS = ['meta_strategy', 'controls', 'act1', 'act2', 'act3', 'characters', 'ascension', 'debugging'];
 const clamp = (value, limit) => (typeof value === 'string' ? value.slice(0, limit) : '');
 
 /** A small, stable description of where the run is, for proposal and verification. */
@@ -124,7 +128,7 @@ export class Curriculum {
   summary() {
     const areas = {};
     for (const item of this.ledger.objectives) {
-      const area = AREAS.includes(item.area) ? item.area : 'strategy';
+      const area = AREAS.includes(item.area) ? item.area : 'meta_strategy';
       areas[area] ||= { completed: 0, abandoned: 0 };
       if (item.status === 'completed') areas[area].completed++;
       if (item.status === 'abandoned') areas[area].abandoned++;
@@ -192,7 +196,7 @@ export class Curriculum {
       text: clamp(answer?.objective, 240),
       why: clamp(answer?.why, 400),
       done_when: clamp(answer?.done_when, 300),
-      area: AREAS.includes(answer?.area) ? answer.area : 'strategy',
+      area: AREAS.includes(answer?.area) ? answer.area : 'meta_strategy',
       status: 'active',
       attempts: 0,
       critiques: [],

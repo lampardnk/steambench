@@ -101,24 +101,6 @@ export function stateDiff(before, after) {
   return changed;
 }
 
-export function plannerState(state, lastResult, strategy) {
-  const result = compactState(state);
-  if (result.player) for (const pile of ['draw_pile', 'discard_pile', 'exhaust_pile']) delete result.player[pile];
-  if (state.state_type === 'map' && strategy && lastResult?.after?.map_id === mapId(state)) {
-    const { nodes, ...map } = result.map;
-    result.map = { ...map, full_graph_unchanged: true, node_count: nodes?.length };
-  }
-  // The neighbour graph is for the executor, which computes and verifies routes
-  // with it. The model addresses elements by ID and asks for a route with path
-  // or navigate, so to it these are the largest block of the state payload and
-  // the one part of it there is no reason to read. compactState is a shallow
-  // copy, so the elements are rebuilt rather than stripped in place.
-  if (Array.isArray(result.ui?.elements)) {
-    result.ui = { ...result.ui, elements: result.ui.elements.map(({ neighbors, ...item }) => item) };
-  }
-  return result;
-}
-
 export function plannerResult(result) {
   return {
     completed: result.completed,
@@ -248,7 +230,20 @@ export function energyCost(cost) {
   return Number.isInteger(value) && value >= 0 ? value : null;
 }
 
-export function validatePlan(plan, state) {
+/**
+ * What each member of the team is allowed to ask for. The split is the point:
+ * a strategist that cannot name an element id cannot invent one, and a combat
+ * agent that cannot press a raw button cannot wander off the fight. The
+ * executor is the strictest reader of all - it accepts every concrete action
+ * and refuses `intent`, so an unresolved goal can never reach the pad.
+ */
+export const ROLE_ACTIONS = {
+  strategist: new Set(['intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
+  combat: new Set(['play', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
+  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'learn', 'wait', 'report_issue']),
+};
+
+export function validatePlan(plan, state, { role = null } = {}) {
   if (!plan || plan.observation !== stateId(state)) throw new Error('stale or missing observation ID');
   if (!Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > 8) throw new Error('a plan needs 1–8 actions');
   if (typeof plan.summary !== 'string' || plan.summary.length > 300) throw new Error('summary must be at most 300 characters');
@@ -261,7 +256,17 @@ export function validatePlan(plan, state) {
   const actions = notes.length ? plan.actions.slice(0, -1) : plan.actions;
   for (const action of plan.actions) {
     if (!action || typeof action !== 'object') throw new Error('invalid action');
-    if (action.type === 'play') {
+    const allowed = role ? ROLE_ACTIONS[role] : null;
+    if (allowed && !allowed.has(action.type)) throw new Error(`the ${role} cannot use ${action.type}; its actions are ${[...allowed].join(', ')}`);
+    if (action.type === 'intent') {
+      // One intent per plan. It is a scene barrier by construction: the screen
+      // it acts on is gone once it lands, so anything planned behind it was
+      // planned against a screen that no longer exists.
+      if (!role) throw new Error('an intent must be resolved into concrete input before it reaches the game');
+      if (actions.length !== 1) throw new Error('one intent per plan; it ends at the screen it acts on');
+      if (typeof action.goal !== 'string' || !action.goal.trim() || action.goal.length > 300) throw new Error('intent.goal must be a 1-300 character description of what you want done');
+      if (action.target_label !== undefined && action.target_label !== null && (typeof action.target_label !== 'string' || !action.target_label.trim() || action.target_label.length > 80)) throw new Error('intent.target_label must be the on-screen name of the target, at most 80 characters');
+    } else if (action.type === 'play') {
       if (!isCombat(state) || !Number.isInteger(action.card) || !state.player.hand.some(card => card.instance_id === action.card)) throw new Error('unknown card instance');
       if (action.target != null && typeof action.target !== 'string') throw new Error('invalid target');
       const card = state.player.hand.find(item => item.instance_id === action.card);

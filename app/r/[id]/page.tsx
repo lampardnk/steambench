@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { api, apiUrl, wsUrl, STAGE_LABELS, type LibraryGame, type Meta, type PadEvent, type RoomSummary, type TranscriptItem } from '@/lib/backend'
+import { api, apiUrl, wsUrl, STAGE_LABELS, type AgentInfo, type LibraryGame, type Meta, type PadEvent, type RoomSummary, type TranscriptItem } from '@/lib/backend'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { ControllerView } from '@/components/controller'
 import { GameView } from '@/components/game-view'
@@ -11,9 +11,10 @@ import { Transcript } from '@/components/transcript'
 import { Learning } from '@/components/learning'
 
 type WsMessage =
-  | { type: 'snapshot'; room: RoomSummary; transcript: TranscriptItem[]; padHistory: PadEvent[]; log: string[] }
+  | { type: 'snapshot'; room: RoomSummary; transcript: TranscriptItem[]; agents: AgentInfo[]; padHistory: PadEvent[]; log: string[] }
   | { type: 'item'; item: TranscriptItem }
-  | { type: 'delta'; id: string; kind: string; delta: string }
+  | { type: 'agents'; agents: AgentInfo[] }
+  | { type: 'delta'; id: string; kind: string; agent?: string; delta: string }
   | { type: 'agent_status'; status: string }
   | { type: 'pad'; event: PadEvent }
   | { type: 'room'; room: RoomSummary }
@@ -27,6 +28,7 @@ export default function RoomPage() {
   const configured = Boolean(settings.backendUrl && settings.token)
   const [room, setRoom] = useState<RoomSummary | null>(null)
   const [items, setItems] = useState<TranscriptItem[]>([])
+  const [agents, setAgents] = useState<AgentInfo[]>([])
   const [pads, setPads] = useState<PadEvent[]>([])
   const [log, setLog] = useState<string[]>([])
   const [error, setError] = useState('')
@@ -51,8 +53,11 @@ export default function RoomPage() {
         if (msg.type === 'snapshot') {
           setRoom(msg.room)
           setItems(msg.transcript)
+          setAgents(msg.agents || [])
           setPads(msg.padHistory)
           setLog(msg.log)
+        } else if (msg.type === 'agents') {
+          setAgents(msg.agents || [])
         } else if (msg.type === 'item') {
           setItems((prev) => {
             const i = prev.findIndex((x) => x.id === msg.item.id)
@@ -66,7 +71,7 @@ export default function RoomPage() {
         } else if (msg.type === 'delta') {
           setItems((prev) => {
             const i = prev.findIndex((x) => x.id === msg.id)
-            if (i < 0) return [...prev, { id: msg.id, t: Date.now(), kind: msg.kind as TranscriptItem['kind'], text: msg.delta }]
+            if (i < 0) return [...prev, { id: msg.id, t: Date.now(), agent: msg.agent, kind: msg.kind as TranscriptItem['kind'], text: msg.delta }]
             const next = prev.slice()
             next[i] = { ...next[i], text: (next[i].text || '') + msg.delta }
             return next
@@ -163,7 +168,7 @@ export default function RoomPage() {
                     </p>
                   </div>
                 )}
-                <Transcript items={items} />
+                <Transcript items={items} agents={agents} />
                 <ChatBox
                   attention={Boolean(room.attention)}
                   disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'}

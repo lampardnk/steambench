@@ -39,14 +39,14 @@ fs.writeFileSync(file, JSON.stringify(config));
 let chunks = 0;
 const planner = new Planner({ emit: event => { if (event.assistantMessageEvent?.type === 'text_delta') chunks++; }, record: () => {} });
 try {
-  const plain = await planner.ask({ prompt: 'probe.txt', context: { probe: 'text' }, stream: true });
+  const plain = await planner.ask({ role: 'probe', prompt: 'probe.txt', context: { probe: 'text' }, stream: true });
   assert.equal(plain.ok, true);
   report.capabilities.json = true;
   report.capabilities.streaming = chunks > 0;
   assert.ok(chunks > 0, 'Pi must expose text stream chunks');
   // Generated red 1x1 PNG; no gameplay screenshot or personal data.
   const image = { mime_type: 'image/png', data_base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC' };
-  const vision = await planner.ask({ prompt: 'probe.txt', context: { probe: 'image' }, image });
+  const vision = await planner.ask({ role: 'probe', prompt: 'probe.txt', context: { probe: 'image' }, image });
   assert.equal(vision.ok, true);
   assert.equal(vision.color.toLowerCase(), 'red');
   report.capabilities.image = true;

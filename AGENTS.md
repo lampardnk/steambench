@@ -75,6 +75,12 @@ node host/learning-player.mjs inspect $ROOM_ID
 
 The player runtime (`client/learning/`) is configured as follows:
 - **Model Identity:** `STS2-Pi-OrcaRouter` using `z-ai/glm-5.3-flash-free` via OrcaRouter (`https://api.orcarouter.ai/v1`, key from system environment variable `ORCA_KEY`).
+- **A team, not one agent.** The run is played by scoped roles (`client/learning/agents.mjs`), each with its own system prompt, its own context projection and its own dashboard lane. Nothing else may read outside its projection.
+  - **Strategist** (`strategist.txt`): map, routing, drafting, shops, events, rest sites. Reads the sensor with `ui` and `battle` removed. Cannot press a button; it states an `intent`.
+  - **Combat** (`combat.txt`): one encounter, opened when the fight starts and closed with one report when it ends. Reads the sensor with `ui`, `map` and `deck` removed. Its lane id is `combat-<ordinal>-a<act>f<floor>`; the report lands in `scratchpad/encounters.jsonl` and reaches the strategist as `last_encounter`.
+  - **Actuator** (`actuator.txt`): owns the controller and is the only role shown `ui.elements`, focus paths or a screenshot. A goal carrying a `target_label` that matches exactly one addressable control is resolved with no model call at all (`actuator.mjs`); the model is the fallback.
+  - **Curriculum** and **Critic**, unchanged, in their own lanes.
+- **Intent cannot reach the pad.** `validatePlan(plan, state, { role })` gates each role's action set, and the executor's own reading (no role) refuses `intent` outright, so an unresolved goal can never be pressed.
 - **Pi Configuration & Probe Verification:** Provider configuration in `models.json` resolves the key from the environment via `"apiKey": "$ORCA_KEY"`. The capability probe (`node host/learning-decision-probe.mjs`) verifies both text streaming JSON and multimodal image recognition (e.g. color identification) with two HTTP 200 requests to `z-ai/glm-5.3-flash-free` sending zero game inputs.
 - **Singleton Execution:** Only one player container (`steambench-player-<id>`) per room.
 - **First Failure Pause:** On the first planner, provider, or executor failure, input immediately stops, the virtual pad returns to neutral, incident evidence (before/after states, sensor rings, screenshots) is saved under `scratchpad/incidents/<id>/`, and the player pauses for review.
