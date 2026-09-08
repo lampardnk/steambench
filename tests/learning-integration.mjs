@@ -18,7 +18,19 @@ fs.symlinkSync(path.join(root, 'tests/fixtures/fake-pi.cjs'), binary);
 fs.chmodSync(binary, 0o755);
 // A menu is pure actuation, so these scenarios exercise the actuator on its own -
 // which is where the probe, note and screenshot bounds all live.
-const baseState = { state_type: 'menu', menu_screen: 'main', run: { floor: 1, act: 1 }, player: { hp: 80 }, ui: { sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod', focus_path: null } };
+const baseState = {
+  state_type: 'menu', menu_screen: 'main', run: { floor: 1, act: 1 }, player: { hp: 80 },
+  // A built menu: it holds focus and lists at least one control. A menu with
+  // neither has not loaded yet and is deliberately never planned against, so a
+  // fixture without them would wait for a screen that never arrives.
+  // The focused control carries no label, which is what keeps the screenshot
+  // path in play for the stale_image scenario.
+  ui: {
+    sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod',
+    scene_id: 'scene-menu', focus_path: null, focused_element: 'element-menu',
+    elements: [{ id: 'element-menu', type: 'Control', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} }],
+  },
+};
 // A fight, and the reward screen it resolves into once a turn has been ended.
 // This is the whole encounter lifecycle: an agent is opened for the fight, plays
 // it, and is closed with one report the strategist can act on.

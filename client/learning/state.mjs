@@ -159,7 +159,29 @@ export function isCardPlay(state) {
   return isCombat(state) && !/select|overlay|reward/.test(state.state_type);
 }
 
+/**
+ * A menu the game has not built yet. The mod answers as soon as it is loaded,
+ * which is before the main menu scene exists: the very first observation of a
+ * room reported state_type "menu", menu_screen "main" and an EMPTY element list
+ * with null focus, and an empty payload is identical to the next empty payload,
+ * so quiescing declared it settled at once. The actuator then did the only
+ * sensible thing with a menu that lists no controls - pressed A to establish
+ * focus - against a screen that was not listening, and the run paused on its
+ * first decision. Seconds later the same endpoint reported nine elements with
+ * focus on SingleplayerButton.
+ *
+ * A real menu always has at least one control. No controls and no focus is not
+ * a settled screen; it is a screen that has not arrived.
+ */
+export function unbuiltMenu(state) {
+  return state?.state_type === 'menu'
+    && !state.ui?.focused_element
+    && !state.ui?.focus_path
+    && (state.ui?.elements?.length ?? 0) === 0;
+}
+
 export function ready(state) {
+  if (unbuiltMenu(state)) return false;
   return !isCombat(state) || /select|overlay|reward/.test(state.state_type) || (state.battle.is_play_phase === true && state.battle.turn === 'player');
 }
 

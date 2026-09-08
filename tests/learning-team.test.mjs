@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
 import { Actuator, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
-import { ROLE_ACTIONS, stateId, validatePlan } from '../client/learning/state.mjs';
+import { ROLE_ACTIONS, ready, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
+import { Executor } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
 import { API_KEY_ENVS, DEFAULT_MODEL, MODEL_PROFILES, PROFILE } from '../server/lib/learning-profile.mjs';
 
@@ -231,4 +232,28 @@ test('switching model or provider is one word, and nothing else names one', () =
       assert.equal(text.includes(name), false, `${file} names ${name} instead of reading PROFILE.apiKeyEnv`);
     }
   }
+});
+
+test('a menu that lists no controls has not loaded, and is not planned against', async () => {
+  // The first observation of a real room: the mod answers before the main menu
+  // scene exists, so an empty payload arrived that was identical to the next
+  // empty payload and quiescing declared it settled at once.
+  const empty = { state_type: 'menu', menu_screen: 'main', ui: { sensor_version: 5, focus_path: null, focused_element: null, elements: [] } };
+  const loaded = { state_type: 'menu', menu_screen: 'main', ui: { sensor_version: 5, scene_id: 'menu', focus_path: '/root/Game/RootSceneContainer/MainMenu/MainMenuTextButtons/SingleplayerButton', focused_element: 'element-1', elements: [{ id: 'element-1', label: 'SingleplayerButton', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} }] } };
+  assert.equal(unbuiltMenu(empty), true);
+  assert.equal(ready(empty), false, 'an empty menu must never be handed to an agent');
+  assert.equal(unbuiltMenu(loaded), false);
+  assert.equal(ready(loaded), true);
+  // A menu is only unbuilt when it has nothing at all: a screen that reports
+  // focus, or any control, is a real screen however sparse.
+  assert.equal(unbuiltMenu({ ...empty, ui: { ...empty.ui, focused_element: 'element-1' } }), false);
+  assert.equal(unbuiltMenu({ state_type: 'map', ui: { elements: [] } }), false, 'only menus are built this late');
+
+  // The executor waits it out rather than acting on it.
+  let reads = 0;
+  const executor = new Executor({ call: async () => { reads++; return { body: JSON.stringify(reads < 4 ? empty : loaded) }; } });
+  executor.sleep = async () => {};
+  const settled = await executor.quiesced();
+  assert.equal(settled.ui.focused_element, 'element-1');
+  assert.ok(reads >= 4, 'it kept reading until the menu arrived');
 });

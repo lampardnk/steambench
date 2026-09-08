@@ -2,7 +2,7 @@ import { elements, pressableElement, targetElement, navigationPath } from './nav
 import { indexNotes } from './retrieval.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
-import { DIRECTIONS, isCardPlay, isCombat, noteProblem, planIdentity, progressId, ready, startupTransition, stateId, uiMatches, uncertainCard, validatePlan } from './state.mjs';
+import { DIRECTIONS, isCardPlay, isCombat, noteProblem, planIdentity, progressId, ready, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
 
 export const MAX_NOTE = 16000;
 
@@ -98,7 +98,9 @@ export class Executor {
       if (ready(state)) return state;
       await this.sleep(250);
     }
-    throw new Error('game did not reach an actionable state within 10 seconds');
+    throw new Error(unbuiltMenu(await this.observe())
+      ? 'the game reports a menu with no controls after 10 seconds; the menu scene has not finished loading'
+      : 'game did not reach an actionable state within 10 seconds');
   }
 
   /**
