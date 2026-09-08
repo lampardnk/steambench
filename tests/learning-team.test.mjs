@@ -7,6 +7,7 @@ import { Actuator, matchElement, normalizeLabel, resolveIntent } from '../client
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, stateId, validatePlan } from '../client/learning/state.mjs';
 import { PiAgent } from '../server/lib/agent.js';
+import { API_KEY_ENVS, DEFAULT_MODEL, MODEL_PROFILES, PROFILE } from '../server/lib/learning-profile.mjs';
 
 const reward = JSON.parse(fs.readFileSync(new URL('./fixtures/card-reward-skip.json', import.meta.url), 'utf8'));
 const combat = () => ({
@@ -201,4 +202,33 @@ test('the dashboard files each member\'s words under that member', () => {
   // Anything the runtime says without naming a lane belongs to the room.
   agent._system('the sensor is missing');
   assert.equal(agent.transcript.at(-1).agent, 'room');
+});
+
+test('switching model or provider is one word, and nothing else names one', () => {
+  const config = JSON.parse(fs.readFileSync(new URL('../client/learning/models.json', import.meta.url), 'utf8'));
+  for (const [key, profile] of Object.entries(MODEL_PROFILES)) {
+    assert.equal(profile.key, key, `${key} knows its own name`);
+    const provider = config.providers[profile.provider];
+    assert.ok(provider, `models.json carries ${profile.provider}, so a switch needs no edit to the Pi configuration`);
+    assert.equal(provider.baseUrl, profile.baseUrl);
+    assert.equal(provider.apiKey, `$${profile.apiKeyEnv}`);
+    const model = provider.models.find(entry => entry.id === profile.model);
+    assert.ok(model, `${profile.model} is declared under ${profile.provider}`);
+    assert.equal(model.maxTokens, profile.maxTokens, 'one budget, stated once');
+    assert.equal(model.contextWindow, profile.contextWindow);
+    assert.ok(model.input.includes('image'), 'the actuator sends screenshots');
+    assert.ok(API_KEY_ENVS.includes(profile.apiKeyEnv));
+  }
+  assert.ok(MODEL_PROFILES[DEFAULT_MODEL]);
+  assert.equal(PROFILE.model, MODEL_PROFILES[process.env.STEAMBENCH_MODEL || DEFAULT_MODEL].model);
+
+  // Every runtime and host file reads the key name off the profile. A hardcoded
+  // one is a switch that silently keeps calling the old provider.
+  const sources = ['../client/learning/player.mjs', '../client/learning/planner.mjs', '../client/learning/decision-probe.mjs', '../server/bin/server.mjs', '../server/lib/rooms.js', '../server/lib/readiness.mjs', '../host/learning-decision-probe.mjs'];
+  for (const file of sources) {
+    const text = fs.readFileSync(new URL(file, import.meta.url), 'utf8');
+    for (const name of API_KEY_ENVS) {
+      assert.equal(text.includes(name), false, `${file} names ${name} instead of reading PROFILE.apiKeyEnv`);
+    }
+  }
 });

@@ -1,4 +1,4 @@
-import { normalizePlayerKind } from './learning-profile.mjs';
+import { PROFILE, normalizePlayerKind } from './learning-profile.mjs';
 import { learningReadiness } from './readiness.mjs';
 // Room lifecycle. One room = one Wolf lobby (Steam + game in a container with
 // its own virtual display, audio sink and virtual Xbox pad) + one observer
@@ -690,7 +690,7 @@ export class Room extends EventEmitter {
     this.setDetail('starting the player');
     const agent = new PiAgent({
       name: `steambench-player-${this.id}`, image: this.playerImage,
-      env: { ORCA_KEY: this.cfg.learningKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
+      env: { [PROFILE.apiKeyEnv]: this.cfg.learningKey, STEAMBENCH_MODEL: PROFILE.key, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
       mounts: [`${this.hostHome}/skills:/workspace/skills`],
     });
     this.agent = agent;

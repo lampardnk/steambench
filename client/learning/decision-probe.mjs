@@ -4,11 +4,29 @@ import fs from 'node:fs';
 import http from 'node:http';
 import assert from 'node:assert/strict';
 import { Planner } from './planner.mjs';
+import zlib from 'node:zlib';
 import { PROFILE } from './profile.mjs';
+
+/** A solid square PNG, built here so no fixture image ships with the probe. */
+function swatch(size, [red, green, blue]) {
+  const pixel = Buffer.from([red, green, blue]);
+  const row = Buffer.concat([Buffer.from([0]), ...Array.from({ length: size }, () => pixel)]);
+  const raw = Buffer.concat(Array.from({ length: size }, () => row));
+  const crc32 = buffer => { let value = ~0; for (const byte of buffer) { value ^= byte; for (let bit = 0; bit < 8; bit++) value = (value >>> 1) ^ (0xEDB88320 & -(value & 1)); } return (~value) >>> 0; };
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const checksum = Buffer.alloc(4); checksum.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, checksum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0); header.writeUInt32BE(size, 4); header[8] = 8; header[9] = 2;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
 const report = { at: Date.now(), profile: PROFILE.checkpointVersion, model: PROFILE.model, baseUrl: PROFILE.baseUrl, ready: false, capabilities: { streaming: false, json: false, image: false }, requests: [], gameplayInputs: 0 };
 const proxy = http.createServer(async (request, response) => {
   try {
-    assert.equal(request.headers.authorization === `Bearer ${process.env.ORCA_KEY}`, true, 'Pi must forward ORCA_KEY exactly');
+    assert.equal(request.headers.authorization === `Bearer ${process.env[PROFILE.apiKeyEnv]}`, true, `Pi must forward ${PROFILE.apiKeyEnv} exactly`);
     let body = '';
     for await (const chunk of request) body += chunk;
     const payload = JSON.parse(body);
@@ -34,7 +52,7 @@ const proxy = http.createServer(async (request, response) => {
 await new Promise(resolve => proxy.listen(0, '127.0.0.1', resolve));
 const file = '/home/node/.pi/agent/models.json';
 const config = JSON.parse(fs.readFileSync(file));
-config.providers.orcarouter.baseUrl = `http://127.0.0.1:${proxy.address().port}/v1`;
+config.providers[PROFILE.provider].baseUrl = `http://127.0.0.1:${proxy.address().port}/v1`;
 fs.writeFileSync(file, JSON.stringify(config));
 let chunks = 0;
 const planner = new Planner({ emit: event => { if (event.assistantMessageEvent?.type === 'text_delta') chunks++; }, record: () => {} });
@@ -44,15 +62,19 @@ try {
   report.capabilities.json = true;
   report.capabilities.streaming = chunks > 0;
   assert.ok(chunks > 0, 'Pi must expose text stream chunks');
-  // Generated red 1x1 PNG; no gameplay screenshot or personal data.
-  const image = { mime_type: 'image/png', data_base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC' };
+  // A generated 64x64 red swatch; no gameplay screenshot or personal data. It
+  // used to be a single red pixel, which gpt-5.6-luna called yellow - fairly,
+  // since one pixel survives almost no encoding. The probe is asking whether
+  // the actuator can read a screenshot, so it has to show it something with an
+  // area.
+  const image = { mime_type: 'image/png', data_base64: swatch(64, [220, 20, 20]).toString('base64') };
   const vision = await planner.ask({ role: 'probe', prompt: 'probe.txt', context: { probe: 'image' }, image });
   assert.equal(vision.ok, true);
   assert.equal(vision.color.toLowerCase(), 'red');
   report.capabilities.image = true;
   report.ready = true;
 } catch (error) {
-  report.error = error.message.replaceAll(process.env.ORCA_KEY || 'NO_KEY', '[redacted]').slice(0, 1000);
+  report.error = error.message.replaceAll(process.env[PROFILE.apiKeyEnv] || 'NO_KEY', '[redacted]').slice(0, 1000);
   process.exitCode = 1;
 } finally {
   console.log(JSON.stringify(report));

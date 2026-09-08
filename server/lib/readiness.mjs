@@ -5,7 +5,7 @@ import { PROFILE } from './learning-profile.mjs';
 // Only an actual Pi streaming/JSON/image probe can mark the exact free model ready.
 // A missing key, absent/expired evidence, or any failed capability leaves it unready.
 export function learningReadiness(cfg, now = Date.now()) {
-  if (!cfg.learningKey) return { ready: false, reason: 'ORCA_KEY is absent from the system environment' };
+  if (!cfg.learningKey) return { ready: false, reason: `${PROFILE.apiKeyEnv} is absent from the system environment` };
   try {
     const result = JSON.parse(fs.readFileSync(path.join(cfg.runtimeDir, 'learning', 'provider-readiness.json'), 'utf8'));
     if (result.model !== PROFILE.model || result.baseUrl !== PROFILE.baseUrl || result.profile !== PROFILE.checkpointVersion) throw new Error('probe configuration differs');

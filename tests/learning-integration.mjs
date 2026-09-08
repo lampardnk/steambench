@@ -9,6 +9,7 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { Executor } from '../client/learning/executor.mjs';
 import { stateId, VERSION } from '../client/learning/state.mjs';
+import { PROFILE } from '../server/lib/learning-profile.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-fixtures-'));
@@ -100,7 +101,7 @@ async function scenario(mode) {
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   function start() {
-    const child = spawn(process.execPath, [path.join(root, 'client/learning/player.mjs')], { env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, ORCA_KEY: 'fixture-only', STEAMBENCH_PROCESS_GATEWAY: `127.0.0.1:${server.address().port}`, STEAMBENCH_PROCESS_TOKEN: '', STEAMBENCH_LEARNING_SCRATCHPAD: directory, STEAMBENCH_ROOM_ID: 'bbbb2222', FIXTURE_MODE: mode, FIXTURE_CALLS: callsFile }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [path.join(root, 'client/learning/player.mjs')], { env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, [PROFILE.apiKeyEnv]: 'fixture-only', STEAMBENCH_PROCESS_GATEWAY: `127.0.0.1:${server.address().port}`, STEAMBENCH_PROCESS_TOKEN: '', STEAMBENCH_LEARNING_SCRATCHPAD: directory, STEAMBENCH_ROOM_ID: 'bbbb2222', FIXTURE_MODE: mode, FIXTURE_CALLS: callsFile }, stdio: ['pipe', 'pipe', 'pipe'] });
     children.add(child);
     child.events = [];
     child.errors = '';

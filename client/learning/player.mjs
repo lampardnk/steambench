@@ -507,7 +507,7 @@ async function run(task) {
     let afterImage = null;
     try { after = JSON.parse((await gateway.call({ op: 'sts2-get', path: '/api/v1/singleplayer', query: { format: 'json' } })).body); } catch { }
     try { executionMetrics.screenshots++; afterImage = await gateway.call({ op: 'screenshot', format: 'jpeg' }); } catch { }
-    const reason = String(error.message).replaceAll(process.env.ORCA_KEY || 'NO_KEY', '[redacted]').replace(/sk-(?:or-v1-)?[a-zA-Z0-9_-]{20,}/g, '[redacted]');
+    const reason = String(error.message).replaceAll(process.env[PROFILE.apiKeyEnv] || 'NO_KEY', '[redacted]').replace(/sk-(?:or-v1-)?[a-zA-Z0-9_-]{20,}/g, '[redacted]');
     if (!controller.signal.aborted) {
       const logFile = path.join(directory, 'events.jsonl');
       attention = saveIncident(directory, { decision, sessionId, error: reason, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, agents: roster.list, before: observation, after, beforeImage: actuator.lastImage, afterImage, plan, planner: planner.lastDiagnostics, lastResult, recentInputs, recentSensors, eventLogBytes: fs.existsSync(logFile) ? fs.statSync(logFile).size : 0 });

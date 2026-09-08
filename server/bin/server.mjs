@@ -20,7 +20,7 @@ const TOKEN = env.STEAMBENCH_TOKEN;
 if (!TOKEN) { console.error('STEAMBENCH_TOKEN is required'); process.exit(2); }
 const here = path.dirname(fileURLToPath(import.meta.url));
 import { learningReadiness } from '../lib/readiness.mjs';
-const learningKey = env.ORCA_KEY || '';
+const learningKey = env[learningProfile.apiKeyEnv] || '';
 
 const cfg = {
   log,
@@ -63,7 +63,7 @@ const cfg = {
 };
 const PORT = Number(env.PORT || 8787);
 const GATEWAY_PORT = Number(env.STEAMBENCH_GATEWAY_PORT || 28771);
-if (!cfg.learningKey) log('ORCA_KEY is absent; the built-in player is unready');
+if (!cfg.learningKey) log(`${learningProfile.apiKeyEnv} is absent; the built-in player is unready`);
 
 const manager = new RoomManager(cfg);
 startGateway({ port: GATEWAY_PORT, resolveInstance: (t) => manager.resolveToken(t), log });
