@@ -1,4 +1,4 @@
-import { elements, pressableElement, targetElement, navigationPath } from './navigation.mjs';
+import { elements, pressableElement, targetElement, navigationPath, towards, across } from './navigation.mjs';
 import { indexNotes } from './retrieval.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,6 +18,9 @@ export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item =>
 // creatures, the hand. `down` walks them and wraps, so one full pass always
 // finds the hand if the hand can be focused at all.
 const COMBAT_FOCUS_ROWS = 4;
+// How many times a screen may change shape under a route before it counts as
+// unstable. One per press along a strip that redraws, plus room to settle.
+const MAX_RESCENES = 12;
 const QUIESCE_MS = 150;
 const QUIESCE_READS = 10;
 
@@ -147,6 +150,43 @@ export class Executor {
     await this.sleep(180);
   }
 
+  /**
+   * Walk towards something the way a person does: look at where it is, press
+   * that way, look again.
+   *
+   * navigationPath only crosses a screen the game wired, and several screens
+   * are not wired the way they are drawn - the potion strip, the combat rows,
+   * a reward list whose siblings are auto-named. On those it reports no route
+   * and the run stops, when three presses in the obvious direction would have
+   * arrived. Every step here is verified by observation rather than predicted,
+   * and directional presses activate nothing, so being wrong costs one press.
+   *
+   * It gives up rather than guessing when focus stops moving on both axes, or
+   * comes back to somewhere it has already been - a card row wraps into a
+   * closed loop by design, and "no route" is the true answer there.
+   */
+  async walkToward(target, state, scene, before) {
+    const seen = new Set([state.ui?.focused_element]);
+    for (let step = 0; step < 12; step++) {
+      const here = targetElement(state, state.ui.focused_element);
+      const wanted = targetElement(state, target.id);
+      for (const direction of [towards(here, wanted), across(towards(here, wanted))]) {
+        await this.button(direction);
+        state = await this.observe();
+        if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
+        if (state.ui?.focused_element === target.id) return state;
+        if (state.ui?.focused_element && state.ui.focused_element !== here.id) break;
+      }
+      const landed = state.ui?.focused_element;
+      // Unmoved on both axes, or back somewhere already visited: this screen
+      // does not connect the two, and more presses will not change that.
+      if (!landed || landed === here.id || seen.has(landed)) return null;
+      seen.add(landed);
+      if (state.ui?.scene_id !== scene) scene = state.ui?.scene_id;
+    }
+    return null;
+  }
+
   async navigateElement(action, before) {
     let state = before;
     // Edges that were pressed and did not land where the graph predicted.
@@ -160,12 +200,21 @@ export class Executor {
     // still fatal; a settling screen only means the route must be recomputed,
     // which costs nothing because directional presses are reversible.
     let scene = action.scene;
+    // A re-scene is not a failed attempt, so it does not spend the recovery
+    // budget - it only has to be bounded. Moving focus along the potion strip
+    // changes scene_id on EVERY press, because the holder under the cursor
+    // draws its popup; a reward screen does the same while it deals its rows
+    // in. Counting those as failures meant the budget was gone after two
+    // presses and a run that was walking correctly towards its target was
+    // paused for "navigation recovery budget exhausted".
+    let rescenes = 0;
     for (let recovery = 0; recovery <= 2; recovery++) {
       if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
       if (state.ui?.scene_id !== scene) {
-        if (recovery === 2) throw new Error('the screen kept changing while routing to this element');
+        if (++rescenes > MAX_RESCENES) throw new Error('the screen kept changing while routing to this element');
         this.record({ type: 'navigation_rescene', from: scene, to: state.ui?.scene_id ?? null });
         scene = state.ui?.scene_id;
+        recovery--;
         continue;
       }
       const target = targetElement(state, action.target);
@@ -191,6 +240,9 @@ export class Executor {
       let route;
       try { route = navigationPath(state, state.ui.focused_element, target.id, 12, avoid); }
       catch (error) {
+        // The wiring does not describe this screen. Look at it instead.
+        const walked = await this.walkToward(target, state, scene, before);
+        if (walked) return walked;
         if (recovery === 2) throw error;
         state = await this.observe(); // read-only recovery; never invent a neighbor
         continue;

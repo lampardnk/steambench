@@ -64,6 +64,38 @@ export function pressableElement(state, id) {
  * not land where predicted, so a retry explores a different route rather than
  * repeating the press that just failed.
  */
+/**
+ * The direction a person would press: the one that closes most of the gap to
+ * the thing they are looking at, on whichever axis the gap is bigger.
+ *
+ * This is deliberately not a route. It is one press, to be verified by looking
+ * at the screen afterwards, which is the only way the fuzzier screens can be
+ * crossed at all - the potion strip and the combat rows are walked, not solved.
+ */
+export function towards(from, to) {
+  const centre = (item) => {
+    const [x = 0, y = 0, w = 0, h = 0] = item?.bounds || [];
+    return [x + w / 2, y + h / 2];
+  };
+  const [fx, fy] = centre(from);
+  const [tx, ty] = centre(to);
+  const dx = tx - fx;
+  const dy = ty - fy;
+  // These screens are stacked in rows - potions, relics, the creatures, the
+  // hand - and the rows are wide, so a target several rows down also sits well
+  // to one side and a plain dominant-axis test steps sideways along the row it
+  // is already in. Sideways has to be clearly the shorter way, or the answer is
+  // the row above or below.
+  if (Math.abs(dx) > Math.abs(dy) * 1.5) return dx >= 0 ? 'right' : 'left';
+  if (Math.abs(dy) > 1) return dy >= 0 ? 'down' : 'up';
+  return dx >= 0 ? 'right' : 'left';
+}
+
+/** The other axis, for when a press along the first one changes nothing. */
+export function across(direction) {
+  return { left: 'down', right: 'down', up: 'right', down: 'right' }[direction] || 'down';
+}
+
 export function navigationPath(state, from, to, maxSteps = 12, avoid = new Set()) {
   targetElement(state, from); targetElement(state, to);
   const known = new Map(focusTargets(state).map(item => [item.id, item]));

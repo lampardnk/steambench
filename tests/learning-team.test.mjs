@@ -1,4 +1,88 @@
 
+// When the wiring does not describe the screen, look at it and walk.
+//
+// The potion strip, the combat rows and an auto-named reward list are drawn as
+// rows but wired in ways navigationPath cannot cross, so it reported no route
+// and the run stopped where three presses in the obvious direction would have
+// arrived. This is the combat cycle: from the potion bar, `down` reaches the
+// hand through relics and the creatures.
+{
+  const box = (id, x, y, w = 60, h = 60) => ({ id, label: id, focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [x, y, w, h] });
+  // No `neighbors` anywhere, so navigationPath can find nothing at all.
+  const rows = [box('potion', 503, 9), box('relic', 12, 82), box('creature', 359, 462, 242, 278), box('card', 655, 650, 607, 760)];
+  const order = ['potion', 'relic', 'creature', 'card'];
+  const walked = [];
+  let at = 0;
+  const screen = () => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 }, player: { hp: 50, max_hp: 80, hand: [] },
+    ui: { scene_id: 'combat-1', focused_element: order[at], elements: rows } });
+
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (direction) => { walked.push(direction); if (direction === 'down') at = Math.min(at + 1, order.length - 1); };
+  executor.observe = async () => screen();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const landed = await executor.navigateElement({ type: 'activate', target: 'card', scene: 'combat-1' }, screen());
+  assert.equal(landed.ui.focused_element, 'card', 'it walks from the potion bar to the hand with no wiring at all');
+  assert.deepEqual(walked, ['down', 'down', 'down'], `and presses down each time: ${walked.join(',')}`);
+}
+
+// A bobbing sprite is not a new situation.
+//
+// Live, in combat: two elements' bounds drifted 400 -> 398 between reads, one
+// second apart, with the same scene, the same focus and nothing happening.
+// stateId digested that geometry, so the observation id changed on its own and
+// validatePlan rejected every plan written against the screen as stale before
+// any input was sent. The run could not act at all.
+{
+  const at = (y) => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 }, player: { hp: 50, max_hp: 80, hand: [] },
+    ui: { scene_id: 'combat-1', focused_element: 'slot2', elements: [
+      { id: 'slot2', label: null, focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [627, 9, 60, 60] },
+      { id: 'bobber', label: 'Enemy', focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [800, y, 120, 160] },
+    ] } });
+
+  assert.equal(stateId(at(400)), stateId(at(398)), 'a two-pixel drift is the same observation');
+  assert.notEqual(stateId(at(400)), stateId({ ...at(400), ui: { ...at(400).ui, focused_element: 'bobber' } }),
+    'but a real focus change still is not');
+
+  // The gate that was rejecting them: a plan written against the earlier read
+  // must still validate against the later one.
+  const plan = { observation: stateId(at(400)), summary: 'Move to the next potion slot.', note: 'One right reaches the next occupied holder.', actions: [{ type: 'input', buttons: ['right'] }] };
+  assert.doesNotThrow(() => validatePlan(plan, at(398), { role: 'actuator' }), 'and the plan survives the drift');
+}
+
+// A screen that redraws under the cursor does not spend the recovery budget.
+//
+// Live, on the potion strip: every `right` moves focus to the next holder,
+// which draws its popup, which changes scene_id. Two presses used the whole
+// budget and the run was paused for "navigation recovery budget exhausted"
+// while walking correctly towards the potion it wanted.
+{
+  const holder = (id, x, neighbors) => ({ id, label: null, focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [x, 9, 60, 60], neighbors });
+  const strip = [
+    holder('empty', 503, { right: 'slot1' }),
+    holder('slot1', 565, { right: 'slot2', left: 'empty' }),
+    holder('slot2', 627, { right: 'slot3', left: 'slot1' }),
+    holder('slot3', 689, { left: 'slot2' }),
+  ];
+  // Each press lands correctly AND changes the scene, as the real strip does.
+  const order = ['empty', 'slot1', 'slot2', 'slot3'];
+  const walked = [];
+  let at = 0;
+  const executor = Object.create(Executor.prototype);
+  executor.button = async () => { walked.push('right'); at = Math.min(at + 1, order.length - 1); };
+  executor.observe = async () => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 }, player: { hp: 50, max_hp: 80 },
+    ui: { scene_id: `strip-${at}`, focused_element: order[at], elements: strip } });
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const start = { state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 }, player: { hp: 50, max_hp: 80 },
+    ui: { scene_id: 'strip-0', focused_element: 'empty', elements: strip } };
+  const landed = await executor.navigateElement({ type: 'activate', target: 'slot3', scene: 'strip-0' }, start);
+  assert.equal(landed.ui.focused_element, 'slot3', 'three presses along a redrawing strip still arrive');
+  assert.equal(walked.length, 3, `and it takes exactly three: ${walked.join(',')}`);
+}
+
 // A route ends where it was aimed, whatever the graph predicted on the way.
 //
 // Live, on a reward screen at act 1 floor 6. The screen was still dealing its

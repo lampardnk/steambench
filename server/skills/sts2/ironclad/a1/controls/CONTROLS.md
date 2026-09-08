@@ -80,7 +80,13 @@ overlay listing the whole deck appears, `b` closes it.
   Each collectible row is focused and activated separately, and collecting one
   removes only that row and moves focus to an auto-generated sibling, so re-read
   focus before the next activation. A card row opens the card-reward screen.
-  When `items` is empty and `can_proceed` is true, `y` returns to the map.
+- **A reward screen has no Proceed control.** The one button on it is Skip,
+  bound to `y`, and Skip is also how you leave once you have taken what you
+  want: activate the rows you want with `a`, then press `y`. `can_proceed: true`
+  does not mean a Proceed button exists - it means `y` will leave the screen.
+  Its absence is not a fault and not worth reporting; `y` finishes a reward
+  screen whether `rewards.items` is empty or still holds things you decided to
+  leave behind.
 - **Rest sites.** Read `rest_site.options` and their enabled state; services vary
   by run. An empty `options` with `can_proceed` true is a resolved site, not
   missing UI: `y` proceeds.
@@ -97,10 +103,37 @@ overlay listing the whole deck appears, `b` closes it.
   navigating to the next card.
 - **Main menu.** A visibly loaded main menu can report null focus. One `a`
   establishes focus on SingleplayerButton; observe before activating anything.
-- **Top-bar panels during combat.** `x` opens the potion panel. Focus lands in
-  the popup, and Discard has been observed under it - Use sits directly above,
-  so `up` reaches it. `b` closes the panel and returns focus to the combat
-  field, which is one `down` short of the hand.
+- **`x` focuses the LEFTMOST potion slot, whether or not it holds a potion.**
+  This is the single most common way to get stuck here: the leftmost slot is
+  often empty, so the panel opens onto nothing, and an empty slot is not a
+  fault. Move along the row with `left` and `right` to reach the potion you
+  want.
+- **The holders never name their potions.** They are a row of 60x60 elements in
+  the top bar, one per SLOT including empty ones, and their labels are Godot
+  node names (`PotionHolder`, or null for the siblings). What tells you the row
+  apart is `activation`: a holder carrying `activation: "a"` holds a potion, and
+  one with no activation is an empty slot. `player.potions` names what you have,
+  each with its `slot`, and the occupied holders sit in that order left to
+  right. Count occupied holders, not positions.
+- **Pressing `a` on a holder does not drink the potion.** It opens that potion's
+  popup, which names it and offers Use and Discard, so the popup is also how you
+  confirm which holder you are on: open it, read it, `b` out if it is the wrong
+  one. Nothing is spent until Use is activated. Discard sits under the cursor
+  and Use is directly above it, so `up` reaches Use.
+- **Top-bar panels during combat.** `b` closes the panel and returns focus to
+  the combat field, which is one `down` short of the hand.
+- **The potion holders carry no potion names.** They are a row of 60x60
+  elements in the top bar, and their labels are Godot node names
+  (`PotionHolder`, or null for the siblings) - they never say what is in them,
+  and the row has one element per SLOT, including empty ones. Do not try to work
+  out which holder holds which potion from the element list; it does not say.
+  `player.potions` is what names them, each with its `slot`, and the holders sit
+  in that same left-to-right order.
+- **Pressing `a` on a holder does not drink the potion.** It opens that potion's
+  popup, which names it and offers Use and Discard. So the popup is how you
+  confirm which holder you are on: open it, read it, and `b` out if it is the
+  wrong one. Nothing is spent until Use is activated, so this is the cheap way
+  to resolve an unlabeled holder rather than reporting it.
 - **Combat focus is one vertical cycle, and `down` walks it.** The rows are, top
   to bottom: potion slots, relics, the allies-and-enemies field, the hand - then
   it wraps back to the potions. Left and right move within a row. The hand is
@@ -128,6 +161,18 @@ overlay listing the whole deck appears, `b` closes it.
 A directional press that changes nothing means the focus was already at that
 edge of the reachable options. One standalone exploratory press is always safe;
 re-read the highlight before assuming a move is still needed.
+
+**READ THE SCREEN THE WAY A PLAYER LOOKS AT IT.** Every screen here is rows
+stacked top to bottom, and the pad walks them: the thing you want is above,
+below or beside where you are, and the press is towards it. Do not try to solve
+a route through the reported wiring and do not conclude a thing is unreachable
+because the wiring does not name a path - several screens are not wired the way
+they are drawn, and the potion strip, the combat rows and a reward list with
+auto-generated siblings are all walked rather than solved. Press towards it,
+look, press again. Directional presses activate nothing, so a wrong one costs a
+press. Give up only when focus stops moving on both axes, or comes back
+somewhere it has already been - a card row wraps into a closed loop on purpose,
+and there the answer really is a bound button.
 
 ## Execution contract (learning player)
 
