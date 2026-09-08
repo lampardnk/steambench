@@ -210,6 +210,38 @@ const EVENT_NOTE = /(?:^|\/)act\d\/(?:unknown|ancient)\//;
  * Ranking control notes first (see retrieve) only reorders notes that already
  * matched. The pad's manual is not a match to be won; the pad always has it.
  */
+/**
+ * Keep the entries a situation is actually about.
+ *
+ * An act's roster note is one entry per enemy in the biome, and a fight has one
+ * or two of them. Sending all sixteen cost 15.6KB of a 32KB retrieval budget to
+ * describe fourteen enemies that were not there - the single biggest thing in a
+ * combat context, and the reason the rules that matter were competing with a
+ * bestiary for the model's attention.
+ *
+ * Only `###` entries are dropped, and only when at least one of them matched,
+ * so a note that is not shaped like a roster comes back whole. Everything above
+ * the first entry and every `##` section stays: those carry how to read the
+ * note and what holds across all of them.
+ */
+export function focusNote(content, subjects) {
+  if (!subjects.size) return content;
+  const parts = content.split(/^(#{2,}[^\n]*)$/m);
+  if (parts.length < 3) return content;
+  const matches = (heading) => {
+    const words = new Set(terms(heading));
+    return [...subjects].some(subject => terms(subject).every(word => words.has(word)));
+  };
+  let kept = false;
+  const out = [parts[0]];
+  for (let i = 1; i < parts.length; i += 2) {
+    const heading = parts[i];
+    const entry = /^#{3,}/.test(heading);
+    if (!entry || matches(heading)) { out.push(heading, parts[i + 1] ?? ''); if (entry) kept = true; }
+  }
+  return kept ? out.join('') : content;
+}
+
 export function controlManual(skillDir, index, { budget = MAX_NOTE_IN_CONTEXT } = {}) {
   const out = [];
   let spent = 0;
@@ -246,9 +278,11 @@ export function retrieve(skillDir, index, state, objective, { limit = MAX_RETRIE
     .slice(0, limit);
   const out = [];
   let spent = 0;
+  // What this situation is about, as opposed to what it merely contains.
+  const subjects = new Set([...wanted.weights.entries()].filter(([, weight]) => weight >= SUBJECT).map(([term]) => term));
   for (const { note, total, hits } of ranked) {
     let content;
-    try { content = fs.readFileSync(path.join(skillDir, note.path), 'utf8'); }
+    try { content = focusNote(fs.readFileSync(path.join(skillDir, note.path), 'utf8'), subjects); }
     catch { continue; }
     const room = Math.max(0, Math.min(MAX_NOTE_IN_CONTEXT, budget - spent));
     if (room < 200) break;

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Curriculum, situation } from '../client/learning/curriculum.mjs';
-import { MAX_NOTE_IN_CONTEXT, controlManual, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
+import { MAX_NOTE_IN_CONTEXT, controlManual, focusNote, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-curriculum-'));
 const skillDir = path.join(root, 'skills', 'sts2');
@@ -237,4 +237,28 @@ fs.rmSync(root, { recursive: true, force: true });
   assert.ok(controlManual(skillDir, index, { budget: 300 }).every(note => note.content.length <= 300), 'and it stays bounded');
 }
 
-console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'the controls manual reaches the pad even when retrieval scores it zero'] }));
+// A roster note is one entry per enemy in the biome; a fight has one or two.
+// Sending all sixteen spent 15.6KB of a 32KB budget on enemies that were not
+// there, which is what the rules that matter were competing against.
+{
+  const roster = ['# Act 1 roster', '', '## How to read entries', 'Damage is per hit.', '',
+    '### Fuzzy Wurm Crawler — 55 HP', 'Empowers, then attacks.', '',
+    '### Shrinker Beetle — 38 HP', 'Applies Shrink.', '',
+    '### Mawler — 72 HP', 'Hits very hard.', '',
+    '## Ironclad notes', 'Block early.', ''].join('\n');
+
+  const focused = focusNote(roster, new Set(['fuzzy', 'wurm', 'crawler', 'shrinker', 'beetle']));
+  assert.match(focused, /Fuzzy Wurm Crawler/, 'the enemies present are kept');
+  assert.match(focused, /Shrinker Beetle/);
+  assert.doesNotMatch(focused, /Mawler/, 'and the ones that are not there are dropped');
+  assert.match(focused, /How to read entries/, 'section-level guidance survives');
+  assert.match(focused, /Ironclad notes/, 'and so does what holds across all of them');
+  assert.ok(focused.length < roster.length);
+
+  // A note nothing matched, and a note that is not a roster, come back whole.
+  assert.equal(focusNote(roster, new Set(['gremlin'])), roster, 'no match means no slicing');
+  assert.equal(focusNote('# Plain\nNo entries here.\n', new Set(['fuzzy'])), '# Plain\nNo entries here.\n');
+  assert.equal(focusNote(roster, new Set()), roster, 'and a situation with no subject slices nothing');
+}
+
+console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'the controls manual reaches the pad even when retrieval scores it zero', 'a roster note is cut to the enemies actually present'] }));
