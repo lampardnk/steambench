@@ -5,6 +5,8 @@ SPEED FIRST. Pick the shortest action that achieves the goal and emit it. Do not
 Return ONLY JSON, copying the exact observation_id:
 {"observation":"EXACT observation_id","summary":"one short sentence","note":"one short sentence of evidence","actions":[...]}
 
+ONE KIND OF ACTION PER PLAN. A plan is EITHER semantic - activate, navigate, path, elements - OR raw buttons. Never both. {"type":"input","buttons":["right"]} followed by {"type":"activate",...} is rejected before anything is sent, and so is the reverse. When you need to move and then press, that is TWO decisions: send the movement alone, read where focus landed, then activate. The one exception is that a raw A press is itself an input, so a verified startup transition can chain input to input.
+
 ACTIONS (1-8; the plan ENDS at the first activation):
 - {"type":"activate","target":"element-1206550283364","scene":"EXACT scene_id"} - press a named control. THIS IS THE NORMAL WAY TO ACT. When the element carries "press", the runtime sends that button directly from wherever focus is - no navigation, and frequently no route exists at all. Otherwise the runtime routes focus to it and presses A, verifying every step. Prefer it over raw buttons.
 - {"type":"navigate","target":"element-...","scene":"EXACT scene_id"} - the same verified movement without the closing A, to put focus somewhere before activating it later.
@@ -20,6 +22,8 @@ THE GOAL IS THE CONTRACT. goal says what to do and target_label names the thing 
 CONTROLS NOTES ARE THE FIRST THING YOU READ. They are verified findings from earlier rooms about these exact screens and they outrank your own guesses about this interface. If a note names the control or the button for this screen, use it and do not re-derive it. Live state still wins over a note that contradicts what is on screen.
 
 ELEMENTS. Each entry has an id, a label, whether it can hold focus, and press when a button is bound to it. Only addressable controls are listed - decoration the pad can never reach has been removed already. focused_element is what holds focus now; null means nothing does, and one directional press fixes that. A focus_path ending in a NAMED identifier already tells you what is focused: .../NHandCardHolder-CARD_SHRUG_IT_OFF is Shrug It Off and needs no probe. Only @Control@NNNN is opaque, and then the element whose id equals focused_element usually carries the real label.
+
+WHEN THERE IS NO ROUTE, MOVE FIRST. "No verified focus path" means the graph the game wired does not connect focus to that element - which is common on the map, where the reachable options sit in one row that LEFT and RIGHT move between while up and down do nothing. Do not answer it with a mixed plan. Send ONE standalone directional input, read where focus actually landed from the next observation, and activate from there. Two cheap decisions beat one rejected plan.
 
 NO ROUTE IS AN ANSWER. Some controls are reachable no other way than their bound button: a card reward wires the card row's up and down neighbours back onto the row and wraps left and right within it, so the row is a CLOSED LOOP by design and Skip sits outside it - no sequence of directional presses will ever reach it. "No verified focus path" means the route does not exist, not that you have not found it yet. Look for press.
 

@@ -408,7 +408,11 @@ async function run(task) {
       catch (error) {
         controller.signal.throwIfAborted();
         const failedLane = error.lane || lane;
-        record({ type: 'planner_failure', agent: failedLane, error: error.message });
+        // The rejected plan itself, or the incident is undiagnosable: a
+        // validation failure leaves no diagnostics behind, and one of these
+        // paused a run with `plan: null` and nothing to read.
+        record({ type: 'planner_failure', agent: failedLane, error: error.message, rejected: error.plan ?? null });
+        if (error.plan) plan = error.plan;
         // The provider failing is not the model failing. Wait and ask again from
         // a fresh observation, without spending a refinement round on it.
         if (transientUpstream(error.message) && upstreamRetries < TRANSIENT_BACKOFF_MS.length) {

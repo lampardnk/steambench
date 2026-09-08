@@ -362,3 +362,31 @@ test('a label match the game refused is not offered a second time', async () => 
   // The memory is per screen and per control: a different control still resolves.
   assert.equal((await actuator.plan({ goal: 'skip it', target_label: 'Skip' }, reward, {})).resolution, 'label');
 });
+
+test('a plan the runtime rejects is recorded and blamed on whoever wrote it', async () => {
+  // A validation failure leaves no planner diagnostics behind, so one of these
+  // paused a live run with `plan: null` in the incident and nothing to read.
+  // It was also reported against the strategist, which had not built it.
+  const mixed = { observation: stateId(reward), summary: 'move then press', note: 'n', actions: [
+    { type: 'input', buttons: ['right'] },
+    { type: 'activate', target: 'element-1206550283364', scene: reward.ui.scene_id },
+  ] };
+  assert.throws(() => validatePlan(mixed, reward, { role: 'actuator' }), /cannot mix/, 'raw buttons and semantic navigation are separate plans');
+
+  const planner = { ask: async () => mixed };
+  const actuator = new Actuator({ planner, executor: { execute: async () => ({ completed: [] }) }, roster: new Roster({ emit: () => {} }) });
+  // Its own lane, or every event it emits is filed under the room and every
+  // failure is blamed on somebody else. This was undefined for a while.
+  assert.equal(actuator.lane, 'actuator');
+  const source = { observation: stateId(reward), summary: 'go', note: 'n', actions: [{ type: 'intent', goal: 'reach the elite node' }] };
+  const error = await actuator.resolve(source, reward, {}).then(() => null, failure => failure);
+  assert.ok(error, 'the bad plan is refused');
+  assert.match(error.message, /cannot mix/);
+  assert.equal(error.lane, 'actuator', 'blamed on the member that wrote it, not the one that stated the goal');
+  assert.deepEqual(error.plan.actions, mixed.actions, 'and carried on the error so the incident can be read');
+
+  // The prompt has to state the rule, because nothing else tells the actuator.
+  const prompt = fs.readFileSync(new URL('../client/learning/actuator.txt', import.meta.url), 'utf8');
+  assert.match(prompt, /ONE KIND OF ACTION PER PLAN/);
+  assert.match(prompt, /no verified focus path/i);
+});

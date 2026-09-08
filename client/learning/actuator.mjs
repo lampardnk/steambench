@@ -105,6 +105,7 @@ export class Actuator {
     this.executor = executor;
     this.roster = roster;
     this.record = record;
+    this.lane = lane;
     // Fetched here rather than by the caller, and only on the path that can use
     // it: an image answers "which control is raised", which is this member's
     // question and nobody else's. A fight no longer pays for one every turn.
@@ -140,8 +141,11 @@ export class Actuator {
     const actions = note ? [...padPlan.actions, note] : padPlan.actions;
     const merged = { ...padPlan, observation: stateId(state), actions };
     // The executor's own reading of the plan, done here so a bad resolution is
-    // refused while nothing has been sent.
-    validatePlan(merged, state);
+    // refused while nothing has been sent. Tagged with this lane: the actuator
+    // built this plan, and reporting it against whoever stated the goal sends a
+    // correction to an agent that cannot act on it.
+    try { validatePlan(merged, state); }
+    catch (error) { error.lane = this.lane; error.plan = merged; throw error; }
     return { plan: merged, resolution, intent };
   }
 
@@ -192,7 +196,7 @@ export class Actuator {
     const plan = await this.planner.ask({ role: 'actuator', agent: this.lane, prompt: 'actuator.txt', context, image: look, deadlineMs: 30000, stream: true, primary: true })
       .catch(error => { error.lane = this.lane; throw error; });
     try { validatePlan(plan, state, { role: 'actuator' }); }
-    catch (error) { error.lane = this.lane; throw error; }
+    catch (error) { error.lane = this.lane; error.plan = plan; throw error; }
     return { plan, resolution: 'model' };
   }
 }
