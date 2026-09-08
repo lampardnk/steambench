@@ -1,7 +1,7 @@
-// Bounded web reference lookups for the player. The bundled references.json is
-// a small hand-picked extract; a run meets enemies, events and cards it has no
-// entry for. This fetches those pages on demand from an allowlist, converts
-// them to plain text and hands back a bounded excerpt.
+// Bounded web reference lookups for the player. Nothing is bundled with the
+// image, and a run meets enemies, events and cards the mod does not describe.
+// This fetches those pages on demand from an allowlist, converts them to plain
+// text and hands back a bounded excerpt.
 //
 // Players are not given general internet access: the server performs the
 // request, only these hosts are reachable, and nothing the page says is treated

@@ -91,10 +91,16 @@ Source: slaythespire.wiki.gg (Mechanics page)
 | **Summon** | Osty companion (Necrobinder-only) | N/A |
 | **Enchantments** | Permanent card enhancements | Several shop relics access this. |
 | **Online Co-op** | Multiplayer mode | Not relevant for single-player runs. |
-| **Ancients** | Post-boss floor with relic choice | Each act starts with an Ancient. Neow always Act 1. |
+| **Ancients** | Every act *begins* with an Ancient; the floor after the Act 1/2 boss is that next act's Ancient. | Act 1 always starts with Neow. Heals 100% of missing HP (80% at A2+). |
 | **Eternal** | Cannot be removed/transformed | Ascender's Bane is Eternal. |
 | **Fatal** | Triggers on kill of non-Minion enemy | Relevant for Ironclad's heavy damage. |
 | **Replay** | Plays card an extra time | Available via Glam/Spiral enchantments, Soldier's Stew, Hidden Gem, Transfigure, Sword Sage. |
+
+## Ascension modifiers
+
+The full A1–A10 table lives at `ascension/README.md` (skill root, outside the
+Ironclad A1 tree, because it applies to every character). Read it there when a
+note cites A3+, A6+, A8+ or A9+.
 
 ## Source Attribution
 

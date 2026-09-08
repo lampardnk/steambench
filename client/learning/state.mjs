@@ -135,7 +135,7 @@ const MOMENT_IN_PATH = /(?:^|[/_-])(?:floor|round|turn|decision|seed)-?\d/;
  */
 export function noteProblem(action) {
   if (typeof action?.path !== 'string' || !/^[a-z0-9][a-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('//') || action.path.includes('..')) {
-    return 'learn.path must be a lowercase .md path inside ironclad/a1/, for example ironclad/a1/act1/normal/wriggler.md';
+    return 'learn.path must be a lowercase .md path under ironclad/a1/ (for example ironclad/a1/act1/normal/wriggler.md), or under the cross-character roots characters/ or ascension/';
   }
   if (!/^(?:ironclad\/a1\/(?:controls|debugging|meta_strategy|act[123])\/|characters\/|ascension\/)/.test(action.path)) return 'use the strategy guide hierarchy; scratchpad and objective history are not strategy';
   if (MOMENT_IN_PATH.test(action.path)) {

@@ -23,7 +23,7 @@ Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028)
 | Colorless Cards | 2 | Available to all characters |
 | Relics | 3 | Random, any rarity |
 | Potions | 3 | Random |
-| Card Removal | 1 per shop visit | Costs 75 gold (100 at A6+), increases by 25 (50 at A6+) each removal |
+| Card Removal | 1 per shop visit | 75 gold (100 at A6+), rising by 25 (50 at A6+) per removal across the run. Some relics change shop prices. |
 
 ## Gold Economy (Sourced)
 
@@ -32,7 +32,7 @@ Source: slaythespire2.net beta v0.111.0 data
 | Source | Gold |
 |---|---|
 | Starting gold | 99 |
-| Normal fight | 10-20 (7-15 at A3+) |
+| Normal fight | 10-20 (**8-15** at A3+) |
 | Elite fight | 35-45 (26-34 at A3+) |
 | Boss fight | 100 (75 at A3+) |
 | Treasure chest | 42-53 (32-40 at A3+) |

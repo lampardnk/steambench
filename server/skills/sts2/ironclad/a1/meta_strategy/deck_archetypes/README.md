@@ -20,7 +20,7 @@ topic: archetypes
 ### Key Cards
 - **Inflame** (+2 Strength, 1 energy) — efficiency benchmark
 - **Demon Form** (+2 Strength/turn, 3 energy) — slow but fight-winning
-- **Spot Weakness** (+3 Strength if enemy attacked, or condition) — verify exact trigger
+- **Setup Strike** (7 damage and +3 Strength for the turn) — temporary, so it multiplies a multi-hit turn rather than the whole fight
 - **Rupture** (+1 Strength per HP loss on turn) — enables self-damage synergy
 - **Brand** (lose 1 HP, Exhaust 1, +1 Strength, 0 energy) — efficient
 - **Fight Me!** (+3 Strength, gives enemy +1 Strength, 2 energy)
@@ -71,7 +71,7 @@ topic: archetypes
 - **Drum of Battle** (draw 2, +2 energy on exhaust)
 
 ### Key Relics
-- **Charon's Ashes** (3 AoE per exhaust) — **build-crowning**
+- **Charon's Ashes** (3 damage to ALL enemies per exhaust) — scales with exhaust volume, so it needs the enablers above to be worth a slot
 - **Joss Paper** (draw 1 per 5 exhausts)
 - **Burning Sticks** (copy the first Exhausted Skill)
 - **Forgotten Soul** (1 dmg to random enemy per exhaust)

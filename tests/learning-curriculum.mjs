@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Curriculum, situation } from '../client/learning/curriculum.mjs';
-import { indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
+import { MAX_NOTE_IN_CONTEXT, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-curriculum-'));
 const skillDir = path.join(root, 'skills', 'sts2');
@@ -185,10 +185,11 @@ assert.equal(tight.length, 1, 'the budget bounds how many notes are injected');
 assert.equal(tight[0].path, 'bestiary/wriggler.md', 'and spends it on the most relevant one');
 
 // One note can never fill the whole decision context on its own.
-note('bestiary/wriggler.md', `---\ndescription: Wriggler\nkeys: wriggler\n---\n${'Empower then Strategic Strike. '.repeat(200)}`);
+const oversized = 'Empower then Strategic Strike. '.repeat(Math.ceil(MAX_NOTE_IN_CONTEXT / 20));
+note('bestiary/wriggler.md', `---\ndescription: Wriggler\nkeys: wriggler\n---\n${oversized}`);
 const long = retrieve(skillDir, indexNotes(skillDir), fighting, { text: 'x', area: 'bestiary' });
 assert.ok(long[0].truncated, 'an overlong note is cut, not dropped');
-assert.ok(long[0].content.length <= 2500);
+assert.ok(long[0].content.length <= MAX_NOTE_IN_CONTEXT);
 
 // --- the situation summary the reasoners share -----------------------------
 const summary = situation(fighting);

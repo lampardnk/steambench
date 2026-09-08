@@ -1,6 +1,6 @@
 ---
 name: sts2
-description: Reusable STS2 Ironclad Ascension 1 playbook: prepare for the act, resolve live encounters, navigate verified controls, and retain strategies across seeds.
+description: Reusable STS2 Ironclad Ascension 1 playbook — prepare for the act, resolve live encounters, navigate verified controls, and retain strategies across seeds.
 ---
 
 # STS2 strategy guide
@@ -21,7 +21,7 @@ All Ironclad A1 paths below are under `ironclad/a1/`:
 - `act1/unknown/`, `ancient/`, `potion/`: event classes, ancient tradeoffs and consumable decisions.
 - `act2/` and `act3/`: later-act orientation and sourced encounter references.
 
-`characters/` and `ascension/` reserve general expansion outside the current Ironclad A1 scope. `scratchpad/` is ephemeral: current run state and an encounter summary refreshed from observations, never a strategy inherited by another room.
+Two roots sit outside the Ironclad A1 tree because they are not character-specific: `ascension/` holds the A1-A10 modifier table that the A3+/A6+/A8+/A9+ notation in these notes refers to, and `characters/` is reserved and currently empty. `scratchpad/` is ephemeral: current run state and an encounter summary refreshed from observations, never a strategy inherited by another room.
 
 ## Prepare, play, generalize
 

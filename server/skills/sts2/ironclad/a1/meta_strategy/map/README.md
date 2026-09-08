@@ -17,7 +17,7 @@ Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028)
 
 | Icon | Type | Reward |
 |---|---|---|
-| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Monster.png/42px-StS2_Map-Monster.png) | **Monster** (Normal) | 10-20 Gold (7-15 at A3+), 3 card choices, sometimes a Potion |
+| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Monster.png/42px-StS2_Map-Monster.png) | **Monster** (Normal) | 10-20 Gold (**8-15** at A3+), 3 card choices, sometimes a Potion |
 | ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Elite.png/42px-StS2_Map-Elite.png) | **Elite** | Random Relic, 35-45 Gold (26-34 at A3+), higher rare card odds, sometimes a Potion |
 | ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-RestSite.png/42px-StS2_Map-RestSite.png) | **Rest Site** | Heal 30% max HP, Smith (upgrade a card), or relic-granted options |
 | ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Event.png/42px-StS2_Map-Event.png) | **Unknown (?)** | Event, Monster, Merchant, or Treasure Room (weighted random, guaranteed pity system) |
@@ -29,7 +29,11 @@ Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028)
 
 ### Act 1 (Ascension 1 — 8 Elite nodes per act)
 
-**Core tension**: Elite hunting vs. survival. At A1, elites are more common on the map. Burning Blood heals 6 HP after every combat, making HP a more flexible resource.
+**Core tension**: Elite hunting vs. survival. A1's modifier is **Swarming Elites — roughly 60% more elites spawn**, which is where the 5 → 8 figure comes from. Burning Blood heals 6 HP after every combat, making HP a more flexible resource.
+
+Two placement rules worth routing around, both sourced:
+- The same elite can appear several times in an act, but **never twice in a row**.
+- The first three monster encounters of Act 1 come from an "easy pool"; every later monster fight is drawn from the harder pool. The step up after floor 3 is a real difficulty jump, not variance.
 
 **Priorities:**
 1. **3+ normal fights** before first elite: Build your deck with damage cards.

@@ -259,8 +259,8 @@ async function run(task) {
       record({ type: 'decision_context', characters: JSON.stringify(context).length, screenshot: Boolean(image), acceptedMemoryHash: digest(accepted), objective: ladder.objective?.text || null, retrieved: retrieved.map(note => note.path) });
       // Retrieved notes are the one part of the context that grows without
       // bound, so they are what gets dropped when the budget is tight.
-      if (JSON.stringify(context).length > 40000) context.retrieved_notes = retrieved.map(({ content, ...rest }) => rest);
-      if (JSON.stringify(context).length > 40000) throw new Error('decision context exceeds 40,000 characters; refusing silent truncation');
+      if (JSON.stringify(context).length > 80000) context.retrieved_notes = retrieved.map(({ content, ...rest }) => rest);
+      if (JSON.stringify(context).length > 80000) throw new Error('decision context exceeds 80,000 characters; refusing silent truncation');
       emit({ type: 'message_start' });
       act1Timer.start(state, freshRunVerified);
       saveMetrics();

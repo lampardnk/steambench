@@ -1,76 +1,105 @@
 ---
-description: Act 1 unknown events — Overgrowth and Underdocks event list with choice summaries and Ironclad guidance. No fixed transform outcomes.
+description: Act 1 unknown-event index — all 30 events that can appear, which pool each belongs to, and what gates it. Each event has its own note with exact outcomes; this file routes you to it.
 character: ironclad
 act: 1
 category: unknown
 ascension: a1
-keys: [ironclad, act1, unknown, event, overgrowth, underdocks, aroma of chaos, byrdonis nest, dense vegetation, jungle maze, luminous choir, morphic grove, sapphire seed, sunken statue, tablet of truth, unrest site, wellspring, whispering hollow, wood carvings, abyssal baths, doors of light and dark, drowning beacon, endless conveyor, punch off, spiraling whirlpool, sunken treasury, trash heap, waterlogged scriptorium]
-sources: [slaythespire2.net, slaythespire.wiki.gg]
+keys: [ironclad, act1, unknown, event, events, overgrowth, underdocks, index, gating, gold, hp, floor]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Act 1 — Unknown events
 
-Event list and flavor verified against slaythespire2.net beta (v0.111.0,
-display 2026-06-18). Exact choice outcomes (damage, gold, card changes) are NOT
-fetched per-event — the event list page shows only flavor text and option
-count. When you encounter an event in-game, read the on-screen options and
-consequences; do not assume a fixed outcome from this guide.
+Thirty events can appear on an Act 1 Unknown floor. Each has its own note in
+this folder with every option's exact outcome; open the one matching the event
+on screen rather than reasoning from this index.
 
-## Overgrowth events (13)
+**There is no correct answer at an event.** These notes state what each option
+costs and what it buys, and stop there. The right choice depends on this run's
+HP, Max HP, gold, deck size, remaining route and what problems the deck still
+has to solve — all of which you can read and this file cannot. Decide at the
+event, from live state.
 
-| Event | Options | Flavor summary |
-|---|---|---|
-| Aroma of Chaos | 2 | Floral/decay scent, sense of self warping |
-| Byrdonis Nest | 2 | Abandoned egg in an alcove; eat or leave |
-| Dense Vegetation | 2 | Lost in jungle; "inevitability of death" |
-| Jungle Maze Adventure | 2 | Adventurers offer to loot a maze together |
-| Luminous Choir | 3 | Glowing mushrooms, gleam in largest mushroom |
-| Morphic Grove | 2 | Morphics greet you; approach group or loner |
-| Sapphire Seed | 2 | Bright seed: consume for endurance or plant |
-| The Sunken Statue | 2 | Statue with stone sword; gold at bottom of pond |
-| Tablet of Truth | 2 | Decipher (locked in) or smash for healing |
-| Unrest Site | 2 | Rest site; fire spreads to oil-seeping trees |
-| Wellspring | 2 | Emerald green water with glowing motes |
-| Whispering Hollow | 2 | Bone-white tree with clay baubles; "make exchange" |
-| Wood Carvings | 4 | 3 carvings (bird, snake, torus) + pedestal |
+Always read the on-screen options too: numbers below are from the wiki and the
+installed build can differ.
 
-## Underdocks events (10)
+## Which events exist
 
-| Event | Options | Flavor summary |
-|---|---|---|
-| Abyssal Baths | 2 | Steaming pools; approach the edge |
-| Doors of Light and Dark | 2 | Two shimmering doorways; doorman |
-| Drowning Beacon | 2 | Sinking lighthouse; bottle water or climb for lens |
-| Endless Conveyor | 1 | Chef, 40 Gold each — pay to eat |
-| Punch Off | 2 | Two Punch Constructs fighting; treasure between |
-| Spiraling Whirlpool | 3 | Swirling water; "around and around..." |
-| The Sunken Statue | 2 | Same as Overgrowth (appears in both acts) |
-| Sunken Treasury | 2 | 2 chests, 1 key: gold (small) or cursed (big) |
-| Trash Heap | 2 | Scavenge surface or dig deep for exotic |
-| Waterlogged Scriptorium | 5 | Scribe shop; implements on a desk |
+**Any act (4)** — [self-help-book](self-help-book.md) ·
+[slippery-bridge](slippery-bridge.md) ·
+[the-future-of-potions](the-future-of-potions.md) ·
+[this-or-that](this-or-that.md)
 
-## Any-act events that can appear in Act 1 (18)
+**Act 1, either biome (5)** — [brain-leech](brain-leech.md) ·
+[room-full-of-cheese](room-full-of-cheese.md) · [tea-master](tea-master.md) ·
+[the-legends-were-true](the-legends-were-true.md) ·
+[the-sunken-statue](the-sunken-statue.md)
 
-Brain Leech (2), Crystal Sphere (2), Doll Room (3), The Merchant??? (0 —
-placeholder), Potion Courier (2), Ranwid the Elder (5), Relic Trader (3), Room
-Full of Cheese (2), Self-Help Book (7), Slippery Bridge (2), Stone of All Time
-(4), Symbiote (3), Tea Master (5), The Future of Potions? (1), The Legends Were
-True (2), This or That? (2), War Historian Repy (2), Welcome to Wongo's (7).
+**Overgrowth only (12)** — [aroma-of-chaos](aroma-of-chaos.md) ·
+[byrdonis-nest](byrdonis-nest.md) · [dense-vegetation](dense-vegetation.md) ·
+[jungle-maze-adventure](jungle-maze-adventure.md) ·
+[luminous-choir](luminous-choir.md) · [morphic-grove](morphic-grove.md) ·
+[sapphire-seed](sapphire-seed.md) · [tablet-of-truth](tablet-of-truth.md) ·
+[unrest-site](unrest-site.md) · [wellspring](wellspring.md) ·
+[whispering-hollow](whispering-hollow.md) · [wood-carvings](wood-carvings.md)
 
-## Ironclad event guidance (editable, general principles)
+**Underdocks only (9)** — [abyssal-baths](abyssal-baths.md) ·
+[doors-of-light-and-dark](doors-of-light-and-dark.md) ·
+[drowning-beacon](drowning-beacon.md) · [endless-conveyor](endless-conveyor.md) ·
+[punch-off](punch-off.md) · [spiraling-whirlpool](spiraling-whirlpool.md) ·
+[sunken-treasury](sunken-treasury.md) ·
+[waterlogged-scriptorium](waterlogged-scriptorium.md) ·
+[trash-heap](trash-heap.md)
 
-- Events with HP loss are safer for Ironclad than other characters: Burning
-  Blood heals 6 HP per combat, so you recover HP costs faster between fights.
-- Transform events (New Leaf, Leafy Poultice): the transform target is random
-  — do not assume you'll transform a Strike. Choose transform only if every
-  transformable card is acceptable to lose.
-- Card removal events are high-value for Ironclad: removing a Strike or Defend
-  tightens the deck and increases good-card draw rate.
-- Gold events fund shop removal (Strike/Defend) and relics.
-- Shop events (Welcome to Wongo's, Waterlogged Scriptorium): prioritize card
-  removal over purchases early; a relic is good if it fixes a gap.
-- Multi-option events (Self-Help Book 7, Ranwid 5, Tea Master 5, Wood Carvings
-  4, Stone of All Time 4, Doll Room 3, Symbiote 3, Spiraling Whirlpool 3):
-  read the on-screen options; this guide does not encode exact outcomes.
-- When below 40% HP, prefer rest-site-adjacent events or safe options. Never
-  gamble HP below 40%.
+The biome is fixed for the run, so only 21 of the 30 are reachable in any given
+Act 1: the 9 shared plus that biome's 12 or 9. Identify the biome first — see
+`act1/ancient/NEOW.md`.
+
+## What gates an event
+
+An event you want can be made reachable, and one you do not want can be avoided,
+by controlling these before stepping on an Unknown floor.
+
+| Gate | Events |
+|---|---|
+| Gold ≥ 44 | Whispering Hollow |
+| Gold ≥ 55 | Waterlogged Scriptorium |
+| Gold ≥ 100 (and 2 transformable cards) | Morphic Grove |
+| Gold ≥ 120 | Endless Conveyor |
+| Gold ≥ 149 | Luminous Choir |
+| Gold ≥ 150 | Tea Master |
+| HP ≤ 70% of Max | Unrest Site |
+| HP > 5 | Trash Heap |
+| HP ≥ 10 and ≥ 1 card | The Legends Were True |
+| Floor 6+ | Punch Off |
+| Floor 7+, and a removable card | Slippery Bridge |
+| At least 2 potions held | The Future of Potions? |
+| At least 1 basic card | Wood Carvings |
+| A Strike or Defend to enchant | Spiraling Whirlpool |
+| No gate | Aroma of Chaos, Brain Leech, Byrdonis Nest, Dense Vegetation, Doors of Light and Dark, Drowning Beacon, Jungle Maze Adventure, Room Full of Cheese, Sapphire Seed, Self-Help Book, Sunken Treasury, Tablet of Truth, The Sunken Statue, This or That?, Wellspring |
+
+Spending below a threshold removes that event from the pool, which changes what
+else can roll. Holding 150 Gold past an Unknown floor is itself a decision.
+
+## One event retrieval cannot find
+
+`This or That?` is made entirely of common words, so nothing in its name
+survives as a search term and it will never be pulled in automatically by the
+situation. Every filename in this folder appears in the `learned_notes` list on
+every decision — when the screen says This or That?, recall
+`act1/unknown/this-or-that.md` by path rather than waiting for it to arrive.
+
+## Reading these notes
+
+- Every listed outcome is what the option does, not what it is worth.
+- **Transform** means you pick the input card and the game picks the output; only
+  Wood Carvings names its output in advance.
+- **Enchant** attaches an effect to one specific card, and is lost if that card
+  is later transformed.
+- Curses differ enormously in cost. Ethereal (Clumsy) leaves your hand each turn;
+  Guilty removes itself after 5 combats; Spore Mind can be exhausted for 1
+  Energy; Poor Sleep has Retain and clogs your hand permanently; **Greed is
+  Eternal and can never be removed by anything**.
+- Max HP lost is permanent. Current HP is not: Burning Blood returns 6 after
+  every combat, which makes current-HP prices cheaper for Ironclad than the
+  number suggests, and Max HP prices exactly as expensive.

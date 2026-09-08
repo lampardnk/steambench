@@ -1,50 +1,61 @@
 ---
 title: Relics
 description: >-
-  Relic strategy for Ironclad: key relics, priority ranking, Ironclad-exclusive relic analysis, and generic relic interactions.
+  Ironclad-exclusive and Ancient relics: what each one does, what it asks of your deck and route, and where it stops being worth it. Pros and cons, not a ranking.
 character: Ironclad
 act: any
 tags: [relics, strategy]
 topic: relics
 ---
 
-# Relics — Ironclad Decision Strategy
+# Relics — what each one costs you
 
-## Ironclad-Exclusive Relics
+**No priority ranking here, deliberately.** A relic is worth what it does for
+*this* deck on *this* route, and that changes every run. Ruined Helmet is
+transformative in a Strength deck and close to dead in one with no Strength
+source; Brimstone wins races and loses grinds. Read the two columns below
+against the run you actually have, and where a pick is a genuine gamble, that is
+stated rather than scored.
 
-| Relic | Rarity | Effect | Priority |
-|---|---|---|---|
-| **Burning Blood** | Starter | Heal 6 HP after each combat. | Starting relic. Enables HP-as-resource play (Bloodletting, Offering, Hemokinesis, self-damage). Trade for Black Blood (upgraded: heal 12) via event/Ancient when your build can handle it. |
-| **Red Skull** | Common | +3 Strength while HP <= 50%. | **High priority** in Strength builds. 3 Strength is enormous. Synergizes with self-damage decks that hover low. Pairs with Burning Blood to slowly recover. |
-| **Paper Phrog** | Uncommon | Vulnerable: +75% damage instead of +50%. | **Very high priority.** Multiplies all your damage output. Ironclad is the best Vulnerable-applying class — this elevates that strength enormously. |
-| **Self-Forming Clay** | Uncommon | When you lose HP in combat, gain 3 Block next turn. | **High priority** for self-damage builds. Pairs with Offering, Bloodletting, Crimson Mantle. Each HP loss becomes block. |
-| **Charon's Ashes** | Rare | Whenever you Exhaust a card, deal 3 damage to ALL enemies. | **Build-crowning.** Transforms every exhaust into AoE. Fiend Fire becomes 7 dmg per card + 3 AoE. Second Wind becomes AoE clear. |
-| **Demon Tongue** | Rare | First HP loss on your turn heals equal amount. | **Excellent.** Self-damage becomes net neutral or positive. Bloodletting (lose 3, heal 3 = free 2 energy). Trigger applies to damage on your turn only, not enemy attacks on theirs. |
-| **Ruined Helmet** | Rare | First Strength gain each combat is doubled. | **Very high priority.** Inflame becomes +4 Strength. This is the best Strength multiplier relic. |
-| **Brimstone** | Shop | +2 Strength/turn, ALL enemies gain +1. | **High risk, high reward.** Race condition: your Strength outscales theirs if you kill fast. Terrible against multi-hit enemies and bosses. |
+Relic text is from slaythespire2.net (beta v0.111.0); Charon's Ashes confirmed
+against wiki.gg.
 
-## Ancient Relic Notes
+## Ironclad-exclusive relics
 
-Ancient relics come from the post-boss floor (Neow in Act 1, random in Act 2-3). They're typically powerful with a cost.
+| Relic | What it does | What it asks for / where it fails |
+|---|---|---|
+| **Burning Blood** (Starter) | Heal 6 HP after each combat. | Already yours. It is what makes HP a spendable resource for Bloodletting, Offering, Hemokinesis and self-damage cards — every current-HP cost in this guide is cheaper than it looks because of it. Black Blood (heal 12) upgrades it, at the cost of whatever you trade. |
+| **Red Skull** (Common) | +3 Strength while at 50% HP or below. | Wants a deck that can *stay* low and still win, which is the opposite of a block shell. Three Strength is a large multiplier on multi-hit cards; it is nothing at full HP, so it fights against healing. |
+| **Paper Phrog** (Uncommon) | Vulnerable deals +75% instead of +50%. | Only as good as how often you actually apply Vulnerable. Ironclad has many sources (Bash, Uppercut, Thunderclap, Tremble, Break, Taunt), but a deck that drafted none of them gains nothing. |
+| **Self-Forming Clay** (Uncommon) | Gain Block next turn whenever you lose HP. | Rewards decks that hurt themselves on purpose — Offering, Bloodletting, Crimson Mantle, Hemokinesis. In a deck that avoids HP loss it almost never triggers. Note the Block arrives *next* turn, so it does not save you from the hit that caused it. |
+| **Charon's Ashes** (Rare) | Whenever you Exhaust a card, deal 3 damage to ALL enemies. | Needs exhaust volume to matter: Fiend Fire, Second Wind, Stoke, Corruption, Burning Pact, True Grit, Brand. With those it turns every clear-out into AoE; without them it is 3 damage once in a while. |
+| **Demon Tongue** (Rare) | The first HP loss on your turn heals the same amount back. | Makes one self-damage card per turn free, which is a lot in a Bloodletting/Offering deck and nothing otherwise. It does **not** apply to enemy attacks on their turn. |
+| **Ruined Helmet** (Rare) | The first Strength gain each combat is doubled. | Needs a Strength source to double. Best with one large early gain (Inflame, Fight Me!) rather than many small ones, since only the first is doubled — Demon Form's per-turn ticks get almost nothing from it. |
+| **Brimstone** (Shop) | +2 Strength per turn for you, +1 for ALL enemies. | **High risk, high reward.** It is a race: your Strength compounds faster only if you end fights quickly. Against multiple enemies you are buffing several bodies at once, and against a long boss the enemy side of the trade keeps paying too. |
 
-**Ironclad-friendly Ancients:**
-- **Runic Pyramid** — prevents end-of-turn hand discard; this is not the Retain keyword. Account for hand congestion.
-- **Pandora's Box** — transform ALL Strikes and Defends. Risky but potentially game-winning.
-- **Biiig Hug** — remove 4 cards, add Soot on shuffle. Powerful deck thinning.
-- **Empty Cage** — remove 2 cards. Fine.
-- **Astrolabe** — transform 3 cards, upgrade them. Excellent.
-- **Pael's Flesh** — +1 energy turn 3 onward. Scales well.
-- **Blood-Soaked Rose** — +1 energy/turn, adds 1 Enthralled card.
-- **Toasty Mittens** — exhausts a card from your hand each turn and grants Strength; verify selection and timing in the live text.
+## Ancient relics
 
-**Ancients to be cautious of:**
-- **Philosopher's Stone** — +1 energy/turn but enemies start with 1 Strength. Dangerous.
-- **Sozu** — energy with inability to obtain new potions; existing potions remain usable.
-- **Velvet Choker** — +1 energy/turn but max 6 cards/turn. Hurts Ironclad's multi-card turns.
-- **Ectoplasm** — +1 energy/turn but no gold. Very punishing.
-- **Snecko Eye** — +2 draw/turn but Confused (randomized costs). Roll-based. Can destroy or enable your run.
+Ancients are powerful and priced. These are the trade-offs, not a shortlist —
+the right pick depends on your energy, deck size and how much variance the run
+can still absorb.
+
+| Ancient | What it does | The cost |
+|---|---|---|
+| **Astrolabe** | Transform 3 cards, then Upgrade them. | Transforms are random; you choose the inputs only. |
+| **Pandora's Box** | Transform ALL Strikes and Defends. | Enormous swing in both directions — **high variance**, and it removes your reliable floor along with your worst cards. |
+| **Biiig Hug** | Remove 4 cards; adds Soot on shuffle. | Large thinning against ongoing status pollution. |
+| **Empty Cage** | Remove 2 cards. | Clean, small, no downside. |
+| **Runic Pyramid** | You no longer discard your hand at end of turn. | Not the Retain keyword — hands congest, and drawing into a full hand wastes draw. |
+| **Pael's Flesh** | +1 energy from turn 3 onward. | The first two turns are unchanged, which is exactly when some fights are decided. |
+| **Blood-Soaked Rose** | +1 energy per turn. | Adds an Enthralled card to the deck. |
+| **Toasty Mittens** | Exhausts a card from hand each turn, grants Strength. | Verify selection and timing in the live text — it exhausts whether or not you wanted that card gone. |
+| **Philosopher's Stone** | +1 energy per turn. | Every enemy starts with 1 Strength, for the rest of the run. |
+| **Sozu** | Energy, but you can no longer obtain potions. | Potions you already hold still work. Costs you every potion reward for the rest of the run. |
+| **Velvet Choker** | +1 energy per turn. | Caps you at 6 cards per turn — directly opposed to Ironclad's wide cheap turns, and to Bygone Effigy's Slow. |
+| **Ectoplasm** | +1 energy per turn. | No gold for the rest of the run: no shop removal, no shop relics. |
+| **Snecko Eye** | +2 cards drawn per turn. | Confused: card costs randomise on draw, 0–3. **High variance** — it can make expensive Powers free or make a cheap hand unplayable. |
 
 ## Source Attribution
 
 - All relic names, effects, and rarity from slaythespire2.net relic database (beta v0.111.0 game data, extracted 2026-06-18). 296 relics total.
-- **Priority rankings and synergy assessments are strategic inference based on card/relic data analysis.**
+- **The "what it asks for" column is strategic inference, not sourced fact — it is reasoning about the relic's requirements, offered so you can disagree with it, not a score.**

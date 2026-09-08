@@ -20,7 +20,7 @@ Source: slaythespire.wiki.gg (Slay the Spire 2:Keywords, revision 52813)
 | **Block** | Prevents damage until next turn. Damage hits Block before HP. | Core — Shrug It Off, Impervious, Blood Wall, Flame Barrier, Second Wind |
 | **Energy** | 3 per turn. Used to play cards. Not conserved across turns (except Ice Cream). | Bloodletting (lose 3 HP, gain 2 energy), Offering (lose 6 HP, gain 2 energy, draw 3) |
 | **Eternal** | Cannot be removed or transformed from your Deck. | Ascender's Bane (A5+) is Eternal. |
-| **Exhaust** | Card is removed from deck until end of combat. Goes to Exhaust Pile. | **Ironclad's core mechanic.** Fiend Fire, Burning Pact, Second Wind, True Grit, Havoc. Synergizes with Dark Embrace (draw), Feel No Pain (Block), Charon's Ashes (AoE damage). |
+| **Exhaust** | Card is removed from deck until end of combat. Goes to Exhaust Pile. | **Ironclad's core mechanic.** Fiend Fire, Burning Pact, Second Wind, True Grit, Havoc. Synergizes with Dark Embrace (draw 1 per exhaust), Feel No Pain (3 Block per exhaust), Evil Eye (+8 Block if you exhausted this turn), and Ashen Strike (+3 damage per card in the Exhaust pile). |
 | **Ethereal** | Card auto-Exhausts if in hand at end of turn. | Handle carefully. Can be useful with Dark Embrace for free draw. Summon Forth retrieves Sovereign Blade from Exhaust Pile (per slaythespire2.net card data). Eidolon (Necrobinder) retrieves Ethereal cards from Exhaust Pile. |
 | **Fatal** | Triggers when card kills a non-Minion enemy. | Relevant for Ironclad's heavy hitters. |
 | **Innate** | Card always appears in first hand. Replaces normal draw. If more Innate cards than starting hand size, all are drawn (free draw). | Useful for key Powers. |
@@ -41,8 +41,8 @@ Source: slaythespire.wiki.gg (Slay the Spire 2:Keywords, revision 52813)
 
 | Keyword | Definition | How to Use |
 |---|---|---|
-| **Strength** | +damage per hit. Permanent for the combat unless debuffed. | **Core scaling.** Inflame (+2), Demon Form (+2/turn), Spot Weakness (condition), Rupture (+1 per HP loss), Brand (+1 per exhaust). Every attack benefits. Multi-hit attacks (Twin Strike, Sword Boomerang) scale especially well. |
-| **Vigor** | Extra damage on the next Attack. | Akabeko grants Vigor. Setup Strike grants temporary Strength instead. |
+| **Strength** | +damage per hit. Intensity, permanent for the combat unless a debuff removes it. | **Core scaling.** Inflame (+2), Demon Form (+3/turn), Rupture (+1 per HP loss), Brand (+1 per exhaust), Fight Me! (+3), Dominate (+1 per Vulnerable). Every attack benefits, and multi-hit attacks (Twin Strike, Sword Boomerang, Conflagration) gain the most — but they also lose the most to Strength-down effects like Lagavulin's Soul Siphon. |
+| **Vigor** | "Your next Attack deals X additional damage." Conserved until an Attack spends it. | Akabeko and Prep Time grant it. Setup Strike is not Vigor — it grants 3 Strength until end of turn, which applies to every hit rather than one. |
 
 ### Defect
 
