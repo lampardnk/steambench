@@ -71,8 +71,24 @@ export function compactState(state) {
   return result;
 }
 
+/**
+ * Geometry is not identity.
+ *
+ * A hovering sprite drifts a pixel or two between reads. stateId digested
+ * element bounds, so the observation id changed while absolutely nothing
+ * happened - and validatePlan rejects a plan whose observation no longer
+ * matches, before any input is sent. Live, three reads a second apart on one
+ * combat screen produced three different ids from a 2px bob, so every plan
+ * written against that screen was stale on arrival and the run could not act
+ * at all. The elements themselves still carry bounds for the caller that needs
+ * them; they just do not decide whether this is the same situation.
+ */
+const withoutGeometry = (state) => (state?.ui?.elements
+  ? { ...state, ui: { ...state.ui, elements: state.ui.elements.map(({ bounds, ...rest }) => rest) } }
+  : state);
+
 export function stateId(state) {
-  return digest(compactState(state));
+  return digest(withoutGeometry(compactState(state)));
 }
 
 export function progressId(state) {

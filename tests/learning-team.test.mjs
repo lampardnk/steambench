@@ -1,4 +1,28 @@
 
+// A bobbing sprite is not a new situation.
+//
+// Live, in combat: two elements' bounds drifted 400 -> 398 between reads, one
+// second apart, with the same scene, the same focus and nothing happening.
+// stateId digested that geometry, so the observation id changed on its own and
+// validatePlan rejected every plan written against the screen as stale before
+// any input was sent. The run could not act at all.
+{
+  const at = (y) => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 }, player: { hp: 50, max_hp: 80, hand: [] },
+    ui: { scene_id: 'combat-1', focused_element: 'slot2', elements: [
+      { id: 'slot2', label: null, focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [627, 9, 60, 60] },
+      { id: 'bobber', label: 'Enemy', focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [800, y, 120, 160] },
+    ] } });
+
+  assert.equal(stateId(at(400)), stateId(at(398)), 'a two-pixel drift is the same observation');
+  assert.notEqual(stateId(at(400)), stateId({ ...at(400), ui: { ...at(400).ui, focused_element: 'bobber' } }),
+    'but a real focus change still is not');
+
+  // The gate that was rejecting them: a plan written against the earlier read
+  // must still validate against the later one.
+  const plan = { observation: stateId(at(400)), summary: 'Move to the next potion slot.', note: 'One right reaches the next occupied holder.', actions: [{ type: 'input', buttons: ['right'] }] };
+  assert.doesNotThrow(() => validatePlan(plan, at(398), { role: 'actuator' }), 'and the plan survives the drift');
+}
+
 // A screen that redraws under the cursor does not spend the recovery budget.
 //
 // Live, on the potion strip: every `right` moves focus to the next holder,
