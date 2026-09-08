@@ -18,6 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+export const STAGED_NOTES = 'scratchpad.md';
 export const MAX_RETRIEVED = 5;
 export const RETRIEVAL_BUDGET = 32000;
 // A note arrives the same size whether it was retrieved for the situation or
@@ -92,6 +93,10 @@ export function indexNotes(skillDir) {
     for (const entry of fs.readdirSync(path.join(base, relative), { withFileTypes: true })) {
       const next = relative ? `${relative}/${entry.name}` : entry.name;
       if (entry.isDirectory()) { if (!['scratchpad', 'learned', '.git', '.objectives'].includes(entry.name)) walk(next); continue; }
+      // scratchpad.md holds notes the player proposed but nobody has merged.
+      // Indexing it would hand every later room exactly the unreviewed guesses
+      // the staging file exists to keep out.
+      if (next === STAGED_NOTES) continue;
       if (!entry.isFile() || !next.endsWith('.md') || MOMENT_IN_PATH.test(next)) continue;
       try {
         const stat = fs.statSync(path.join(base, next));
@@ -130,6 +135,7 @@ export function situationTerms(state, objective) {
   // setups/ironclad-a1 is the note folder for exactly this run.
   const short = terms(character).at(-1);
   if (short && ascension != null) weights.set(`${short}-a${ascension}`, SETUP);
+  if (ascension != null) weights.set(`ascension-${ascension}`, SETUP);
   add(CONTEXT, state?.state_type);
   add(CONTEXT, state?.menu_screen);
   for (const relic of (state?.relics || []).slice(0, 12)) add(CONTEXT, relic.name);
@@ -138,15 +144,19 @@ export function situationTerms(state, objective) {
   return { weights, area: objective?.area || null };
 }
 
-function score(note, { weights, area }) {
+function score(note, { weights, area, generic = new Set() }) {
   let total = 0;
   const hits = new Set();
+  let situational = false;
   for (const [term, weight] of weights) {
     const points = note.keys.includes(term) ? 3 : note.pathTerms.includes(term) ? 2 : note.descriptionTerms.includes(term) ? 1 : 0;
     if (!points) continue;
     total += weight * points;
     hits.add(term);
+    if (!generic.has(term)) situational = true;
   }
+  // Matching nothing but terms that match everything is not a match.
+  if (!situational) return { total: 0, hits: [] };
   // A note about the area the objective is in is worth a nudge, never a match
   // on its own: an unrelated strategy note must not outrank the right enemy.
   if (area && note.area === area && total > 0) total += 1;
@@ -158,13 +168,35 @@ function score(note, { weights, area }) {
  * bounded, so the planner reads what it knows without spending a decision on a
  * recall it has to remember to ask for.
  */
+/**
+ * A control note is what stops the same screen being re-derived every run, so on
+ * a screen it comes first. NOT in a fight. Promoting it unconditionally handed
+ * every slot to the UI: a control note carries the character and ascension in
+ * its keys, which match any decision at all, so during a floor 7 elite fight the
+ * five notes retrieved were about Neow bundles, the reward screen and the main
+ * menu, and the bestiary note for the elite being fought never appeared. In
+ * combat the enemy is the subject and ordinary relevance decides.
+ */
+const CONTROLS_NOTE = /(?:^|\/)controls\//;
+
 export function retrieve(skillDir, index, state, objective, { limit = MAX_RETRIEVED, budget = RETRIEVAL_BUDGET } = {}) {
   const wanted = situationTerms(state, objective);
   if (!wanted.weights.size) return [];
+  const fighting = Boolean(state?.battle && Array.isArray(state?.player?.hand));
+  const rank = item => (!fighting && CONTROLS_NOTE.test(item.note.path) ? 1 : 0);
+  // A term carried by nearly every note identifies nothing. In a one-character
+  // library every note is under ironclad/a1/ and says so in its keys, so
+  // "ironclad" and "ascension-1" matched every decision ever made: during a
+  // floor 7 elite fight the five notes retrieved were about Neow bundles, the
+  // reward screen and the main menu. Such a term still weights a note that is
+  // relevant for some other reason; it may not qualify one on its own. Measured
+  // from the corpus rather than hardcoded, so it holds for whatever is in it.
+  const matches = term => index.reduce((n, note) => n + (note.keys.includes(term) || note.pathTerms.includes(term) || note.descriptionTerms.includes(term) ? 1 : 0), 0);
+  const generic = new Set([...wanted.weights.keys()].filter(term => index.length >= 3 && matches(term) > index.length / 2));
   const ranked = index
-    .map(note => ({ note, ...score(note, wanted) }))
+    .map(note => ({ note, ...score(note, { ...wanted, generic }) }))
     .filter(item => item.total > 0)
-    .sort((a, b) => b.total - a.total || a.note.bytes - b.note.bytes)
+    .sort((a, b) => rank(b) - rank(a) || b.total - a.total || a.note.bytes - b.note.bytes)
     .slice(0, limit);
   const out = [];
   let spent = 0;

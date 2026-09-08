@@ -3,6 +3,32 @@ import readline from 'node:readline';
 import { spawn } from 'node:child_process';
 import { PROFILE } from './profile.mjs';
 
+/**
+ * The plan object out of a model response. A complete, correct plan arrived
+ * wrapped in a sentence of prose - "Fighting the elite at 30 HP: block first...\n\n{...}" -
+ * and was rejected three times in a row, which ends a room. The JSON is right
+ * there; take it. Only a genuinely unparseable response is an error, and it
+ * still reports the original parse failure rather than this fallback's.
+ */
+export function parsePlanText(text) {
+  const object = value => (value && typeof value === 'object' && !Array.isArray(value) ? value : null);
+  let direct = null;
+  try { direct = object(JSON.parse(text)); }
+  catch { direct = null; }
+  if (direct) return direct;
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first >= 0 && last > first) {
+    try {
+      const recovered = object(JSON.parse(text.slice(first, last + 1)));
+      if (recovered) return recovered;
+    } catch { /* fall through to the original failure */ }
+  }
+  // Reported as the plain parse failure the caller already knows how to refine.
+  JSON.parse(text);
+  throw new Error('response is valid JSON but not a plan object');
+}
+
 export class Planner {
   constructor({ emit, record }) {
     this.emit = emit;
@@ -12,6 +38,17 @@ export class Planner {
   /** One bounded decision against the player prompt. */
   decide(context, image) {
     return this.ask({ role: 'decision', prompt: 'prompt.txt', context, image, stream: true });
+  }
+
+  /**
+   * Menu actuation, kept off the main decision. Startup is pure UI work with no
+   * strategy in it, and running it through the full player prompt spends the
+   * gameplay context window on button pressing and thinks for ten seconds about
+   * a screen with one sensible action. This call sees the element list and the
+   * control notes and nothing else, so it is short to read and quick to answer.
+   */
+  navigate(context) {
+    return this.ask({ role: 'navigator', prompt: 'navigator.txt', context, deadlineMs: 25000 });
   }
 
   /**
@@ -51,7 +88,7 @@ export class Planner {
           const clean = answer.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
           if (!clean) throw new Error(`empty ${role} response: ${events.messages} assistant messages, ${events.textChunks} text chunks, stop reason ${assistant?.stopReason || 'missing'}`);
           if (clean.length > 12000) throw new Error(`${role} output exceeds limit`);
-          resolve(JSON.parse(clean));
+          resolve(parsePlanText(clean));
         } catch (error) { fail(error); }
       };
       if (role === 'decision') this.cancel = () => finish(new Error('planner aborted'));

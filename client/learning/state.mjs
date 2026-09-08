@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { PROFILE } from './profile.mjs';
 
 export const VERSION = PROFILE.checkpointVersion;
-export const SENSOR_VERSION = 3;
+export const SENSOR_VERSION = 5;
 export const digest = (value) => crypto.createHash('sha256').update(JSON.stringify(value) ?? 'null').digest('hex').slice(0, 16);
 
 export function compactState(state) {
@@ -52,12 +52,69 @@ export function mapId(state) {
   return state.state_type === 'map' ? digest(state.map) : null;
 }
 
+/**
+ * What a plan actually rests on. stateId covers every field the sensor reports,
+ * including presentation that moves on its own: a tween sliding a control,
+ * a "Game Saved" toast, a focus outline redraw, an idle animation during
+ * combat. Comparing that against a plan made a few seconds earlier declared
+ * almost every combat decision stale and threw it away without sending input.
+ * Gameplay progress, the set of controls on screen and what holds focus are
+ * what a plan depends on; if those are unchanged the plan is still good.
+ */
+export function planIdentity(state) {
+  return digest([progressId(state), state.state_type ?? null, state.menu_screen ?? null, state.ui?.scene_id ?? null, state.ui?.focused_element ?? null]);
+}
+
+const DIFF_FIELDS = [
+  ['state_type', state => state.state_type],
+  ['menu_screen', state => state.menu_screen ?? null],
+  ['act', state => state.run?.act ?? null],
+  ['floor', state => state.run?.floor ?? null],
+  ['hp', state => state.player?.hp ?? null],
+  ['gold', state => state.player?.gold ?? null],
+  ['energy', state => state.player?.energy ?? null],
+  ['turn', state => state.battle?.turn ?? null],
+  ['round', state => state.battle?.round ?? null],
+  ['scene_id', state => state.ui?.scene_id ?? null],
+  ['focused_element', state => state.ui?.focused_element ?? null],
+  ['focus_path', state => state.ui?.focus_path ?? null],
+];
+
+/**
+ * The fields that differ between two observations. A replan gets this instead
+ * of being told only that something moved: re-deriving a whole screen because
+ * focus shifted by one row is the expensive way to learn one fact.
+ */
+export function stateDiff(before, after) {
+  const changed = {};
+  for (const [name, read] of DIFF_FIELDS) {
+    const was = read(before);
+    const now = read(after);
+    if (was !== now) changed[name] = { was, now };
+  }
+  const labels = state => new Set((state.ui?.elements || []).map(item => item.label).filter(Boolean));
+  const [old, fresh] = [labels(before), labels(after)];
+  const gone = [...old].filter(label => !fresh.has(label)).slice(0, 8);
+  const added = [...fresh].filter(label => !old.has(label)).slice(0, 8);
+  if (gone.length) changed.controls_gone = gone;
+  if (added.length) changed.controls_added = added;
+  return changed;
+}
+
 export function plannerState(state, lastResult, strategy) {
   const result = compactState(state);
   if (result.player) for (const pile of ['draw_pile', 'discard_pile', 'exhaust_pile']) delete result.player[pile];
   if (state.state_type === 'map' && strategy && lastResult?.after?.map_id === mapId(state)) {
     const { nodes, ...map } = result.map;
     result.map = { ...map, full_graph_unchanged: true, node_count: nodes?.length };
+  }
+  // The neighbour graph is for the executor, which computes and verifies routes
+  // with it. The model addresses elements by ID and asks for a route with path
+  // or navigate, so to it these are the largest block of the state payload and
+  // the one part of it there is no reason to read. compactState is a shallow
+  // copy, so the elements are rebuilt rather than stripped in place.
+  if (Array.isArray(result.ui?.elements)) {
+    result.ui = { ...result.ui, elements: result.ui.elements.map(({ neighbors, ...item }) => item) };
   }
   return result;
 }
@@ -133,6 +190,35 @@ const MOMENT_IN_PATH = /(?:^|[/_-])(?:floor|round|turn|decision|seed)-?\d/;
  * Why a learned note cannot be kept, or null when it is fine. Kept separate from
  * validatePlan so a badly formed note is reported rather than ending the run.
  */
+// A planner that ran out of budget produced no plan at all, which is a different
+// failure from a plan that arrived and was rejected: there is nothing in it to
+// correct, and "fix exactly what this message names" names nothing, so the model
+// reads it as a demand for more care and spends even longer. That is a loop, and
+// three rounds of it end the room - which is how a floor-3 combat died with the
+// model three times hitting `stop reason length` before emitting one character of
+// JSON. Both budgets fail this way: wall-clock deadline, and output tokens the
+// reasoning is spending before it reaches the answer.
+const OUT_OF_BUDGET = /exceeded [\d.]+-second deadline|stop reason length|empty \w+ response/;
+
+// An upstream provider that is busy, rate limited or dropped the connection has
+// told us nothing about the plan: the model never got to answer. Refining against
+// it asks the model to fix someone else's outage, and three refinement rounds end
+// the room - which is how a floor-3 run died to three 429s in a row. Back off and
+// ask again instead. Deliberately narrow: a model or plan error must still be
+// refined, never retried blindly.
+const TRANSIENT_UPSTREAM = /\b(?:429|50[0234])\b|rate[ _-]?limit|temporarily busy|overloaded|try again shortly|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i;
+
+export function transientUpstream(message) {
+  return TRANSIENT_UPSTREAM.test(message || '');
+}
+
+export function plannerGuidance(message) {
+  if (OUT_OF_BUDGET.test(message || '')) {
+    return 'You ran out of budget while reasoning and sent nothing, so the scene is unchanged. There is nothing to fix in the plan - the plan never arrived, and reasoning harder is what just failed. Answer the SAME observation immediately with the line you had already settled on, and stop there: no second option weighed, no simulation of later turns, no draw you have not seen, and drop strategy and lesson from the JSON this time. A good-enough plan sent now beats a better one that never gets sent, and the next observation is where you correct anything this one gets slightly wrong.';
+  }
+  return 'The plan was rejected before any input was sent, so the scene is unchanged. Fix exactly what this message names and answer again from the same observation.';
+}
+
 export function noteProblem(action) {
   if (typeof action?.path !== 'string' || !/^[a-z0-9][a-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('//') || action.path.includes('..')) {
     return 'learn.path must be a lowercase .md path under ironclad/a1/ (for example ironclad/a1/act1/normal/wriggler.md), or under the cross-character roots characters/ or ascension/';
@@ -147,6 +233,19 @@ export function noteProblem(action) {
   }
   if (typeof action.message !== 'string' || action.message.trim().length < 3 || action.message.length > 200) return 'learn.message must be a 3-200 character commit message';
   return null;
+}
+
+/**
+ * A card's cost as a number, or null when the arithmetic is not knowable.
+ * The sensor reports cost as a STRING ("2", not 2), which silently disabled the
+ * budget check below for every card in the game until a floor-3 plan spent 4
+ * energy on a 3-energy turn and failed at the game with two cards already sent.
+ * X-cost and unplayable cards report something that is not a number, and those
+ * genuinely are unknowable, so they still skip the check rather than count zero.
+ */
+export function energyCost(cost) {
+  const value = typeof cost === 'string' && /^\d+$/.test(cost.trim()) ? Number(cost) : cost;
+  return Number.isInteger(value) && value >= 0 ? value : null;
 }
 
 export function validatePlan(plan, state) {
@@ -221,10 +320,10 @@ export function validatePlan(plan, state) {
   // an unknown cost, or a card whose effects can change the energy available.
   const played = actions.filter(action => action.type === 'play')
     .map(action => state.player?.hand?.find(card => card.instance_id === action.card));
-  if (played.length > 1 && Number.isInteger(state.player?.energy)
-    && played.every(card => card && Number.isInteger(card.cost) && card.cost >= 0 && !uncertainCard(card))) {
-    const total = played.reduce((sum, card) => sum + card.cost, 0);
-    if (total > state.player.energy) throw new Error(`this plan spends ${total} energy and the turn has ${state.player.energy}: ${played.map(card => `${card.name} ${card.cost}`).join(', ')}. Plan what the turn can pay for`);
+  const costs = played.map(card => (card && !uncertainCard(card) ? energyCost(card.cost) : null));
+  if (played.length > 1 && Number.isInteger(state.player?.energy) && costs.every(cost => cost !== null)) {
+    const total = costs.reduce((sum, cost) => sum + cost, 0);
+    if (total > state.player.energy) throw new Error(`this plan spends ${total} energy and the turn has ${state.player.energy}: ${played.map((card, index) => `${card.name} ${costs[index]}`).join(', ')}. Plan what the turn can pay for`);
   }
   if (new Set(actions.filter(a => a.type === 'play').map(a => a.card)).size !== played.length) throw new Error('a card instance may appear only once in a plan');
   if (plan.strategy != null && (typeof plan.strategy !== 'string' || plan.strategy.length > 1200)) throw new Error('strategy exceeds 1200 characters');

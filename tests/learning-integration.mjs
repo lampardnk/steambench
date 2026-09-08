@@ -15,7 +15,7 @@ const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-fixtures-'));
 const binary = path.join(temporary, 'pi');
 fs.symlinkSync(path.join(root, 'tests/fixtures/fake-pi.cjs'), binary);
 fs.chmodSync(binary, 0o755);
-const baseState = { state_type: 'event', run: { floor: 1, act: 1 }, player: { hp: 80 }, ui: { sensor_version: 3, game_build: 'fixture-game', mod_build: 'fixture-mod', focus_path: null } };
+const baseState = { state_type: 'event', run: { floor: 1, act: 1 }, player: { hp: 80 }, ui: { sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod', focus_path: null } };
 const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const children = new Set();
 
@@ -46,7 +46,10 @@ async function scenario(mode) {
         reads++;
         const state = structuredClone(baseState);
         if (mode === 'bad_sensor') state.ui.sensor_version = 0;
-        if (mode === 'stale') state.ui.focus_path = String(reads);
+        // Staleness is about what a plan rests on, not about presentation that
+        // moves on its own, so this has to churn the scene itself: a drifting
+        // focus_path alone is deliberately no longer enough to discard a plan.
+        if (mode === 'stale') { state.ui.focus_path = String(reads); state.ui.scene_id = `scene-${reads}`; }
         // Focus moves only when a press arrives, so each probe succeeds and
         // nothing is stale: only the bound stops the run.
         if (mode === 'probes_only') state.ui.focus_path = `focus-${inputs.length}`;

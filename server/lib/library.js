@@ -13,6 +13,8 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 
 const RUN_STATE = new Set(['scratchpad', '.git', '.objectives']);
+// The one path a room may add to the library: notes it proposes for review.
+export const STAGED_NOTES = 'scratchpad.md';
 const AUTHOR = 'steambench library <library@steambench.local>';
 const MAX_DIFF = 200000;
 
@@ -25,6 +27,23 @@ function git(dir, args, { timeoutMs = 20000 } = {}) {
       else resolve(stdout);
     });
   });
+}
+
+/** Every file already under a skill tree, as template-relative paths. */
+function listNotes(dir) {
+  const found = [];
+  const walk = (relative) => {
+    const base = path.join(dir, relative);
+    if (!fs.existsSync(base)) return;
+    for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+      if (RUN_STATE.has(entry.name)) continue;
+      const next = path.join(relative, entry.name);
+      if (entry.isDirectory()) walk(next);
+      else if (entry.isFile()) found.push(next);
+    }
+  };
+  walk('');
+  return found;
 }
 
 /** Copy a tree, skipping per-run state and git metadata. */
@@ -51,8 +70,16 @@ function copyKnowledge(from, to, { overwrite = true } = {}) {
 
 /**
  * Create the repository if it is missing and seed a skill from the image
- * template. Template files are only ever *added*: a later image must not
- * silently overwrite what the player has since written.
+ * template, which is the authority for every path it provides.
+ *
+ * Template files used to be only ever *added*, so that a newer image could not
+ * overwrite what the player had since written. The player can no longer write
+ * the library at all - it stages proposals into scratchpad.md and a human
+ * merges them - so that protection now only preserved staleness: a library
+ * seeded once kept its first copy of every template file forever, which is how
+ * it ended up serving a CONTROLS.md with no front matter and biome rosters
+ * missing their wiki.gg corrections. Curate templates in the repo; anything the
+ * template does not provide is left untouched.
  */
 export async function ensureSkill(cfg, skill, templateDir) {
   const root = libraryDir(cfg);
@@ -67,8 +94,11 @@ export async function ensureSkill(cfg, skill, templateDir) {
   await renameLegacy(root, skill);
   const seeded = !fs.existsSync(target);
   if (skill === 'sts2') migrateStrategy(root, skill);
-  const added = fs.existsSync(templateDir) ? copyKnowledge(templateDir, target, { overwrite: false }) : [];
-  const message = seeded ? `Seed ${skill} from the image template` : `Add ${added.length} new ${skill} template file(s)`;
+  const before = new Set(listNotes(target));
+  const copied = fs.existsSync(templateDir) ? copyKnowledge(templateDir, target) : [];
+  const added = copied.filter(file => !before.has(file));
+  const message = seeded ? `Seed ${skill} from the image template`
+    : `Sync ${skill} with the image template (${added.length} added, ${copied.length - added.length} refreshed)`;
   const commit = await commit_(root, message, { skill });
   return { dir: target, seeded, added, commit };
 }
@@ -98,11 +128,6 @@ export function checkoutInto(cfg, skill, targetDir) {
   const source = path.join(libraryDir(cfg), skill);
   if (!fs.existsSync(source)) throw new Error(`skill library ${skill} has not been created yet`);
   const copied = copyKnowledge(source, targetDir);
-  const audit = path.join(libraryDir(cfg), '.objectives', skill, 'history.json');
-  if (fs.existsSync(audit)) {
-    fs.mkdirSync(path.join(targetDir, 'scratchpad'), { recursive: true });
-    fs.copyFileSync(audit, path.join(targetDir, 'scratchpad', 'objectives.json'));
-  }
   return copied;
 }
 
@@ -119,28 +144,26 @@ async function commit_(root, message, { skill, roomId, player } = {}) {
 }
 
 /**
- * Fold a room's knowledge edits back into the library. Per-run scratchpad state
- * stays with the room's archive; only files the player meant to keep land here.
+ * Fold a room's staged notes back into the library. The player proposes notes
+ * into scratchpad.md for a human to merge; nothing else it wrote leaves the room,
+ * so the library only ever changes when a person changes it.
  */
 export async function commitFromRoom(cfg, { skill, roomSkillDir, roomId, player, message }) {
   const root = libraryDir(cfg);
   const target = path.join(root, skill);
   if (!fs.existsSync(path.join(root, '.git')) || !fs.existsSync(roomSkillDir)) return null;
-  copyKnowledge(roomSkillDir, target);
-  const audit = path.join(roomSkillDir, 'scratchpad', 'objectives.json');
-  if (fs.existsSync(audit)) {
-    const dest = path.join(root, '.objectives', skill, 'history.json');
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    let prior = { objectives: [] };
-    try { prior = JSON.parse(fs.readFileSync(dest, 'utf8')); } catch { }
-    const fresh = JSON.parse(fs.readFileSync(audit, 'utf8'));
-    const items = new Map((prior.objectives || []).map(item => [item.id, item]));
-    for (const item of fresh.objectives || []) {
-      const old = items.get(item.id);
-      if (!old || (item.closed?.at || item.opened?.at || 0) >= (old.closed?.at || old.opened?.at || 0)) items.set(item.id, item);
-    }
-    fs.writeFileSync(dest, JSON.stringify({ ...fresh, objectives: [...items.values()] }, null, 2));
-  }
+  // The ONE thing a room contributes. It used to copy its whole tree back, which
+  // made every note it wrote a library fact the next room inherited, and undid
+  // any curation done while it ran: five diary notes deleted at 07:43 were
+  // restored byte-identical at 07:52 under a message saying the room had
+  // "learned" them. The player now proposes into scratchpad.md and a human
+  // merges; nothing else it touches leaves the room.
+  const staged = path.join(roomSkillDir, STAGED_NOTES);
+  if (fs.existsSync(staged)) fs.copyFileSync(staged, path.join(target, STAGED_NOTES));
+  // The objective ladder is per-room and stays with the room: its own scratchpad
+  // holds it while it runs and the room archive keeps it afterwards. Merging every
+  // room's objectives into one library-wide ledger gave each new room a frontier
+  // from runs it never played, on seeds that no longer exist.
   return commit_(root, message, { skill, roomId, player });
 }
 

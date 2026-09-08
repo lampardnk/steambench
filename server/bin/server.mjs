@@ -83,11 +83,19 @@ async function readJson(req) {
   return body ? JSON.parse(body) : {};
 }
 
-/** Skill directories the library currently holds, newest knowledge first. */
+// What both the listing and the skill routes agree is a skill name.
+const SKILL_NAME = /^[a-z0-9_-]+$/;
+
+/**
+ * Skill directories the library currently holds. Only names the skill routes
+ * below actually accept: the library also holds bookkeeping directories, and
+ * .objectives sorts ahead of every real skill, so listing it made the notes
+ * browser open it by default and get "invalid skill" back instead of the notes.
+ */
 function librarySkills(cfg) {
   try {
     return fs.readdirSync(library.libraryDir(cfg), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && entry.name !== '.git')
+      .filter((entry) => entry.isDirectory() && SKILL_NAME.test(entry.name))
       .map((entry) => entry.name).sort();
   } catch { return []; }
 }
@@ -115,8 +123,7 @@ const server = http.createServer(async (req, res) => {
     // The persistent skill library: what the players have learned, as commits.
     if (parts[1] === 'library') {
       const skill = url.searchParams.get('skill') || undefined;
-      if (skill && !/^[a-z0-9_-]+$/.test(skill)) return json(res, 400, { error: 'invalid skill' });
-      if (parts[2] === 'objectives' && req.method === 'GET') return json(res, 200, library.objectivePage(path.join(library.libraryDir(cfg), '.objectives', skill || 'sts2', 'history.json'), Object.fromEntries(url.searchParams)));
+      if (skill && !SKILL_NAME.test(skill)) return json(res, 400, { error: 'invalid skill' });
       if (parts.length === 2 && req.method === 'GET') {
         return json(res, 200, { skills: librarySkills(cfg), ...await library.historyPage(cfg, { ...Object.fromEntries(url.searchParams), skill }) });
       }

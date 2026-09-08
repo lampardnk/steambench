@@ -56,6 +56,37 @@ overlay listing the whole deck appears, `b` closes it.
   hand during targeting. Do not assume first-card or last-card focus, or stable
   hand indices.
 
+- **Bound buttons beat navigation.** An element in `ui.elements` carrying
+  `press` is activated by that controller button FROM ANYWHERE, whatever holds
+  focus. Some controls are reachable no other way. A card reward's card row
+  wires each card's up and down neighbours back to the card itself and wraps
+  left/right within the row, so the row is a CLOSED LOOP by design and Skip sits
+  outside it: no sequence of directional presses reaches it, and Skip is bound to
+  `b`. "No verified focus path" means the route does not exist, not that it has
+  not been found - look for `press` rather than probing.
+- **Reward screens.** Read `rewards.items` live: the count and contents vary by
+  seed, and a screen may hold several independent gold rows plus a card row.
+  Each collectible row is focused and activated separately, and collecting one
+  removes only that row and moves focus to an auto-generated sibling, so re-read
+  focus before the next activation. A card row opens the card-reward screen.
+  When `items` is empty and `can_proceed` is true, `y` returns to the map.
+- **Rest sites.** Read `rest_site.options` and their enabled state; services vary
+  by run. An empty `options` with `can_proceed` true is a resolved site, not
+  missing UI: `y` proceeds.
+- **Hand-selection overlays.** `hand_select.cards` is the candidate set and may
+  omit cards already in `selected_cards` rather than repeating the whole hand.
+  `a` selects the focused candidate and `can_confirm` reports whether the
+  selection is valid; confirmation is a separate control.
+- **Zero energy.** Every card with a positive cost reports `can_play: false` with
+  `EnergyCostTooHigh`. Costs are reported as STRINGS ("2"), so compare them as
+  numbers. A batch spends energy as it goes: sum the whole plan against the
+  energy the turn actually has, not one card at a time.
+- **Powers.** A Power leaves the hand for the power area rather than a discard or
+  exhaust pile, so nothing lands in a pile to wait on. Let it settle before
+  navigating to the next card.
+- **Main menu.** A visibly loaded main menu can report null focus. One `a`
+  establishes focus on SingleplayerButton; observe before activating anything.
+
 A directional press that changes nothing means the focus was already at that
 edge of the reachable options. One standalone exploratory press is always safe;
 re-read the highlight before assuming a move is still needed.

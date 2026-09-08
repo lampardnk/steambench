@@ -70,7 +70,9 @@ function Objectives({ settings, curriculum, roomId, refreshKey }: { settings: Se
         </div>
       )}
       {curriculum && <p className="text-xs text-muted-foreground"><span className="font-medium text-success">{curriculum.completed} completed</span> · <span className="font-medium text-warning">{curriculum.failed} abandoned</span>. A separate critic decides which.</p>}
-      <History key={roomId || 'library'} settings={settings} endpoint={roomId ? `/api/rooms/${encodeURIComponent(roomId)}/objectives` : '/api/library/objectives'} kind="objectives" title="Objective history" refreshKey={refreshKey} />
+      {/* Objectives belong to the room that played them: a ladder merged across
+          rooms handed each new run a frontier from seeds that no longer exist. */}
+      {roomId && <History key={roomId} settings={settings} endpoint={`/api/rooms/${encodeURIComponent(roomId)}/objectives`} kind="objectives" title="Objective history" refreshKey={refreshKey} />}
     </div>
   )
 }

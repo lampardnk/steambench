@@ -1,13 +1,29 @@
-import { elements, targetElement, navigationPath } from './navigation.mjs';
+import { elements, pressableElement, targetElement, navigationPath } from './navigation.mjs';
 import { indexNotes } from './retrieval.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
-import { DIRECTIONS, isCardPlay, isCombat, noteProblem, progressId, ready, startupTransition, stateId, uiMatches, uncertainCard, validatePlan } from './state.mjs';
+import { DIRECTIONS, isCardPlay, isCombat, noteProblem, planIdentity, progressId, ready, startupTransition, stateId, uiMatches, uncertainCard, validatePlan } from './state.mjs';
 
 export const MAX_NOTE = 16000;
 
 /** Files under learned/ outlive the room, so the player can see what it already wrote. */
 export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item => item.path).sort(); }
+
+// How long to let a screen finish moving before planning against it, and how
+// many reads to spend waiting. It returns as soon as two reads match, so a
+// still screen costs one extra read; only a screen that keeps moving - a reward
+// dealing its cards in - spends the budget, and 1.5s is shorter than the model
+// call it protects.
+const QUIESCE_MS = 150;
+const QUIESCE_READS = 10;
+
+// Every note the player writes lands here as a proposal, in the room's skill
+// copy, so it rides the end-of-room commit into the library's history where a
+// human can read it. Nothing under this file is ever retrieved or inherited.
+export const SCRATCHPAD_NOTE = 'scratchpad.md';
+const SCRATCHPAD_HEADER = ['# Staged notes', '',
+  'Proposals written by the player during a run. NOT part of the library: nothing here',
+  'is retrieved, inherited or trusted. A human merges what is worth keeping.', '', '---', ''].join('\n');
 
 export class Executor {
   constructor({ call, record = () => {}, signal, skillDir = null }) {
@@ -19,20 +35,32 @@ export class Executor {
   }
 
   /**
-   * Write one durable note and commit it under the player's own message. Any
-   * problem is returned as a result, never thrown: a note is bookkeeping, and
-   * losing it must not discard gameplay the plan already verified.
+   * Stage one proposed note in the scratchpad and commit it under the player's
+   * own message. The player CANNOT write the library: every note it produced
+   * went straight into the shared tree, where a single run's guess became a fact
+   * the next room inherited, and the diary entries and near-duplicate control
+   * notes accumulated faster than anyone could weed them. Notes are now
+   * proposals appended to one file for a human to merge. action.path is the
+   * destination it argues for, recorded as a label, never opened.
+   *
+   * Any problem is returned as a result, never thrown: a note is bookkeeping,
+   * and losing it must not discard gameplay the plan already verified.
    */
   async keepNote(action) {
     const problem = noteProblem(action);
     if (problem) return { action, verified: false, error: `note not kept: ${problem}` };
     try {
-      const file = this.notePath(action.path);
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      const existed = fs.existsSync(file);
-      fs.writeFileSync(file, action.content.endsWith('\n') ? action.content : `${action.content}\n`);
+      if (!this.skillDir) throw new Error('this room has no skill library; notes cannot be kept');
+      const file = path.join(path.resolve(this.skillDir), SCRATCHPAD_NOTE);
+      const entry = [`## ${action.path}`, '', `- proposed: ${new Date().toISOString()}`, `- message: ${action.message}`, '',
+        action.content.trim(), '', '---', ''].join('\n');
+      fs.appendFileSync(file, (fs.existsSync(file) ? '' : SCRATCHPAD_HEADER) + entry);
       const response = await this.call({ op: 'skill-commit', message: action.message });
-      return { action, verified: true, path: action.path, replaced: existed, commit: response?.commit || null, committed: Boolean(response?.committed) };
+      return {
+        action, verified: true, staged: SCRATCHPAD_NOTE, proposed_path: action.path,
+        note: 'Staged for human review. It is NOT in the library and no later room will retrieve it.',
+        commit: response?.commit || null, committed: Boolean(response?.committed),
+      };
     } catch (error) {
       return { action, verified: false, error: `note not kept: ${error.message}` };
     }
@@ -73,6 +101,30 @@ export class Executor {
     throw new Error('game did not reach an actionable state within 10 seconds');
   }
 
+  /**
+   * An actionable state that has also stopped moving. Planning takes seconds,
+   * so a screen still playing its entrance animation has changed by the time
+   * the plan arrives and the decision is thrown away unexecuted. Waiting for
+   * two identical reads costs a few hundred milliseconds and saves a whole
+   * model call. Some screens animate forever, so the wait is bounded and the
+   * newest observation is used regardless.
+   */
+  async quiesced() {
+    let state = await this.settled();
+    let previous = stateId(state);
+    for (let attempt = 0; attempt < QUIESCE_READS; attempt++) {
+      await this.sleep(QUIESCE_MS);
+      const next = await this.observe();
+      if (!ready(next)) { state = await this.settled(next); previous = stateId(state); continue; }
+      state = next;
+      const current = stateId(state);
+      if (current === previous) return state;
+      previous = current;
+    }
+    this.record({ type: 'quiesce_timeout', stateType: state.state_type });
+    return state;
+  }
+
   async button(button) {
     this.signal?.throwIfAborted();
     this.inputs++;
@@ -88,12 +140,39 @@ export class Executor {
 
   async navigateElement(action, before) {
     let state = before;
+    // Edges that were pressed and did not land where the graph predicted.
+    // Remembering one makes the retry take a different route instead of walking
+    // into the same press again.
+    const avoid = new Set();
+    // The scene the route is being computed against. A screen that is still
+    // arriving - a reward dealing its cards in - changes shape without anything
+    // happening in the run, and treating that as fatal paused a run that had
+    // just won its first fight. Gameplay advancing is the real hazard and is
+    // still fatal; a settling screen only means the route must be recomputed,
+    // which costs nothing because directional presses are reversible.
+    let scene = action.scene;
     for (let recovery = 0; recovery <= 2; recovery++) {
-      if (state.ui?.scene_id !== action.scene || progressId(state) !== progressId(before)) throw new Error('scene or gameplay changed during navigation');
+      if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
+      if (state.ui?.scene_id !== scene) {
+        if (recovery === 2) throw new Error('the screen kept changing while routing to this element');
+        this.record({ type: 'navigation_rescene', from: scene, to: state.ui?.scene_id ?? null });
+        scene = state.ui?.scene_id;
+        continue;
+      }
       const target = targetElement(state, action.target);
       if (state.ui.focused_element === target.id) return state;
+      // A freshly loaded screen can hold no focus at all, and a route has to
+      // start from somewhere. A directional press is reversible and activates
+      // nothing, so it is the safe way to make the screen adopt a focus before
+      // routing from it.
+      if (!state.ui.focused_element) {
+        if (recovery === 2) throw new Error('nothing holds focus on this screen, so no route can start; press one direction and read where focus lands');
+        await this.button('down');
+        state = await this.observe();
+        continue;
+      }
       let route;
-      try { route = navigationPath(state, state.ui.focused_element, target.id); }
+      try { route = navigationPath(state, state.ui.focused_element, target.id, 12, avoid); }
       catch (error) {
         if (recovery === 2) throw error;
         state = await this.observe(); // read-only recovery; never invent a neighbor
@@ -104,8 +183,9 @@ export class Executor {
         if (state.ui.focused_element !== step.from) { failed = true; break; }
         await this.button(step.direction);
         state = await this.observe();
-        if (state.ui?.scene_id !== action.scene || progressId(state) !== progressId(before)) throw new Error('scene or gameplay changed during navigation');
-        if (state.ui.focused_element !== step.to) { failed = true; break; }
+        if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
+        if (state.ui?.scene_id !== scene) { failed = true; break; }
+        if (state.ui.focused_element !== step.to) { avoid.add(`${step.from}|${step.direction}`); failed = true; break; }
       }
       if (!failed && state.ui.focused_element === target.id) return state;
       // Only directions with unchanged gameplay are recoverable, twice at most.
@@ -206,6 +286,16 @@ export class Executor {
         state = await this.observe();
       }
       if (pending()) throw new Error('played card destination did not settle; stopping before further input');
+    } else if (!uncertainCard(card) && card.type === 'Power' && isCombat(state)) {
+      // A Power goes to the power area, not to a pile, so the wait above has
+      // nothing to count and skipped it entirely - and its buff and the energy it
+      // spent were still landing when the next card's hand navigation began,
+      // which reads as "gameplay changed during hand navigation" and kills a
+      // batch that was doing exactly what it was asked to. With no pile to
+      // count, wait for the state to stop moving instead. Only a card that
+      // really has no pile destination: a missing pile count is a sensor gap and
+      // must not quietly add a quiesce to every play.
+      state = await this.quiesced();
     }
     const previous = new Set(before.player.hand.map(item => item.instance_id));
     const removed = before.player.hand.filter(item => !state.player?.hand?.some(next => next.instance_id === item.instance_id));
@@ -223,9 +313,10 @@ export class Executor {
     validatePlan(plan, observation);
     this.recoveries = 0;
     let state = await this.observe();
-    if (stateId(state) !== plan.observation) {
+    if (planIdentity(state) !== planIdentity(observation)) {
       const error = new Error('state changed while planning; no input sent');
       error.code = 'stale_observation';
+      error.state = state;
       throw error;
     }
     const completed = [];
@@ -241,13 +332,34 @@ export class Executor {
         if (action.type === 'elements' || action.type === 'path') {
           completed.push({ action, verified: true, ...(action.type === 'elements' ? { elements: elements(state) } : { path: navigationPath(state, action.from || state.ui.focused_element, action.target) }) });
         } else if (action.type === 'navigate' || action.type === 'activate') {
+          // A control the game bound to a button is activated by pressing it,
+          // from wherever focus happens to be. Some are reachable no other way:
+          // a card reward's Skip sits outside a card row whose up and down
+          // neighbours point back at itself, so there is no route to walk.
+          const bound = action.type === 'activate' ? pressableElement(state, action.target).press : null;
+          if (bound) {
+            const fresh = await this.observe();
+            const target = pressableElement(fresh, action.target);
+            if (fresh.ui?.scene_id !== action.scene || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
+            if (!target.label || target.ambiguous || target.press !== bound) throw new Error('activation semantics are unknown; inspect screenshot and report issue');
+            await this.button(bound);
+            state = await this.settled();
+            if (stateId(state) === stateId(fresh)) throw new Error('unknown activation outcome; explicit resume required');
+            completed.push({ action, verified: true, pressed: bound, barrier: 'activation: replan from fresh scene' });
+            this.record({ type: 'action', before, after: state, action, verified: true });
+            break;
+          }
           state = await this.navigateElement(action, state);
           if (action.type === 'activate') {
             // Re-read at the last possible moment; never retry an activation.
             const fresh = await this.observe();
             const target = targetElement(fresh, action.target);
             if (!target.label || target.ambiguous || target.activation !== 'a') throw new Error('activation semantics are unknown; inspect screenshot and report issue');
-            if (fresh.ui?.scene_id !== action.scene || fresh.ui.focused_element !== action.target || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
+            // Against the scene navigation actually finished on, not the one the
+            // plan was written against: a screen that settled while routing is
+            // already handled there, and the real precondition is that the
+            // intended element holds focus and nothing has happened since.
+            if (fresh.ui?.scene_id !== state.ui?.scene_id || fresh.ui.focused_element !== action.target || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
             await this.button('a');
             state = await this.settled();
             if (stateId(state) === stateId(fresh)) throw new Error('unknown activation outcome; explicit resume required');

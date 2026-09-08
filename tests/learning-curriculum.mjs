@@ -107,12 +107,34 @@ assert.equal(Object.values(frontier.curriculum_summary).reduce((n, x) => n + x.c
 // --- checking happens at progress boundaries, not every decision -----------
 planner.queue({ objective: 'Learn the Wriggler intent cycle', why: 'unknown elite', done_when: 'two full cycles observed', area: 'bestiary' });
 await curriculum.propose(inRun, { task: 't', decision: 40 });
+curriculum.crossedBoundary = false;
 assert.equal(curriculum.dueForCheck(inRun, 41), false, 'not before the first observation');
 curriculum.observe(inRun);
 assert.equal(curriculum.dueForCheck(inRun, 42), false, 'not while nothing has moved');
 const nextFloor = { ...inRun, run: { ...inRun.run, floor: 4 } };
+curriculum.observe(nextFloor);
 assert.equal(curriculum.dueForCheck(nextFloor, 41), false, 'not within the minimum gap');
 assert.equal(curriculum.dueForCheck(nextFloor, 45), true, 'a floor change is a boundary');
+
+// The crossing that combat swallows. In STS2 the floor advances exactly when a
+// fight starts, and the caller refuses to run the critic while state.battle is
+// set - so the decision that sees the transition is always skipped. Comparing
+// against the immediately previous decision therefore lost every boundary in the
+// run: the critic did not fire once in 85 decisions. The crossing has to survive
+// until a check consumes it.
+curriculum.lastCheckedAt = 50;
+curriculum.crossedBoundary = false;
+curriculum.observe(nextFloor);
+const inCombat = { ...inRun, run: { ...inRun.run, floor: 5 }, battle: { round: 1, enemies: [] } };
+curriculum.observe(inCombat);                       // the boundary, skipped by the caller
+curriculum.observe(inCombat);                       // several more combat decisions
+curriculum.observe(inCombat);
+const afterCombat = { ...inRun, run: { ...inRun.run, floor: 5 }, state_type: 'rewards' };
+curriculum.observe(afterCombat);
+assert.equal(curriculum.dueForCheck(afterCombat, 60), true, 'a boundary crossed during combat is still due once combat ends');
+curriculum.lastCheckedAt = 60;
+curriculum.crossedBoundary = false;
+assert.equal(curriculum.dueForCheck(afterCombat, 70), false, 'and it is consumed, not re-fired every decision after');
 
 // --- a run that ends closes whatever was open ------------------------------
 curriculum.closeRun(inRun, { decision: 50, result: 'lost' });
@@ -198,4 +220,4 @@ assert.deepEqual(summary.enemies, ['Wriggler']);
 assert.equal(summary.hp, 60);
 
 fs.rmSync(root, { recursive: true, force: true });
-console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget'] }));
+console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget'] }));

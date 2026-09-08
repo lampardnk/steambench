@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, needsScreenshot, plannerResult, plannerState, stateId, validatePlan } from './state.mjs';
+import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, needsScreenshot, plannerGuidance, plannerResult, plannerState, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
 import { Curriculum } from './curriculum.mjs';
 import { indexNotes, retrieve } from './retrieval.mjs';
@@ -18,6 +18,8 @@ import { indexNotes, retrieve } from './retrieval.mjs';
 // note-taking crowding out play.
 const BOOKKEEPING = new Set(['learn', 'recall', 'research', 'lookup']);
 const bookkeepingOnly = (plan) => plan.actions.every(action => BOOKKEEPING.has(action.type));
+const TRANSIENT_BACKOFF_MS = [2000, 5000, 12000, 30000];
+
 // One reversible directional press, sent to find out where focus actually is.
 // It answers a question, so a run of them means the question is not the problem.
 const probeOnly = (plan) => {
@@ -38,7 +40,7 @@ if (checkpoint?.version !== VERSION) checkpoint = null;
 const sessionId = randomUUID().slice(0, 8);
 const emit = event => process.stdout.write(JSON.stringify(event) + '\n');
 const usage = { requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, modelLatencyMs: 0, ...checkpoint?.usage };
-const policyHash = digest([PROFILE, ...['prompt.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'curriculum.mjs', 'retrieval.mjs', 'navigation.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
+const policyHash = digest([PROFILE, ...['prompt.txt', 'navigator.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'curriculum.mjs', 'retrieval.mjs', 'navigation.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
 const catalog = new ObservationCatalog(directory);
 const started = checkpoint?.started || Date.now();
 let totalInputs = checkpoint?.totalInputs || 0;
@@ -151,6 +153,7 @@ async function run(task) {
   let unchanged = 0;
   let stalePlans = 0;
   let refines = 0;
+  let upstreamRetries = 0;
   let quiet = 0;
   let probes = 0;
   let previous = '';
@@ -186,7 +189,7 @@ async function run(task) {
       beforeImage = null;
       let state;
       for (let refresh = 0; refresh <= 2; refresh++) {
-        try { state = await executor.settled(); break; }
+        try { state = await executor.quiesced(); break; }
         catch (error) { if (refresh === 2 || controller.signal.aborted) throw error; }
       }
       lastState = state;
@@ -264,11 +267,41 @@ async function run(task) {
       emit({ type: 'message_start' });
       act1Timer.start(state, freshRunVerified);
       saveMetrics();
-      try { plan = validatePlan(await planner.decide(context, image), state); }
+      // A menu is actuation, not play: there is no card, enemy or route to weigh,
+      // and running it through the full player prompt spends the gameplay context
+      // on button pressing. Hand those screens to the navigator, which sees the
+      // controls notes and the element list and nothing else.
+      const navigating = state.state_type === 'menu';
+      const navigatorContext = navigating ? {
+        goal: task.slice(0, 800),
+        observation_id: stateId(state),
+        scene_id: state.ui?.scene_id ?? null,
+        state_type: state.state_type,
+        menu_screen: state.menu_screen ?? null,
+        focused_element: state.ui?.focused_element ?? null,
+        focus_path: state.ui?.focus_path ?? null,
+        elements: (state.ui?.elements || []).filter(item => item.visible !== false)
+          .map(({ id, label, press, hotkeys, activation, selectable, enabled }) => ({ id, label, press, hotkeys, activation, selectable, enabled })),
+        controls_notes: retrieved.filter(note => /(?:^|\/)controls\//.test(note.path)),
+        learned_control_notes: notes.filter(path => /(?:^|\/)controls\//.test(path)).slice(0, 40),
+        last_result: lastResult,
+        user_instructions: instructions.slice(-3),
+      } : null;
+      if (navigating) record({ type: 'navigator_context', characters: JSON.stringify(navigatorContext).length, elements: navigatorContext.elements.length, controlNotes: navigatorContext.controls_notes.length });
+      try { plan = validatePlan(navigating ? await planner.navigate(navigatorContext) : await planner.decide(context, image), state); }
       catch (error) {
         controller.signal.throwIfAborted();
         record({ type: 'planner_failure', error: error.message });
-        refine(`planner: ${error.message}`, 'The plan was rejected before any input was sent, so the scene is unchanged. Fix exactly what this message names and answer again from the same observation.');
+        // The provider failing is not the model failing. Wait and ask again from
+        // a fresh observation, without spending a refinement round on it.
+        if (transientUpstream(error.message) && upstreamRetries < TRANSIENT_BACKOFF_MS.length) {
+          const waitMs = TRANSIENT_BACKOFF_MS[upstreamRetries++];
+          record({ type: 'upstream_retry', attempt: upstreamRetries, waitMs, error: error.message });
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+          controller.signal.throwIfAborted();
+          continue;
+        }
+        refine(`planner: ${error.message}`, plannerGuidance(error.message));
         continue;
       }
       controller.signal.throwIfAborted();
@@ -296,7 +329,7 @@ async function run(task) {
       const batchStarted = Date.now();
       const batchSensors = executionMetrics.sensors;
       const batchInputs = executor.inputs;
-      const result = await executor.execute(plan, state).catch(error => ({ error: error.message, code: error.code, completed: [] }));
+      const result = await executor.execute(plan, state).catch(error => ({ error: error.message, code: error.code, completed: [], staleState: error.state }));
       executionMetrics.batches++;
       executionMetrics.completedActions += result.completed.length;
       record({ type: 'decision_result', plan, completed: result.completed, error: result.error, latencyMs: Date.now() - batchStarted, sensorCalls: executionMetrics.sensors - batchSensors, inputs: executor.inputs - batchInputs });
@@ -307,6 +340,14 @@ async function run(task) {
         act1Timer.observe(result.state);
       }
       lastResult = plannerResult(result);
+      // A stale observation means the plan was never sent, not that it was
+      // wrong. Handing back only "use fresh state" makes the next call re-derive
+      // a screen it already understood, so give it what it decided last time and
+      // exactly what moved since.
+      if (result.code === 'stale_observation' && result.staleState) {
+        lastResult.previous_plan = { summary: plan.summary, actions: plan.actions };
+        lastResult.changed = stateDiff(state, result.staleState);
+      }
       emit({ type: 'tool_execution_end', toolCallId, toolName: 'sts2_execute', isError: Boolean(result.error), result: { content: [{ type: 'text', text: JSON.stringify(lastResult) }] } });
       fs.appendFileSync(path.join(directory, 'learning.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, kind: 'observed_outcome', evidence: toolCallId, completed: result.completed, error: result.error, ...learningDelta(state, result.state) }) + '\n');
       if (plan.strategy) strategy = plan.strategy;
@@ -332,6 +373,7 @@ async function run(task) {
       }
       stalePlans = 0;
       refines = 0;
+      upstreamRetries = 0;
     }
     throw new Error('800-decision run budget reached');
   } catch (error) {
