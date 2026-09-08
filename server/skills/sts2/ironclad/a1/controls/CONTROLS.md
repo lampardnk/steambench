@@ -162,6 +162,18 @@ A directional press that changes nothing means the focus was already at that
 edge of the reachable options. One standalone exploratory press is always safe;
 re-read the highlight before assuming a move is still needed.
 
+**READ THE SCREEN THE WAY A PLAYER LOOKS AT IT.** Every screen here is rows
+stacked top to bottom, and the pad walks them: the thing you want is above,
+below or beside where you are, and the press is towards it. Do not try to solve
+a route through the reported wiring and do not conclude a thing is unreachable
+because the wiring does not name a path - several screens are not wired the way
+they are drawn, and the potion strip, the combat rows and a reward list with
+auto-generated siblings are all walked rather than solved. Press towards it,
+look, press again. Directional presses activate nothing, so a wrong one costs a
+press. Give up only when focus stops moving on both axes, or comes back
+somewhere it has already been - a card row wraps into a closed loop on purpose,
+and there the answer really is a bound button.
+
 ## Execution contract (learning player)
 
 - Prefer `play` keyed by an observed card `instance_id`. The executor computes

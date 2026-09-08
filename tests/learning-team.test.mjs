@@ -1,4 +1,32 @@
 
+// When the wiring does not describe the screen, look at it and walk.
+//
+// The potion strip, the combat rows and an auto-named reward list are drawn as
+// rows but wired in ways navigationPath cannot cross, so it reported no route
+// and the run stopped where three presses in the obvious direction would have
+// arrived. This is the combat cycle: from the potion bar, `down` reaches the
+// hand through relics and the creatures.
+{
+  const box = (id, x, y, w = 60, h = 60) => ({ id, label: id, focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [x, y, w, h] });
+  // No `neighbors` anywhere, so navigationPath can find nothing at all.
+  const rows = [box('potion', 503, 9), box('relic', 12, 82), box('creature', 359, 462, 242, 278), box('card', 655, 650, 607, 760)];
+  const order = ['potion', 'relic', 'creature', 'card'];
+  const walked = [];
+  let at = 0;
+  const screen = () => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 }, player: { hp: 50, max_hp: 80, hand: [] },
+    ui: { scene_id: 'combat-1', focused_element: order[at], elements: rows } });
+
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (direction) => { walked.push(direction); if (direction === 'down') at = Math.min(at + 1, order.length - 1); };
+  executor.observe = async () => screen();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const landed = await executor.navigateElement({ type: 'activate', target: 'card', scene: 'combat-1' }, screen());
+  assert.equal(landed.ui.focused_element, 'card', 'it walks from the potion bar to the hand with no wiring at all');
+  assert.deepEqual(walked, ['down', 'down', 'down'], `and presses down each time: ${walked.join(',')}`);
+}
+
 // A bobbing sprite is not a new situation.
 //
 // Live, in combat: two elements' bounds drifted 400 -> 398 between reads, one

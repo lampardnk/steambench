@@ -1,4 +1,4 @@
-import { elements, pressableElement, targetElement, navigationPath } from './navigation.mjs';
+import { elements, pressableElement, targetElement, navigationPath, towards, across } from './navigation.mjs';
 import { indexNotes } from './retrieval.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -150,6 +150,43 @@ export class Executor {
     await this.sleep(180);
   }
 
+  /**
+   * Walk towards something the way a person does: look at where it is, press
+   * that way, look again.
+   *
+   * navigationPath only crosses a screen the game wired, and several screens
+   * are not wired the way they are drawn - the potion strip, the combat rows,
+   * a reward list whose siblings are auto-named. On those it reports no route
+   * and the run stops, when three presses in the obvious direction would have
+   * arrived. Every step here is verified by observation rather than predicted,
+   * and directional presses activate nothing, so being wrong costs one press.
+   *
+   * It gives up rather than guessing when focus stops moving on both axes, or
+   * comes back to somewhere it has already been - a card row wraps into a
+   * closed loop by design, and "no route" is the true answer there.
+   */
+  async walkToward(target, state, scene, before) {
+    const seen = new Set([state.ui?.focused_element]);
+    for (let step = 0; step < 12; step++) {
+      const here = targetElement(state, state.ui.focused_element);
+      const wanted = targetElement(state, target.id);
+      for (const direction of [towards(here, wanted), across(towards(here, wanted))]) {
+        await this.button(direction);
+        state = await this.observe();
+        if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
+        if (state.ui?.focused_element === target.id) return state;
+        if (state.ui?.focused_element && state.ui.focused_element !== here.id) break;
+      }
+      const landed = state.ui?.focused_element;
+      // Unmoved on both axes, or back somewhere already visited: this screen
+      // does not connect the two, and more presses will not change that.
+      if (!landed || landed === here.id || seen.has(landed)) return null;
+      seen.add(landed);
+      if (state.ui?.scene_id !== scene) scene = state.ui?.scene_id;
+    }
+    return null;
+  }
+
   async navigateElement(action, before) {
     let state = before;
     // Edges that were pressed and did not land where the graph predicted.
@@ -203,6 +240,9 @@ export class Executor {
       let route;
       try { route = navigationPath(state, state.ui.focused_element, target.id, 12, avoid); }
       catch (error) {
+        // The wiring does not describe this screen. Look at it instead.
+        const walked = await this.walkToward(target, state, scene, before);
+        if (walked) return walked;
         if (recovery === 2) throw error;
         state = await this.observe(); // read-only recovery; never invent a neighbor
         continue;
