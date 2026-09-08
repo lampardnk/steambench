@@ -195,16 +195,22 @@ export class Executor {
         state = await this.observe(); // read-only recovery; never invent a neighbor
         continue;
       }
-      let failed = false;
       for (const step of route) {
-        if (state.ui.focused_element !== step.from) { failed = true; break; }
+        if (state.ui.focused_element !== step.from) break;
         await this.button(step.direction);
         state = await this.observe();
         if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
-        if (state.ui?.scene_id !== scene) { failed = true; break; }
-        if (state.ui.focused_element !== step.to) { avoid.add(`${step.from}|${step.direction}`); failed = true; break; }
+        if (state.ui?.scene_id !== scene) break;
+        // Standing on the target is the whole point of the route, so it ends
+        // here whatever the graph expected. A reward screen names its rows
+        // with auto-generated siblings (@Control@1848), so a step can land
+        // correctly and still not equal the id the graph predicted; that used
+        // to mark the walk failed and, on the last recovery pass, throw while
+        // focus was already on the element the plan asked for.
+        if (state.ui.focused_element === target.id) return state;
+        if (state.ui.focused_element !== step.to) { avoid.add(`${step.from}|${step.direction}`); break; }
       }
-      if (!failed && state.ui.focused_element === target.id) return state;
+      if (state.ui.focused_element === target.id) return state;
       // Only directions with unchanged gameplay are recoverable, twice at most.
     }
     throw new Error('navigation recovery budget exhausted; explicit resume required');
