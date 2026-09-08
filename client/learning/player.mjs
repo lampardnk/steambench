@@ -6,7 +6,7 @@ import readline from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
-import { Executor, learnedFiles } from './executor.mjs';
+import { Executor, learnedFiles, SCRATCHPAD_NOTE, REFLECTION_HEADER } from './executor.mjs';
 import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, plannerGuidance, plannerResult, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { Actuator } from './actuator.mjs';
@@ -43,7 +43,7 @@ if (checkpoint?.version !== VERSION) checkpoint = null;
 const sessionId = randomUUID().slice(0, 8);
 const emit = event => process.stdout.write(JSON.stringify(event) + '\n');
 const usage = { requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, modelLatencyMs: 0, ...checkpoint?.usage };
-const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'actuator.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'actuator.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'navigation.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
+const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'actuator.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'reflection.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'actuator.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'navigation.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
 const catalog = new ObservationCatalog(directory);
 const started = checkpoint?.started || Date.now();
 let totalInputs = checkpoint?.totalInputs || 0;
@@ -236,6 +236,42 @@ async function run(task) {
    * facts the fight actually established - what it cost, what carried it, and
    * what the deck still cannot do.
    */
+  const readJsonl = (file, limit) => {
+    try {
+      return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(-limit)
+        .map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
+    } catch { return []; }
+  };
+  const readIncidents = (dir) => {
+    try {
+      return fs.readdirSync(path.join(dir, 'incidents'), { withFileTypes: true })
+        .filter(entry => entry.isDirectory()).slice(-12)
+        .map(entry => {
+          try {
+            const saved = JSON.parse(fs.readFileSync(path.join(dir, 'incidents', entry.name, 'incident.json'), 'utf8'));
+            return { id: saved.id, decision: saved.decision, error: String(saved.error || '').slice(0, 300), agent: saved.agents?.find(item => item.status === 'open')?.id ?? null };
+          } catch { return null; }
+        }).filter(Boolean);
+    } catch { return []; }
+  };
+
+  // The run's own account of itself, in the file a human reads afterwards.
+  //
+  // It used to be written only by a `learn` action, and across a 116-decision
+  // run - six incidents, five fights, an act cleared - not one was emitted, so
+  // the file stayed at its template header. Nothing here waits to be
+  // remembered: a fight writes its report when it closes, an incident writes
+  // itself when it pauses the run, and the team writes a reflection at the end.
+  // A room deleted mid-run therefore still leaves an account behind.
+  const reflect = (heading, lines) => {
+    const file = path.join(skillDir, SCRATCHPAD_NOTE);
+    const body = lines.filter(Boolean).map(line => `- ${line}`).join('\n');
+    if (!body) return;
+    try {
+      fs.appendFileSync(file, `${fs.existsSync(file) ? '' : REFLECTION_HEADER}## ${heading}\n\n${body}\n\n`);
+    } catch (error) { record({ type: 'reflection_write_failure', error: error.message }); }
+  };
+
   const closeFight = async (state, fallback) => {
     if (!fight) return;
     const { lane, kind } = fight;
@@ -254,6 +290,14 @@ async function run(task) {
     fs.appendFileSync(path.join(directory, 'encounters.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, lane, ...lastEncounter }) + '\n');
     roster.close(lane, { outcome: closing.outcome, summary: [closing.worked, closing.deck_need].filter(Boolean).join(' — ') || null });
     record({ type: 'encounter_close', agent: lane, ...lastEncounter });
+    reflect(`Encounter ${lane} — ${kind} on act ${fight.act} floor ${fight.floor}`, [
+      `Outcome: ${closing.outcome}${Number.isInteger(closing.hp_cost) ? `, cost ${closing.hp_cost} HP` : ''}.`,
+      fight.enemies?.length ? `Enemies: ${fight.enemies.join(', ')}.` : null,
+      closing.worked && `Worked: ${closing.worked}`,
+      closing.struggled && `Struggled: ${closing.struggled}`,
+      closing.deck_need && `Deck need: ${closing.deck_need}`,
+      closing.enemy_note && `Enemy note: ${closing.enemy_note}`,
+    ]);
     message(`Report: ${closing.outcome}${Number.isInteger(closing.hp_cost) ? `, ${closing.hp_cost} HP` : ''}.${closing.worked ? ` ${closing.worked}` : ''}${closing.deck_need ? ` Deck needs: ${closing.deck_need}` : ''}`, lane);
     delete laneResults[lane];
     fight = null;
@@ -327,6 +371,26 @@ async function run(task) {
         const finished = await gateway.call({ op: 'room-finish', result, summary });
         lifecycle = result;
         record({ type: 'run_finished', result, state });
+        reflect(`Run ${result}`, [summary, `Standing task: ${task.slice(0, 200)}`]);
+        // One call, at the one moment the whole run is visible. A failure here
+        // must never be what ends a run badly: the incremental sections above
+        // are already on disk and are the account that matters.
+        try {
+          const answer = await planner.ask({ role: 'reflection', agent: LANE.room, prompt: 'reflection.txt', context: {
+            ended: { result, act: state.run?.act ?? null, floor: state.run?.floor ?? null, decisions: decision, encounters: fights },
+            standing_task: task.slice(0, 1500),
+            objectives: curriculum.summary(),
+            encounter_reports: readJsonl(path.join(directory, 'encounters.jsonl'), 24),
+            incidents: readIncidents(directory),
+          }, deadlineMs: PROFILE.plannerDeadlineMs });
+          const list = (value) => (Array.isArray(value) ? value.map(item => String(item).slice(0, 300)) : []);
+          reflect('Reflection', [answer?.verdict && `**${String(answer.verdict).slice(0, 300)}**`]);
+          for (const [heading, key] of [['What went well', 'went_well'], ['What went wrong', 'went_wrong'],
+            ['Interface', 'interface'], ['Library gaps', 'library_gaps'], ['For the next run', 'next_run']]) {
+            reflect(heading, list(answer?.[key]));
+          }
+          message('Reflection written to scratchpad.md.', LANE.room);
+        } catch (error) { record({ type: 'reflection_failure', error: error.message }); }
         message(JSON.stringify(finished));
         return;
       }
@@ -512,6 +576,11 @@ async function run(task) {
   } catch (error) {
     lifecycle = 'paused';
     requiresResume = true;
+    reflect(`Paused at decision ${decision}`, [
+      `Error: ${error.message}`,
+      `Screen: ${lastState?.state_type ?? 'unknown'}${lastState?.ui?.scene_id ? ` (scene ${lastState.ui.scene_id})` : ''}, act ${lastState?.run?.act ?? '?'} floor ${lastState?.run?.floor ?? '?'}.`,
+      `Agent: ${error.lane || (fight ? fight.lane : 'strategist')}.`,
+    ]);
     if (fight) roster.close(fight.lane, { outcome: 'interrupted', summary: 'The run paused mid-encounter.' });
     await gateway.call({ op: 'pad-neutral' }, { timeoutMs: 3000 }).catch(() => {});
     let after = recentSensors.at(-1)?.state || lastState;

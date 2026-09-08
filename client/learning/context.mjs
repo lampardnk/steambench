@@ -75,9 +75,36 @@ export function addressable(item, focusedId) {
 }
 
 /** The element list as the actuator reads it: identity, label, and how to reach it. */
+/** Godot instance ids increase, so the larger id is the later node. */
+const generation = item => Number(String(item?.id ?? '').replace(/\D/g, '')) || 0;
+
+/**
+ * Collapse the ghosts of rebuilt overlays.
+ *
+ * Reopening a preview leaves the previous generation's nodes in the tree, still
+ * reported visible and still focusable. Live, one 3-card bundle reported nine
+ * cards and the name "Shrug It Off" matched three addressable elements, two of
+ * them at identical bounds - which is what defeated routing and burned the
+ * navigation budget. Same label at the same bounds is the same thing on screen;
+ * keep the later node, because that is the generation the game is driving.
+ */
+export function dedupeElements(items = []) {
+  const out = [];
+  const at = new Map();
+  for (const item of items) {
+    const bounds = Array.isArray(item?.bounds) ? item.bounds.join(',') : null;
+    if (!item?.label || !bounds) { out.push(item); continue; }
+    const key = `${item.label}|${bounds}`;
+    const index = at.get(key);
+    if (index === undefined) { at.set(key, out.length); out.push(item); continue; }
+    if (generation(item) > generation(out[index])) out[index] = item;
+  }
+  return out;
+}
+
 export function actuatorElements(state) {
   const focused = state.ui?.focused_element ?? null;
-  return (state.ui?.elements || [])
+  return dedupeElements(state.ui?.elements || [])
     .filter(item => addressable(item, focused))
     .map(({ id, label, press, hotkeys, activation, selectable, enabled, focus_mode }) => ({
       id, label: label ?? null, ...(press ? { press } : {}), ...(hotkeys?.length ? { hotkeys } : {}),

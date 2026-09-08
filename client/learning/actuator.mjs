@@ -1,5 +1,5 @@
 import { LANE } from './agents.mjs';
-import { actuatorContext, addressable } from './context.mjs';
+import { actuatorContext, addressable, dedupeElements } from './context.mjs';
 import { needsScreenshot, stateId, validatePlan } from './state.mjs';
 
 /**
@@ -39,7 +39,7 @@ export function matchElement(state, wanted) {
   const target = normalizeLabel(wanted);
   if (target.length < 2) return null;
   const focused = state.ui?.focused_element ?? null;
-  const candidates = (state.ui?.elements || []).filter(item => addressable(item, focused) && item.enabled === true && item.label);
+  const candidates = dedupeElements(state.ui?.elements || []).filter(item => addressable(item, focused) && item.enabled === true && item.label);
   const exact = candidates.filter(item => normalizeLabel(item.label) === target);
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) return null;

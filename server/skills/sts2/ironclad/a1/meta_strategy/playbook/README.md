@@ -13,18 +13,21 @@ sources: []
 
 > **Editable** — All content below is strategic inference or placeholder. Replace with patterns verified through live play. No thresholds, tier rankings, or matchup predictions should be treated as authoritative until observed.
 
-## Turn 1 General Priority (Template)
+## What a turn is made of
 
-A possible order of operations for turn 1 of combat. Not all steps are always correct:
+These are the things a turn can spend energy on. The order is a property of the
+fight in front of you — the intents, the hand, the HP — not of this list.
 
-1. Play Powers if drawn (common priority: scaling first, then defense).
-2. Apply debuffs (Vulnerable/Weak) before Attacks.
-3. Play Attacks with debuffs active.
-4. Block if incoming damage is lethal or threatens critical HP loss.
-5. Cycle (draw/return) to find key cards if energy remains.
-6. End turn.
+- **Powers** pay off over the remaining turns, so their value falls as a fight
+  gets shorter.
+- **Debuffs** applied before Attacks change what those Attacks do. Vulnerable
+  raises the damage *you* deal to the enemy; it does not change what the enemy
+  deals to you.
+- **Block** is spent against the damage actually intended this turn, which the
+  enemy intents state.
+- **Draw and cycling** convert leftover energy into options.
 
-{strategic inference} Exact ordering depends on the specific fight — adapt based on enemy intents and your current hand.
+{strategic inference} No ordering of these holds across fights. Read the intents.
 
 ## Boss Prep (Template)
 

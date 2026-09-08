@@ -25,57 +25,41 @@ Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028)
 | ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Merchant.png/42px-StS2_Map-Merchant.png) | **Merchant** | Shop: 5 character cards, 2 Colorless cards, 3 Relics, 3 Potions, 1 card removal |
 | ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Boss.png/42px-StS2_Map-Boss.png) | **Boss** | 3 Rare card choices, 100 Gold (75 at A3+), sometimes a Potion. Always has a Rest Site before it. |
 
-## Pathing Strategy (Strategic Inference)
+## What the act puts in front of you
 
-### Act 1 (Ascension 1 — 8 Elite nodes per act)
+### Act 1 (Ascension 1)
 
-**Core tension**: Elite hunting vs. survival. A1's modifier is **Swarming Elites — roughly 60% more elites spawn**, which is where the 5 → 8 figure comes from. Burning Blood heals 6 HP after every combat, making HP a more flexible resource.
-
-Two placement rules worth routing around, both sourced:
+- A1's modifier is **Swarming Elites** — roughly 60% more elites spawn, which is
+  where the 5 → 8 elite-node figure comes from.
+- Burning Blood heals 6 HP after every combat, so normal fights are not a
+  straight HP loss for the Ironclad the way they are for other characters.
 - The same elite can appear several times in an act, but **never twice in a row**.
-- The first three monster encounters of Act 1 come from an "easy pool"; every later monster fight is drawn from the harder pool. The step up after floor 3 is a real difficulty jump, not variance.
-
-**Priorities:**
-1. **3+ normal fights** before first elite: Build your deck with damage cards.
-2. **At least 1 Rest Site** before the first elite you face.
-3. **Fit a shop** if you have gold for removal/cards.
-4. **Fit the treasure chest** — guaranteed relic at act midpoint.
-
-**Elite routing**:
-- Take 2-3 elites on a path with adequate rest sites between them.
-- If you took early damage, path through more normal fights for healing (Burning Blood) rather than events.
-- Avoid pathing to boss without at least 1 rest site before it.
+- The first three monster encounters of Act 1 come from an "easy pool"; every
+  later monster fight is drawn from the harder pool. The step up after floor 3
+  is a real difficulty jump, not variance.
+- The treasure chest sits at the act midpoint and its relic is guaranteed.
+- A Rest Site always precedes the boss.
 
 ### Act 2
 
-**Pathing shifts**:
-- Enemies hit harder. Rest sites become more important.
-- Elite rewards continue to be important (relic scaling).
-- Events pool widens — some are very punishing, some are excellent.
-- Merchant for card removal becomes critical for thin deck strategies.
+- Enemy damage scales up; the same route costs more HP than it does in Act 1.
+- Elites continue to be the main source of relics.
+- The event pool widens considerably, in both directions.
+- The Merchant is the only reliable card removal.
 
 ### Act 3
 
-**Late game**:
-- You should have a clear win condition by now (Strength scaling, Exhaust engine, or Block shell).
-- Path toward rest sites before the Act 3 boss.
-- Avoid unnecessary elites if your deck isn't strong enough.
-- At A10, two bosses mean the last rest site is essential.
+- At A10 and above there are two bosses, and only one Rest Site before them.
 
-## Unknown Room Decision Guide
+## Unknown rooms
 
 Source: slaythespire.wiki.gg — unknown rooms have weighted spawns. Each missed encounter type increases its next spawn chance.
 
-| Situation | Preference |
-|---|---|
-| Need a relic | Skip ? unless Treasures are still possible |
-| Need a card reward | Prefer normal fights over ? |
-| Need healing/events | ? rooms are fine — some events heal |
-| Need gold | ? rooms can be Merchant, Treasure, or Monster |
-| Need a break from fights | Take ? — could be Merchant, Treasure, or Event |
+A `?` node can resolve to an Event, a Merchant, a Treasure or a Monster. The
+weighting shifts as an act goes on: each type that has not yet appeared becomes
+more likely next time.
 
 ## Source Attribution
 
 - Map location types and rules from slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028).
 - A1 elite count (5 -> 8) from slaythespire2.net Ascension table (beta v0.111.0).
-- **Pathing strategy and priority ordering are strategic inference based on Ironclad's starting relic and card pool.**
