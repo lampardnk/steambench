@@ -51,7 +51,7 @@ export class Planner {
     if (!process.env[PROFILE.apiKeyEnv]) throw new Error(`${PROFILE.apiKeyEnv} is required`);
     const prompt = fs.readFileSync(new URL(`./${promptFile}`, import.meta.url), 'utf8');
     return new Promise((resolve, reject) => {
-      const child = spawn('pi', ['--mode', 'rpc', '--no-session', '--provider', PROFILE.provider, '--model', PROFILE.model, '--no-tools', '--no-extensions', '--no-skills', '--no-context-files', '--no-prompt-templates', '--offline', '--system-prompt', prompt], { stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn('pi', ['--mode', 'rpc', '--no-session', '--provider', PROFILE.provider, '--model', PROFILE.model, ...(PROFILE.reasoning && PROFILE.reasoning !== 'default' ? ['--thinking', PROFILE.reasoning] : []), '--no-tools', '--no-extensions', '--no-skills', '--no-context-files', '--no-prompt-templates', '--offline', '--system-prompt', prompt], { stdio: ['pipe', 'pipe', 'pipe'] });
       if (primary) this.child = child;
       let answer = '';
       let stderr = '';

@@ -13,17 +13,23 @@ export const MODEL_PROFILES = Object.freeze({
     baseUrl: 'https://api.experientiallabs.ai/v1',
     model: 'gpt-5.6-luna',
     apiKeyEnv: 'EXPLABS_API_KEY',
-    // The model reasons, and the provider's own default effort is what was
-    // measured: 137-190 reasoning tokens and 2-9 seconds on real contexts.
+    // 'max' is pi's own thinking level (off|minimal|low|medium|high|xhigh|max).
+    // It only reaches the model when models.json also lets the effort parameter
+    // through: measured on one combat turn, --thinking alone changed nothing
+    // (~800 reasoning tokens either way, the variance swamping the setting),
+    // and with supportsReasoningEffort on it went to 1350-3771. Latency rises
+    // with it, 10s to 17-44s, which is inside plannerDeadlineMs and is the
+    // trade being made. Reasoning is spent out of max_tokens here, so maxTokens
+    // rises with it or the answer itself gets truncated.
     // Asking for an explicit effort changed neither, so nothing is sent - the
     // request stays minimal, which the capability probe enforces.
-    reasoning: 'default',
+    reasoning: 'max',
     // Reasoning tokens are spent out of this budget, so it is not the size of
     // the answer - it is the size of the answer plus everything the model
     // thought first. A 64-token cap on this model returned finish_reason
     // "length" with 64 reasoning tokens and no content at all, which is the
     // exact failure that ended rooms on the previous one.
-    maxTokens: 16384,
+    maxTokens: 65536,
     contextWindow: 1050000,
   },
   orcarouter: {
