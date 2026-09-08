@@ -14,6 +14,10 @@ export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item =>
 // still screen costs one extra read; only a screen that keeps moving - a reward
 // dealing its cards in - spends the budget, and 1.5s is shorter than the model
 // call it protects.
+// The combat screen's focus rows, top to bottom: potions, relics, the
+// creatures, the hand. `down` walks them and wraps, so one full pass always
+// finds the hand if the hand can be focused at all.
+const COMBAT_FOCUS_ROWS = 4;
 const QUIESCE_MS = 150;
 const QUIESCE_READS = 10;
 
@@ -21,9 +25,10 @@ const QUIESCE_READS = 10;
 // copy, so it rides the end-of-room commit into the library's history where a
 // human can read it. Nothing under this file is ever retrieved or inherited.
 export const SCRATCHPAD_NOTE = 'scratchpad.md';
-const SCRATCHPAD_HEADER = ['# Staged notes', '',
-  'Proposals written by the player during a run. NOT part of the library: nothing here',
-  'is retrieved, inherited or trusted. A human merges what is worth keeping.', '', '---', ''].join('\n');
+export const REFLECTION_HEADER = ['# Run reflection', '',
+  'What this run learned, written as it happened and closed with the team\'s own',
+  'reflection. NOT part of the library: nothing here is retrieved, inherited or',
+  'trusted by a later room. A human reads it and decides what is worth keeping.', '', '---', ''].join('\n');
 
 export class Executor {
   constructor({ call, record = () => {}, signal, skillDir = null }) {
@@ -54,7 +59,7 @@ export class Executor {
       const file = path.join(path.resolve(this.skillDir), SCRATCHPAD_NOTE);
       const entry = [`## ${action.path}`, '', `- proposed: ${new Date().toISOString()}`, `- message: ${action.message}`, '',
         action.content.trim(), '', '---', ''].join('\n');
-      fs.appendFileSync(file, (fs.existsSync(file) ? '' : SCRATCHPAD_HEADER) + entry);
+      fs.appendFileSync(file, (fs.existsSync(file) ? '' : REFLECTION_HEADER) + entry);
       const response = await this.call({ op: 'skill-commit', message: action.message });
       return {
         action, verified: true, staged: SCRATCHPAD_NOTE, proposed_path: action.path,
@@ -215,6 +220,31 @@ export class Executor {
     throw new Error(`${button} did not change ${field}; refusing another navigation input`);
   }
 
+  /**
+   * Combat focus is one vertical cycle - potions, relics, the creatures, the
+   * hand - and `down` walks it, wrapping back to the hand. So a hand that has
+   * lost focus is never more than a lap away.
+   *
+   * This used to press `down` exactly once and give up if that did not land on
+   * a card. From the potion row it lands on relics, which is not the hand, so
+   * it threw; the model then re-issued the same play, the same single press
+   * happened again, and the run sat there. That was four supervisor pauses and
+   * a turn thrown away on a screen where holding `down` would have worked.
+   */
+  async focusHand(before) {
+    let path = before.ui?.focus_path ?? null;
+    for (let lap = 0; lap < COMBAT_FOCUS_ROWS; lap++) {
+      await this.button('down');
+      for (let attempt = 0; attempt < 6; attempt++) {
+        const state = await this.observe();
+        if (state.ui?.focused_card != null) return state;
+        if ((state.ui?.focus_path ?? null) !== path) { path = state.ui?.focus_path ?? null; break; }
+        await this.sleep(100);
+      }
+    }
+    throw new Error('a full pass of down never reached the hand; inspect the screenshot');
+  }
+
   async navigateHand(cardId, before) {
     const hand = [...before.player.hand].sort((a, b) => a.index - b.index);
     const focused = hand.findIndex(card => card.instance_id === before.ui.focused_card);
@@ -248,9 +278,7 @@ export class Executor {
       if (state.ui.in_card_play) throw new Error('could not cancel a different card selection');
     }
     if (!state.ui.in_card_play) {
-      if (state.ui.focused_card == null) {
-        state = await this.focusChange('down', state, 'focused_card');
-      }
+      if (state.ui.focused_card == null) state = await this.focusHand(state);
       state = await this.navigateHand(action.card, state);
       if (state.ui?.focused_card !== action.card) throw new Error('failed to focus intended card');
       await this.button('a');

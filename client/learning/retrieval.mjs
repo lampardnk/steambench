@@ -117,17 +117,21 @@ export function indexNotes(skillDir) {
  * and ascension identify the run and would otherwise drag the same setup notes
  * to the top of every screen.
  */
+// What a term is worth. SUBJECT is what the situation is ABOUT - the enemies,
+// the event, the screen. SETUP is the run it belongs to. CONTEXT is everything
+// merely present: a relic, a card in hand, a word from the objective's prose.
+const SUBJECT = 4;
+const SETUP = 2;
+const CONTEXT = 1;
+
 export function situationTerms(state, objective) {
   const weights = new Map();
   const add = (weight, text) => {
     for (const term of terms(text)) weights.set(term, Math.max(weights.get(term) || 0, weight));
   };
-  const SUBJECT = 4;
-  const SETUP = 2;
-  const CONTEXT = 1;
   for (const enemy of state?.battle?.enemies || []) { add(8, enemy.name); for (const power of enemy.powers || []) add(5, `${power.name} ${power.description || ''}`); }
   for (const power of state?.player?.powers || []) add(5, `${power.name} ${power.description || ''}`);
-  if (/neow/i.test(state?.event?.name || '')) add(6, 'neow route pools preparation');
+  if (/neow/i.test(state?.event?.name || '')) add(SUBJECT + 2, 'neow');
   add(SUBJECT, state?.event?.name || state?.event?.event_name);
   const character = state?.run?.character || state?.player?.character;
   const ascension = state?.run?.ascension;
@@ -136,8 +140,8 @@ export function situationTerms(state, objective) {
   const short = terms(character).at(-1);
   if (short && ascension != null) weights.set(`${short}-a${ascension}`, SETUP);
   if (ascension != null) weights.set(`ascension-${ascension}`, SETUP);
-  add(CONTEXT, state?.state_type);
-  add(CONTEXT, state?.menu_screen);
+  add(SETUP, state?.state_type);
+  add(SETUP, state?.menu_screen);
   for (const relic of (state?.relics || []).slice(0, 12)) add(CONTEXT, relic.name);
   for (const card of (state?.player?.hand || []).slice(0, 12)) add(CONTEXT, card.name);
   add(CONTEXT, objective?.text);
@@ -153,7 +157,14 @@ function score(note, { weights, area, generic = new Set() }) {
     if (!points) continue;
     total += weight * points;
     hits.add(term);
-    if (!generic.has(term)) situational = true;
+    // A note has to match this situation's SUBJECT - an enemy, the event, the
+    // screen - and not merely a word the situation happened to contain. A
+    // single ordinary word used to be enough on its own, which is how an Act 1
+    // event note about a bridge was read on 81 of 83 decisions (it matched
+    // "act" and "hp"), and how both Underdocks rosters were loaded during
+    // every Overgrowth fight: they name no enemy that was present, but they
+    // are Ironclad act 1 notes and that used to qualify them.
+    if (!generic.has(term) && weight >= (EVENT_NOTE.test(note.path) ? SUBJECT : SETUP)) situational = true;
   }
   // Matching nothing but terms that match everything is not a match.
   if (!situational) return { total: 0, hits: [] };
@@ -178,6 +189,12 @@ function score(note, { weights, area, generic = new Set() }) {
  * combat the enemy is the subject and ordinary relevance decides.
  */
 const CONTROLS_NOTE = /(?:^|\/)controls\//;
+// A note about one event - an unknown room, Neow - is relevant when that event
+// is on screen and at no other time. NEOW.md is 9.6KB about floor 0 and was
+// read on 61 of 83 decisions because it mentions the map; the twenty-odd
+// unknown-room notes rode along the same way. These need their own subject,
+// not merely a word they share with the screen.
+const EVENT_NOTE = /(?:^|\/)act\d\/(?:unknown|ancient)\//;
 
 /**
  * The controls notes, whatever the screen is.

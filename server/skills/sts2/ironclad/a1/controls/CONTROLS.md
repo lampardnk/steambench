@@ -97,23 +97,33 @@ overlay listing the whole deck appears, `b` closes it.
   navigating to the next card.
 - **Main menu.** A visibly loaded main menu can report null focus. One `a`
   establishes focus on SingleplayerButton; observe before activating anything.
-- **Top-bar panels during combat.** `x` opens the potion panel and focus lands
-  INSIDE the popup on its Discard button - one `a` there throws the potion away.
-  `b` closes the panel, but focus returns to the combat field
-  (`AllyContainer/Creature/Hitbox`), not to the hand.
-- **`focused_card` null in combat means focus is outside the hand**, not that
-  input was lost. Directional presses do not find their way back: `down` from
-  the ally creature, and from the top bar, wanders between relics, potions and
-  the field, and each attempt trips the no-progress guard. The hand's cards are
-  ordinary addressable elements - the card name is the label, `focus_mode` is
-  `all` and `activation` is `a` - so route to one BY LABEL and focus lands in
-  the hand. Never plan a card play while `focused_card` is null.
-- **Two enabled controls can share one bound button.** `SelectModeConfirmButton`
-  and `End Turn 2` both report `press: y` in combat; `View Upgrades` and
-  `Confirm` both report `press: y` in the card zoom. The press reaches only one
-  of them, so when the screen does not change the way a bound button promised,
-  look for a second element carrying the same `press` before concluding the
-  input failed.
+- **Top-bar panels during combat.** `x` opens the potion panel. Focus lands in
+  the popup, and Discard has been observed under it - Use sits directly above,
+  so `up` reaches it. `b` closes the panel and returns focus to the combat
+  field, which is one `down` short of the hand.
+- **Combat focus is one vertical cycle, and `down` walks it.** The rows are, top
+  to bottom: potion slots, relics, the allies-and-enemies field, the hand - then
+  it wraps back to the potions. Left and right move within a row. The hand is
+  focused when a turn begins; `x` jumps to the potions; `down` from there goes
+  relics, then the field, then back into the hand.
+- **`focused_card` null means focus is outside the hand**, not that input was
+  lost, and the hand is never more than one lap of `down` away. KEEP PRESSING
+  `down` until a card is focused rather than concluding a press failed - one
+  `down` that lands on relics has not failed, it has moved one row. There is no
+  interface state here worth losing a turn over. The hand's cards are also
+  ordinary addressable elements - the card name is the label - so routing to one
+  by label works too.
+- **Two enabled controls can share one bound button, and the innermost one
+  wins.** `SelectModeConfirmButton` and `End Turn 2` both report `press: y` in
+  combat; `View Upgrades` and `Confirm` both report `press: y` in the card zoom.
+  The press goes to whatever opened most recently: with a selection active `y`
+  confirms the selection rather than ending the turn, and inside the card zoom
+  `y` toggles the upgrade view rather than confirming the bundle. So close the
+  inner thing first with `b`, then press the button you meant.
+- **When the interface is in a state you cannot read, fuzz out of it.** A `b`,
+  or a few directional presses, returns almost any screen to somewhere
+  recognisable, and both are reversible. Do that and re-observe before reporting
+  an issue: an unfamiliar overlay is not an incident.
 
 A directional press that changes nothing means the focus was already at that
 edge of the reachable options. One standalone exploratory press is always safe;

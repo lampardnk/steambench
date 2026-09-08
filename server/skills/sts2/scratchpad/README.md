@@ -1,44 +1,44 @@
-# Scratchpad & Encounter Guide (Run-Local State)
+# Scratchpad — run-local state
 
-`/workspace/skills/sts2/scratchpad/` contains ephemeral, per-run state. It is archived with the room upon completion/deletion and **never inherited across seeds**. Durable, seed-invariant knowledge belongs in `learned/` (or the persistent skill tree).
+`/workspace/skills/sts2/scratchpad/` holds per-run state. It is archived with
+the room and **never inherited across seeds**: every run is a different map,
+different offers and different rolls, so nothing here is read by a later room.
 
----
+The run's own account of itself is **not** in this directory. It is written to
+`skills/sts2/scratchpad.md`, one level up — the encounter reports as fights
+close, the incidents as they pause the run, and the team's reflection when the
+run ends. That file is for a human to read afterwards.
 
-## 1. Scratchpad File Manifest
+## What is in here
 
-| File / Directory | Scope & Purpose | Lifecycle |
+| File | What it holds | Lifecycle |
 |---|---|---|
-| `facts.json` | Authoritative observation snapshot of current game state. | Overwritten each decision. |
-| `run.md` | Strategic hypothesis, deck plan, current route, and last verified outcome. | Updated periodically across floors. |
-| `events.jsonl` | Append-only event log of observations, attempted inputs, verified actions, errors, and model token usage. | Appended each decision. |
-| `metrics.json` | Cumulative decision count, wall time, verified plays, sensor readings, and execution overhead. | Updated each decision. |
-| `curriculum.json` | Run-local objective ladder view. (Durable ladder stored in `learned/curriculum.json`). | Updated upon objective settlement. |
-| `checkpoint.json` | Atomic run state (task, strategy, startup verification, counters, pending incident) used for player-only container reloads. | Restored on reload; saved periodically. |
-| `incidents/<id>/` | Immutable incident directories capturing before/after states, sensor rings, screenshots, and plan data upon any failure. | Created on first failure. |
-| `attention.json` | Pointer to the active unresolved incident requiring review. | Managed by supervisor/player. |
-| `incident-resolutions.jsonl` | Journal of supervisor reviews, fix explanations, or chat replies that resumed an incident. | Appended on resume. |
-| `observed-catalog.json` | Bounded catalog of card, enemy, and event variants observed during this run. | Appended during run. |
-| `learning.jsonl` | Required pre-action hypotheses and separately recorded observed outcomes. | Appended each decision. |
+| `facts.json` | Snapshot of the game state the last decision was made against. | Overwritten each decision. |
+| `run.md` | The strategy hypothesis and the last verified result. | Rewritten each decision. |
+| `events.jsonl` | Observations, attempted inputs, verified actions, errors, token usage. | Appended each decision. |
+| `metrics.json` | Decisions, wall time, verified plays, execution overhead, the agent roster. | Updated each decision. |
+| `objectives.json` | The objective ladder: what the curriculum opened, how the critic settled it. | Updated on settlement. |
+| `encounters.jsonl` | One handoff report per fight — outcome, HP cost, what worked, what the deck needs. | Appended when a fight closes. |
+| `encounter.json` | The fight currently open, if any. | Overwritten during combat. |
+| `candidates.jsonl` | The plans considered and the one chosen. | Appended each decision. |
+| `learning.jsonl` | Pre-action hypotheses, and the outcomes actually observed. | Appended each decision. |
+| `observed-catalog.json` | Bounded catalog of card, enemy and event variants seen this run. | Appended during the run. |
+| `checkpoint.json` | Atomic run state, used when the player container reloads without restarting the game. | Saved periodically. |
+| `act1-timer.json` | Wall time spent in Act 1, for pacing. | Updated each decision. |
+| `incidents/<id>/` | Immutable capture of one failure: before and after state, sensor ring, screenshot, the rejected plan. | Created on each pause. |
+| `attention.json` | Pointer to the unresolved incident, when one is open. | Written on pause, cleared on resume. |
+| `incident-resolutions.jsonl` | The supervisor reviews that resumed the run. | Appended on resume. |
 
----
+## What belongs in the library instead
 
-## 2. In-Combat Encounter Scratchpad (`EncounterScratchpad`)
+Anything true of the seed is worthless next run: a map roll, an offer, a turn
+transcript. What transfers goes to a human as a proposal in `scratchpad.md`,
+and a human decides whether it joins the library:
 
-During combat encounters, `client/learning/encounter.mjs` reconstructs a structured combat model from authoritative STS2 mod state. It does not carry forward unverified assumptions or stale deck orders.
+- How a screen behaves, and which control drives it → `ironclad/a1/controls/`.
+- What an act can put in front of you → `ironclad/a1/act1/{normal,elite,boss,unknown,ancient,potion}/`.
+- Rules that hold across runs → `ironclad/a1/meta_strategy/{buffs,debuffs,mechanics,map,keywords,cards,relics,restsite,merchant,rewards,deck_archetypes,playbook}/`.
 
-### Key Invariants
-1. **Fresh State Authority:** Piles (hand, draw pile, discard pile, exhaust pile), powers, and enemy intents replace all earlier memory upon each observation.
-2. **Draw Pile Order:** Draw pile cards are reported as a set/collection with instance IDs; **draw order is hidden and never predicted**.
-3. **Combat IDs vs Display IDs:** Enemies are tracked strictly by immutable `combat_id`. Display IDs (e.g. `TOADPOLE_0`) renumber upon enemy deaths and must not be used for target binding.
-4. **Damage & Restriction Tracking:** Power effects (e.g. Vulnerable, Weak, Strength, Intangible, Block, Damage Caps) are parsed for both player and enemies to compute actual incoming/outgoing damage.
-5. **Verified Recent Effects:** Tracks up to the last 4 verified combat actions and their direct state deltas.
-
----
-
-## 3. Ephemeral vs Durable Separation
-
-- **Never Put in Scratchpad as Permanent Truth:** Single-seed map roll paths, individual RNG card roll results, or one-off turn transcripts.
-- **When to Promote to `learned/`:**
-  - An enemy's intent graph or attack rotation pattern (to `bestiary/`).
-  - General card synergy or energy management rules (to `strategy/`).
-  - UI control quirks, menu navigation topologies, or focus mechanics (to `controls/`).
+`controls/CONTROLS.md` is the file kept current by hand against this build. It
+is the one an agent should reach for first when the interface, rather than the
+game, is the obstacle.

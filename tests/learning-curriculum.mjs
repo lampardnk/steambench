@@ -190,7 +190,7 @@ const fighting = { state_type: 'battle', run: { act: 1, floor: 5, ascension: 1, 
 const terms = situationTerms(fighting, { text: 'Learn the Wriggler intent cycle', area: 'bestiary' });
 assert.equal(terms.weights.get('wriggler'), 8, 'the enemy in front of the player is the most specific term');
 assert.equal(terms.weights.get('ironclad-a1'), 2, 'this exact character and ascension is a weaker retrieval key');
-assert.equal(terms.weights.get('battle'), 1);
+assert.equal(terms.weights.get('battle'), 2, 'the kind of screen is a subject too: a map note is what a map screen is about');
 
 const found = retrieve(skillDir, index, fighting, { text: 'Learn the Wriggler intent cycle', area: 'bestiary' });
 assert.equal(found[0].path, 'bestiary/wriggler.md', 'the enemy on screen outranks everything else');
