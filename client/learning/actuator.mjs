@@ -51,14 +51,46 @@ export function matchElement(state, wanted) {
 }
 
 /**
- * A plan for this intent without asking anyone, or null. The intent is honoured
- * exactly: a named label that resolves becomes an activation of that control,
- * and nothing else is inferred from the goal text - guessing a target out of a
- * sentence is the hallucination this whole split exists to remove.
+ * The screen-level commands. A goal that opens with one of these is asking for
+ * that button, whatever else the sentence mentions.
+ */
+const COMMANDS = ['confirm', 'cancel', 'proceed', 'continue', 'leave', 'skip', 'close', 'back', 'done', 'buy', 'purchase', 'rest', 'smith', 'upgrade', 'remove', 'embark', 'abandon'];
+
+/**
+ * A command control the goal names, or null. "Confirm the transformation of the
+ * selected Strike" names two things - the command and the card - and a resolver
+ * that only reads target_label picks the card.
+ */
+export function commandElement(state, goal) {
+  const words = new Set(normalizeLabel(goal).split(' '));
+  const named = COMMANDS.filter(command => words.has(command));
+  if (named.length !== 1) return null;
+  return matchElement(state, named[0]);
+}
+
+/**
+ * A plan for this intent without asking anyone, or null. Deterministic
+ * resolution is an optimisation, so it declines whenever it is not certain -
+ * the model sees the whole screen and costs a couple of seconds.
+ *
+ * Nothing is inferred from the goal text beyond that: guessing a target out of
+ * a sentence is the hallucination this whole split exists to remove.
  */
 export function resolveIntent(state, intent) {
   const element = intent?.target_label ? matchElement(state, intent.target_label) : null;
   if (!element) return null;
+  // The goal named a command AND the label named something else. A real run
+  // asked to "confirm the transformation of the currently selected Strike" with
+  // target_label "Strike", and this resolved to the Strike card - which was not
+  // even actuatable - instead of Confirm. Which one is meant is a judgement, so
+  // it is not made here.
+  const command = commandElement(state, intent.goal);
+  if (command && command.id !== element.id) return null;
+  // A control is only reachable by its bound button, or by routing to it from
+  // whatever holds focus now. On an overlay that adopts no focus at all - the
+  // transform preview is one - an element with no bound button cannot be
+  // reached, and resolving to it produces a plan that cannot run.
+  if (!element.press && !state.ui?.focused_element) return null;
   return {
     observation: stateId(state),
     summary: `Activate ${element.label}`,

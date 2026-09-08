@@ -170,7 +170,15 @@ export class Executor {
       // nothing, so it is the safe way to make the screen adopt a focus before
       // routing from it.
       if (!state.ui.focused_element) {
-        if (recovery === 2) throw new Error('nothing holds focus on this screen, so no route can start; press one direction and read where focus lands');
+        if (recovery === 2) {
+          // Two reversible presses have already been spent trying to make the
+          // screen adopt a focus. It has not, so this is a screen driven by
+          // bound buttons rather than by the pad - saying "press a direction"
+          // here sends the next plan back into what just failed. Name what is
+          // actually reachable instead.
+          const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
+          throw new Error(`this screen adopts no focus, so no route can start and ${action.target} cannot be reached by navigating${bound.length ? `; it is driven by bound buttons: ${bound.slice(0, 8).join(', ')}` : ''}`);
+        }
         await this.button('down');
         state = await this.observe();
         continue;

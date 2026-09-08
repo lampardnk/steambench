@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
-import { Actuator, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
+import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor } from '../client/learning/executor.mjs';
@@ -295,4 +295,37 @@ test('a screen that re-rolls on its own is one screen, not a new one every secon
   executor.sleep = async () => {};
   const settled = await executor.quiesced();
   assert.match(settled.ui.scene_id, /^transform-preview:/);
+});
+
+test('the label match declines whenever it is not certain, and the model is asked instead', () => {
+  // Verbatim from the run this came out of: the strategist asked to confirm the
+  // transform and named the card in the sentence, and the resolver picked the
+  // card - which the screen could not even activate - instead of Confirm.
+  const { reads: [screen] } = JSON.parse(fs.readFileSync(new URL('./fixtures/transform-preview-roll.json', import.meta.url), 'utf8'));
+  assert.equal(screen.ui.focused_element, null, 'this overlay adopts no focus at all');
+  const strike = screen.ui.elements.find(item => item.label === 'Strike' && item.focus_mode === 'all');
+  assert.ok(strike && strike.press === undefined, 'and the card carries no bound button, so it is unreachable');
+  assert.ok(screen.ui.elements.some(item => item.label === 'Confirm' && item.press === 'y'));
+
+  assert.equal(matchElement(screen, 'Strike').id, strike.id, 'the label still matches');
+  assert.equal(resolveIntent(screen, { goal: 'Confirm the transformation of the currently selected Strike', target_label: 'Strike' }), null,
+    'nothing with no bound button and no focus to route from can be actuated, so it is not resolved');
+  assert.equal(resolveIntent(screen, { goal: 'pick that card', target_label: 'Strike' }), null);
+  // Focus existing is enough to make routing worth attempting.
+  const focused = { ...screen, ui: { ...screen.ui, focused_element: strike.id } };
+  assert.equal(resolveIntent(focused, { goal: 'pick that card', target_label: 'Strike' }).actions[0].target, strike.id);
+
+  // The same sentence on a screen where the card IS reachable: two readings of
+  // one goal is a judgement, and it is not made here.
+  const simple = { state_type: 'card_select', ui: { sensor_version: 5, scene_id: 'sc', focused_element: 'card', elements: [
+    { id: 'card', label: 'Strike', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} },
+    { id: 'ok', label: 'Confirm', visible: true, enabled: true, selectable: false, focus_mode: 'none', press: 'y', neighbors: {} },
+  ] } };
+  assert.equal(commandElement(simple, 'Confirm the transformation of the currently selected Strike').id, 'ok');
+  assert.equal(resolveIntent(simple, { goal: 'Confirm the transformation of the currently selected Strike', target_label: 'Strike' }), null);
+  assert.equal(resolveIntent(simple, { goal: 'confirm it', target_label: 'Confirm' }).actions[0].target, 'ok');
+  assert.equal(resolveIntent(simple, { goal: 'take that card', target_label: 'Strike' }).actions[0].target, 'card');
+
+  // The ordinary case is untouched: one named control, no competing command.
+  assert.equal(resolveIntent(reward, { goal: 'skip this reward', target_label: 'Skip' }).actions[0].type, 'activate');
 });
