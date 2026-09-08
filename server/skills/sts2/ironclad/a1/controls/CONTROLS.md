@@ -90,10 +90,15 @@ overlay listing the whole deck appears, `b` closes it.
 - **Rest sites.** Read `rest_site.options` and their enabled state; services vary
   by run. An empty `options` with `can_proceed` true is a resolved site, not
   missing UI: `y` proceeds.
-- **Hand-selection overlays.** `hand_select.cards` is the candidate set and may
-  omit cards already in `selected_cards` rather than repeating the whole hand.
-  `a` selects the focused candidate and `can_confirm` reports whether the
-  selection is valid; confirmation is a separate control.
+- **Every selection screen confirms separately, and `can_confirm` says when.**
+  `hand_select` and `card_select` name a candidate set and a prompt; `a` on a
+  candidate selects it and NEVER finishes the screen. The finishing control is a
+  separate element labelled Confirm, bound to `y`. When `can_confirm` is already
+  true, the screen is satisfied and `y` is the whole remaining move - pressing
+  `a` on a card again does nothing at all, and a prompt saying "up to N" is
+  satisfied by fewer than N, including none. `hand_select.cards` may omit cards
+  already in `selected_cards` rather than repeating the whole hand, so a
+  shrinking candidate list is selection working, not cards disappearing.
 - **Zero energy.** Every card with a positive cost reports `can_play: false` with
   `EnergyCostTooHigh`. Costs are reported as STRINGS ("2"), so compare them as
   numbers. A batch spends energy as it goes: sum the whole plan against the

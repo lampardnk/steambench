@@ -1,4 +1,13 @@
 import { elements, pressableElement, targetElement, navigationPath, towards, across } from './navigation.mjs';
+
+/** The bound buttons a stuck screen still offers, named in the error. */
+export function reachable(state) {
+  const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
+  const gates = ['can_confirm', 'can_proceed', 'can_cancel']
+    .flatMap(key => Object.entries(state || {}).filter(([, value]) => value && typeof value === 'object' && value[key] === true).map(([name]) => `${name}.${key}`));
+  const parts = [bound.length ? `bound buttons: ${bound.slice(0, 8).join(', ')}` : '', gates.length ? `screen reports ${gates.join(', ')}` : ''].filter(Boolean);
+  return parts.length ? `; ${parts.join('; ')}` : '';
+}
 import { indexNotes } from './retrieval.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -186,6 +195,13 @@ export class Executor {
     }
     return null;
   }
+
+  /**
+   * What the screen still offers, for an error that would otherwise be a dead
+   * end. "Unknown activation outcome" told the run nothing it could act on; a
+   * card-select screen that was already satisfied and only needed its Confirm
+   * paused a run instead.
+   */
 
   async navigateElement(action, before) {
     let state = before;
@@ -442,7 +458,7 @@ export class Executor {
             if (!target.label || target.ambiguous || target.press !== bound) throw new Error('activation semantics are unknown; inspect screenshot and report issue');
             await this.button(bound);
             state = await this.settled();
-            if (stateId(state) === stateId(fresh)) throw new Error('unknown activation outcome; explicit resume required');
+            if (stateId(state) === stateId(fresh)) throw new Error(`pressing ${bound} on ${action.target} changed nothing${reachable(state)}`);
             completed.push({ action, verified: true, pressed: bound, barrier: 'activation: replan from fresh scene' });
             this.record({ type: 'action', before, after: state, action, verified: true });
             break;
@@ -460,7 +476,7 @@ export class Executor {
             if (fresh.ui?.scene_id !== state.ui?.scene_id || fresh.ui.focused_element !== action.target || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
             await this.button('a');
             state = await this.settled();
-            if (stateId(state) === stateId(fresh)) throw new Error('unknown activation outcome; explicit resume required');
+            if (stateId(state) === stateId(fresh)) throw new Error(`activating ${action.target} changed nothing${reachable(state)}`);
             completed.push({ action, verified: true, barrier: 'activation: replan from fresh scene' });
             this.record({ type: 'action', before, after: state, action, verified: true });
             break;

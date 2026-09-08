@@ -83,6 +83,29 @@
   assert.equal(walked.length, 3, `and it takes exactly three: ${walked.join(',')}`);
 }
 
+// An activation that changes nothing names the way out.
+//
+// Live, on a combat card-select: the screen already reported can_confirm, so
+// pressing `a` on the card did nothing at all, and "unknown activation
+// outcome; explicit resume required" told the run nothing it could act on. The
+// screen was one `y` from finished.
+{
+  const screen = {
+    state_type: 'card_select',
+    card_select: { prompt: 'Choose up to 2 cards to put into your Hand.', cards: [{ name: 'Bash' }], can_confirm: true, can_cancel: false },
+    ui: { scene_id: 'select-1', focused_element: 'bash', elements: [
+      { id: 'bash', label: 'Bash', focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [0, 0, 10, 10] },
+      { id: 'confirm', label: 'Confirm', press: 'y', activation: 'a', focus_mode: 'none', enabled: true, visible: true, bounds: [0, 0, 10, 10] },
+      { id: 'endturn', label: 'End Turn 1', press: 'y', activation: 'a', focus_mode: 'none', enabled: false, visible: true, bounds: [0, 0, 10, 10] },
+    ] },
+  };
+  const said = reachable(screen);
+  assert.match(said, /Confirm \(y\)/, 'it names the control that finishes the screen');
+  assert.match(said, /card_select\.can_confirm/, 'and that the screen says it is ready');
+  assert.doesNotMatch(said, /End Turn/, 'a disabled control is not offered as a way out');
+  assert.equal(reachable({ ui: { elements: [] } }), '', 'and it stays silent when there is genuinely nothing');
+}
+
 // A route ends where it was aimed, whatever the graph predicted on the way.
 //
 // Live, on a reward screen at act 1 floor 6. The screen was still dealing its
@@ -125,7 +148,7 @@ import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/le
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
-import { Executor } from '../client/learning/executor.mjs';
+import { Executor, reachable } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
 import { API_KEY_ENVS, DEFAULT_MODEL, MODEL_PROFILES, PROFILE } from '../server/lib/learning-profile.mjs';
 
