@@ -1,3 +1,13 @@
+---
+description: The execution contract — the virtual pad is the only way to act, the mod is read-only, and what stops a plan. Read before any input.
+character: ironclad
+act: any
+category: controls
+ascension: a1
+keys: [controls, execution, contract, pad, buttons, focus, navigation, d-pad, card play, targeting, scout, map, batching, pause, incident, safety]
+sources: [operator observation, live verification]
+---
+
 # Controls and the execution contract
 
 The pad is a virtual Xbox controller: `a b x y lb rb lt rt back start guide ls rs`

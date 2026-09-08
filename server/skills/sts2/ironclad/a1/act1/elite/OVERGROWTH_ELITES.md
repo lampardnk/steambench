@@ -4,114 +4,150 @@ character: ironclad
 act: 1
 category: elite
 ascension: a1
-keys: [ironclad, act1, elite, overgrowth, bygone effigy, byrdonis, phrog parasite, wriggler, infection]
-sources: [slaythespire2.net]
+keys: [ironclad, act1, elite, overgrowth, bygone effigy, byrdonis, phrog parasite, wriggler, infection, slow, territorial, infested]
+sources: [slaythespire2.net, slaythespire.wiki.gg]
 ---
 
 # Act 1 — Overgrowth elites
 
-All stats verified from slaythespire2.net beta (v0.111.0, display 2026-06-18).
+All stats verified from slaythespire2.net beta (v0.111.0, display 2026-06-18),
+then corrected against slaythespire.wiki.gg, which supplied the three powers
+that decide these fights and that the first source does not list.
 A8 raises HP; A9 raises damage. Installed build may differ.
 
 ## How to read entries
 
 - **Debuff** intents are applied TO THE PLAYER by the enemy.
 - **Buff** intents are applied TO THE ENEMY ITSELF.
-- **Status** intents: self-applied status counters (like Ritual). [UNCERTAIN
-  for Infection — effect not defined on source pages.]
-- "Triggered during battle" = rotation switch on a condition (wiki: "e.g. a
-  special power is broken, or it dies and revives"). Exact triggers are
-  [UNCERTAIN — not fully defined on source pages].
+- **Status** intents put status cards into YOUR deck. Infection is one of
+  these — it is not a counter on the enemy.
+- Card names below are examples of a property, not a shortlist. The Ironclad
+  pool is ~90 cards; read it with
+  `research https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List?color=Ironclad`.
 
 Never enter an elite below 60% HP (survival default from controls/CONTROLS.md).
 
 ## Bygone Effigy — 127 HP (A8+: 132)
 
-**Opening rotation:**
-- T1: Sleep (Stun) — does nothing. Free setup turn.
-- T2: Wake (Buff) — Strength +10 (self). No damage.
-- T3+: Slashes (Attack) — 13 dmg (A9+: 15) + 10 Strength = 23 (A9+: 25).
-  Keeps using Slashes every turn.
+**Gimmick:** every card you play makes it take 10% more Attack damage that
+turn, so the cheap cards you would normally skip are what set up the big one.
 
-**Triggered rotation** (trigger condition: [UNCERTAIN — wiki says "special
-power broken, or dies and revives"]):
-- T1: Sleep (Stun) — does nothing.
-- T2+: Slashes (Attack) — 13 dmg (A9+: 15). Keeps using Slashes.
+**Power — Slow** (Intensity): "Whenever you play a card, this enemy receives
+10% more damage from Attacks this turn." It resets each turn.
 
-The triggered rotation does NOT include Wake. Strength from the opening Wake
-(+10) is permanent and does not increase further — there is no mechanism to
-gain additional Strength in either rotation. Slashes is a flat 23 (A9+: 25)
-every turn after Wake. [UNCERTAIN — if the trigger resets stats (e.g. on
-revive), Slashes may drop to base 13. Verify in-game.]
+- Only **Attack cards** benefit. Damage from Powers, Poison, Doom or similar
+  is unaffected by Slow.
+- Rounding is always **down**. A 6-damage Strike deals 6 at 0–1 Slow, 7 at 2–3,
+  8 at 4, 9 at 5–6, 10 at 7–8, 11 at 9, 12 at 10.
+- The order within a turn therefore matters: spend cheap cards first to build
+  Slow, then land the largest Attack last.
 
-**Tactics**: T1 Sleep is a free Power turn — play Inflame or push damage.
-T2 Wake is also no damage — push damage. From T3 on, Slashes hits flat 23 every
-turn. There is no scaling beyond the initial +10 — the fight is a steady 23
-dmg/turn check, not a snowball. Kill in 5–6 turns (127 HP / 25 dmg per turn ≈
-5 turns). Block 23 each turn with Shrug + Defend, or race with Strength-scaled
-attacks. [Source: slaythespire2.net/monster/bygone-effigy?v=beta]
+**Rotation:**
+- T1: Sleep — does nothing. A free turn.
+- T2: Wake — gains **10 Strength**. No damage. A second free turn.
+- T3+: Slashes — 13 dmg (A9+: 15), plus that 10 Strength = **23 (A9+: 25)**
+  every turn, forever.
+
+It gains no further Strength after Wake, so 23 per turn is flat, not a
+snowball. That makes it a fixed damage check rather than a race: 127 HP against
+a steady 23 a turn.
+
+**Tactics**: two free turns up front is a large setup window. From T3 it is a
+flat 23 a turn, so you can choose to block it indefinitely as long as you can
+produce ~23 Block a turn — nothing gets worse over time. If you would rather
+race, Slow is the lever: a hand of cheap cards played before your heaviest
+Attack can add 50%+ to that one hit. Note that a deck built around one big
+Attack and nothing else generates little Slow and gets the least from it.
+[Rotation and damage from slaythespire2.net; Slow, its rounding and its
+Attack-only restriction from wiki.gg]
 
 ## Byrdonis — 81–84 HP (A8+: 90)
 
-No "Appears with" listed. [UNCERTAIN — prior notes mentioned a "Byrdpip"
-summon, but the Byrdonis source page shows no summon move. Verify in-game.]
+**Gimmick:** it gains Strength at the end of every one of its turns, and half
+its attacks hit three times — so the damage curve bends upward fast.
+
+**Power — Territorial 1** (Intensity): "At the end of its turn, gains 1
+Strength." Every turn, without exception.
 
 **Rotation (loops):**
-- T1: Swoop (Attack) — 17 dmg (A9+: 19)
-- T2: Peck (Attack) — 3×3 = 9 dmg (A9+: 4×3 = 12)
+- T1: Swoop — 17 dmg (A9+: 19). Single hit.
+- T2: Peck — 3×3 = 9 dmg (A9+: 4×3 = 12). Three hits.
 - Loops to Swoop.
 
-No self-buffs, no debuffs, no scaling. Pure damage loop.
+Because Peck hits three times, each point of Strength adds **3** to a Peck turn
+but only 1 to a Swoop turn. With Territorial ticking every turn:
 
-**Tactics**: Swoop (17/19) is the big hit — block for it. Peck is multi-hit
-(3×3), so Weak reduces total by 25% (9 → 7, 12 → 9). Moderate HP (81–84) —
-kill in 3–4 turns with focused attacks. No scaling means the fight is safe
-to take slowly if needed. Vulnerable + heavy hit (Bludgeon, Carnage) for
-burst. [Source: slaythespire2.net/monster/byrdonis?v=beta]
+| Turn | Move | Strength when it acts | Damage |
+|---|---|---|---|
+| 1 | Swoop | 0 | 17 |
+| 2 | Peck | 1 | (3+1)×3 = 12 |
+| 3 | Swoop | 2 | 19 |
+| 4 | Peck | 3 | (3+3)×3 = 18 |
+| 5 | Swoop | 4 | 21 |
+| 6 | Peck | 5 | (3+5)×3 = 24 |
+
+**Tactics**: this is **not** a fight to take slowly — the Peck turns overtake
+the Swoop turns by turn 6 and keep climbing. Weak is unusually strong here
+because it cuts a three-hit attack, and Peck turns are where the Strength is
+being spent. At 81–84 HP it dies in 3–4 focused turns, which is the plan;
+letting it cycle six or more times is how this elite kills you.
+[Rotation and damage from slaythespire2.net; Territorial from wiki.gg]
 
 ## Phrog Parasite — 61–64 HP (A8+: 66–68)
 
-Appears with Wriggler (17–21 HP, A8+: 18–22).
+**Gimmick:** it poisons your deck with Infection status cards, and killing it
+starts the second half of the fight rather than ending it.
+
+**Power — Infested**: when the Phrog Parasite dies, it summons **4 Wrigglers**.
+They are Stunned and do nothing on their first turn. The fight continues until
+every Wriggler is dead.
 
 **Phrog Parasite rotation (loops):**
-- T1: Infect (Status) — +3 Infection. No damage.
-  [UNCERTAIN — Infection effect not defined on source page. The Status intent
-  type suggests self-application (like Ritual). Verify in-game.]
-- T2: Lash (Attack) — 4×4 = 16 dmg (A9+: 5×4 = 20). Four hits of 4 each.
+- T1: Infect — shuffles **3 Infection status cards into your discard pile**.
+  No damage.
+- T2: Lash — 4×4 = 16 dmg (A9+: 5×4 = 20). Four hits.
 - Loops to Infect.
 
-The Phrog Parasite does NOT gain Strength in its rotation. Lash damage is
-flat 16 (A9+: 20) unless Infection modifies it (undefined).
+Infection is a card in **your** deck, not a counter on the enemy. Its damage
+lands during your turn, which means it triggers your own on-HP-loss effects
+(Rupture, Inferno) rather than only hurting you.
 
-**Wriggler rotation:**
-- Opening: T1 Nasty Bite (Attack) — 6 dmg (A9+: 7) → T2 Wriggle (Buff·Status)
-  — Strength +2 + Infection +1 (both self) → loops to Nasty Bite.
-- Alternate ("In wriggler2"): T1 Wriggle → T2 Nasty Bite → loops to Wriggle.
-- Triggered: T1 Spawned (Stun, 1 turn) → special condition.
+**Wriggler — 17–21 HP (A8+: 18–22)**, four of them:
+- Nasty Bite — 6 dmg (A9+: 7).
+- Wriggle — shuffles 1 Infection into your discard pile, and gains **2
+  Strength** (its own).
+- They alternate, and start **offset**: odd-numbered ones open on Nasty Bite,
+  even-numbered ones on Wriggle.
 
-Wriggle is a self-buff: Strength +2 to the WRIGGLER. This makes the
-Wriggler's Nasty Bite grow: 6 → 8 → 10 → 12... It does NOT affect the Phrog
-Parasite's Lash. Each entity's Strength only affects that entity's own
-attacks.
+**Timing detail worth knowing**: whether the Wrigglers are Stunned on your next
+turn depends on how the Phrog dies. Killed by an Attack, they are Stunned
+during the current turn, so they act on your next one. Killed by Poison or Doom
+— or by its own attack via Thorns — they spawn with no intent and are Stunned
+during your next turn instead, buying you a full extra turn.
 
-**Tactics**: Kill Wriggler first (17–21 HP, 1–2 attacks) to stop its Strength
-scaling on Nasty Bite. The Phrog's Lash is flat 16 (A9+: 20) — no Strength
-scaling on the Phrog itself. Infect turn (T1) deals no damage — push damage.
-Weak reduces Lash from 16 to 12 (4 hits × 25% reduction each). Applying
-Vulnerable to the Phrog (via Bash, Uppercut) makes YOUR attacks deal +50%
-to the Phrog — this is always beneficial and does NOT affect the Phrog's
-Lash damage to you. Use Vulnerable freely to burst the Phrog down.
-[Source: slaythespire2.net/monster/phrog-parasite?v=beta,
-slaythespire2.net/monster/wriggler?v=beta]
+**Tactics**: the Phrog is only 61–64 HP, so the danger is not its damage but
+what follows. Plan the whole encounter before you kill it: four Wrigglers, each
+gaining 2 Strength on alternating turns and each adding more Infection to your
+deck. Damage to all enemies is worth far more here than single-target, and it
+is worth having that ready *before* the Phrog dies rather than drafting for it
+after. Effects that discard, exhaust or transform Infections stop them dealing
+damage at all.
+[Rotation and damage from slaythespire2.net; Infested, Infection's destination
+and the death-timing rule from wiki.gg]
 
 ## Ironclad elite prep checklist (editable)
 
 - Need ~25+ damage per turn by first elite.
-- Bring at least one Strength source (Inflame, Spot Weakness, Demon Form) for
+- Bring at least one Strength source (Inflame, Demon Form, Rupture, Brand,
+  Fight Me!, Setup Strike for a single turn) for
   consistent output across all three elites.
-- Weak application (Thunderclap, Uppercut) reduces multi-hit attacks (Peck
-  3×3, Lash 4×4) substantially — 25% total reduction.
-- Impervious or Shrug It Off for the big single hits (Swoop 17, Slashes 23).
+- Weak reduces multi-hit attacks (Peck 3×3, Lash 4×4) substantially — 25% off
+  each of the hits.
+- Enough Block for the big single hits (Swoop 17, Slashes 23) — Impervious,
+  Blood Wall, Shrug It Off, Evil Eye, Expect a Fight all reach it.
+- These three elites want three different things: Bygone Effigy rewards a wide
+  cheap hand, Byrdonis rewards speed, and Phrog Parasite rewards damage to all
+  enemies. A deck tuned for one is not tuned for the others.
 - Don't hoard potions: use Strength/Fire/Block potions in elite fights.
 - Vulnerable (from Bash) is always good — it makes your attacks deal +50% to
   the target. It does NOT make the target's attacks hit you harder.

@@ -4,13 +4,15 @@ character: ironclad
 act: 1
 category: elite
 ascension: a1
-keys: [ironclad, act1, elite, underdocks, phantasmal gardener, skulking colony, terror eel, vigor]
-sources: [slaythespire2.net]
+keys: [ironclad, act1, elite, underdocks, phantasmal gardener, skulking colony, terror eel, vigor, skittish, hardened shell, shriek, damage cap]
+sources: [slaythespire2.net, slaythespire.wiki.gg]
 ---
 
 # Act 1 — Underdocks elites
 
-All stats verified from slaythespire2.net beta (v0.111.0, display 2026-06-18).
+All stats verified from slaythespire2.net beta (v0.111.0, display 2026-06-18),
+then corrected against slaythespire.wiki.gg, which supplied the powers that
+decide all three fights and that the first source does not list.
 A8 raises HP; A9 raises damage. Installed build may differ.
 
 ## How to read entries
@@ -20,122 +22,127 @@ A8 raises HP; A9 raises damage. Installed build may differ.
 - **Vigor** (Buff): "Your next Attack deals additional damage." The "Your"
   refers to the enemy — its next attack gains the Vigor bonus. Vigor is
   consumed on the next attack.
-- "Triggered during battle" = rotation switch on a condition (wiki: "e.g. a
-  special power is broken, or it dies and revives"). Exact triggers are
-  [UNCERTAIN — not fully defined on source pages].
+- Card names below are examples of a property, not a shortlist. The Ironclad
+  pool is ~90 cards; read it with
+  `research https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List?color=Ironclad`.
 
 Never enter an elite below 60% HP (survival default from controls/CONTROLS.md).
 
 ## Phantasmal Gardeners — 4× (26–31 HP each, A8+: 27–32)
 
-Four enemies with staggered position-dependent rotations. Each cycles through
-the same 4 moves in a different order.
+**Gimmick:** each one gains Block the first time it is hit each turn, so *how
+many separate cards* you attack with matters more than how many total hits.
 
-**Moves (all self-explanatory):**
-- Flail (Attack) — 1×3 = 3 dmg
-- Enlarge (Buff) — Strength +2 (A9+: +3) (self, no damage)
-- Bite (Attack) — 5 dmg (no A9 scaling listed)
-- Lash (Attack) — 7 dmg (no A9 scaling listed)
+**Power — Skittish 6 (A8+: 7)** (Intensity): "The first time it is hit each
+turn, it gains 6 Block."
 
-**Position rotations (each loops after 4 turns):**
+Two details decide how to play around it:
+- Skittish triggers **after the first Attack card fully resolves**. A card that
+  hits twice lands both hits, *then* the Gardener blocks. So a multi-hit card
+  gets its whole damage through, while two separate small cards do not.
+- Damage that is not from an Attack card never triggers Skittish at all —
+  retaliation and damage-over-time effects bypass it completely.
 
-| Turn | Pos 1 | Pos 2 | Pos 3 | Pos 4 |
-|------|-------|-------|-------|-------|
-| T1 | Flail (3) | Bite (5) | Lash (7) | Enlarge (0) |
-| T2 | Enlarge (0) | Lash (7) | Flail (3) | Bite (5) |
-| T3 | Bite (5) | Flail (3) | Enlarge (0) | Lash (7) |
-| T4 | Lash (7) | Enlarge (0) | Bite (5) | Flail (3) |
+**Moves** — all four cycle the same order, each starting at a different point,
+so they are always on different moves:
+- Bite — 5 dmg · Lash — 7 dmg · Flail — 1×3 = 3 dmg · Enlarge — +2 Strength
+  (A9+: +3), no damage.
 
-T1 total incoming: 3 + 5 + 7 + 0 = 15 dmg (moderate). T2: 0 + 7 + 3 + 5 = 15.
-T3: 5 + 3 + 0 + 7 = 15. T4: 7 + 0 + 5 + 3 = 15. Each turn has consistent 15
-base damage, with one Gardener Enlarging (no damage) each turn.
+Incoming is a steady 15 a turn before Strength, with exactly one Gardener
+Enlarging each turn. After one full cycle every Gardener has +2 Strength; note
+Flail hits three times, so Strength inflates it fastest (3 → 9 at +2).
 
-After one full cycle (T1–T4), each Gardener has Enlarged once (+2 Strength
-each). Strength makes all that Gardener's subsequent attacks hit harder:
-Flail 3→5, Bite 5→7, Lash 7→9. After two cycles, +4 each: Flail 3→7, Bite 5→9,
-Lash 7→11.
-
-**Tactics**: 4 low-HP enemies with Strength scaling. Kill 1–2 early to reduce
-total damage and Enlarge stacks. Each kill removes ~4 avg dmg/turn and one
-Strength scaler. Whirlwind is strong here (hits all 4). Don't let the fight go
-beyond 2 cycles (8 turns) — 4 Enlarges means all attacks scale. Focus-fire
-the Gardener about to Enlarge next to deny Strength gain. [Source verified]
+**Tactics**: killing one is worth more than damaging all four, because it
+removes both a scaler and a Skittish body. Damage to all enemies is still
+strong, but understand what it does against Skittish: it triggers all four
+shields at once. The efficient shapes here are one card that hits many times,
+or damage that does not come from an Attack card. Spreading small individual
+attacks across four Gardeners is the worst thing you can do — that is four
+Block gains for very little damage.
+[Moves and damage from slaythespire2.net; Skittish and its resolution timing
+from wiki.gg]
 
 ## Skulking Colony — 75 HP (A8+: 80)
 
-**Rotation (loops):**
-- T1: Zoom (Attack) — 14 dmg (A9+: 16)
-- T2: Zoom (Attack) — 14 dmg (A9+: 16)
-- T3: Inertia (Attack·Buff) — 9 dmg (A9+: 11) + Strength +2 (A9+: +4) (self)
-- T4: Piercing Stabs (Attack) — 7×2 = 14 dmg (A9+: 8×2 = 16)
-- Loops to Zoom.
+**Gimmick:** it cannot lose more than 20 HP in a turn, so this fight has a
+minimum length no amount of damage can shorten.
 
-Strength from Inertia is permanent and affects ALL subsequent attacks.
-Progression:
-- Cycle 1: T1=14, T2=14, T3=9+0=9 (Str +2), T4=(7+2)×2=18
-- Cycle 2: T1=14+2=16, T2=14+2=16, T3=9+2=11 (Str +4), T4=(7+4)×2=22
-- Cycle 3: T1=14+4=18, T2=14+4=18, T3=9+4=13 (Str +6), T4=(7+6)×2=26
+**Power — Hardened Shell 20** (Intensity): "It cannot lose more than 20 HP each
+turn."
 
-**Tactics**: High early pressure — 28 damage over T1–T2. Block hard or kill
-fast. Inertia's Strength makes everything hit harder each cycle. Kill by T3
-(first Inertia) to avoid any Strength gain, or by T4 to limit it to +2. Weak
-on T1–T2 cuts the 28 to 21. Ironclad's Strength scaling (Inflame + attacks)
-can out-race this. Vulnerable + Bludgeon/Heavy Blade is a strong opener.
-[Source verified]
+At 75 HP (80 at A8) that is **at least 4 turns** to kill, whatever your deck
+does. Overkill is wasted: a 32-damage Bludgeon deals 20 here, exactly as a
+20-damage hand would. Damage beyond 20 in a turn is thrown away.
+
+The cap resets at the start of **your** turn *and* at the start of **its**
+turn. Damage that lands on the enemy's turn — retaliation, damage-over-time —
+draws from a fresh 20, so it is possible to remove up to 40 in a full round
+rather than 20.
+
+**Rotation (loops):** Zoom 14 (A9+: 16) · Zoom 14 (16) · Inertia 9 (11) and
+**+2 Strength** (A9+: +4) · Piercing Stabs 7×2 = 14 (8×2 = 16).
+
+| Cycle | Zoom | Zoom | Inertia | Piercing Stabs |
+|---|---|---|---|---|
+| 1 | 14 | 14 | 9 (Str→2) | (7+2)×2 = 18 |
+| 2 | 16 | 16 | 11 (Str→4) | (7+4)×2 = 22 |
+| 3 | 18 | 18 | 13 (Str→6) | (7+6)×2 = 26 |
+
+**Tactics**: because you cannot shorten the fight below 4 turns, the question
+is not how to burst it down but how to survive four-plus turns of a rotation
+that opens with 28 damage across two turns and escalates every cycle. Build the
+turn to hit exactly the cap and spend everything else on Block — a hand that
+deals 20 and blocks is strictly better than one that deals 35 and does not.
+Weak on the two Zoom turns cuts 28 to 21. Anything that damages it on its own
+turn is unusually valuable here, because it draws from a second cap.
+[Rotation and damage from slaythespire2.net; Hardened Shell and its double
+reset from wiki.gg]
 
 ## Terror Eel — 140 HP (A8+: 150)
 
-**Opening rotation (loops):**
-- T1: Crash (Attack) — 16 dmg (A9+: 18)
-- T2: Thrash (Attack·Buff) — 3×3 = 9 dmg (A9+: 4×3 = 12) + Vigor +6 (self)
-- Loops to Crash.
+**Gimmick:** at a known HP threshold it stuns, then applies Vulnerable for the
+rest of the fight — so the second half is fought at +50% incoming damage, and
+you can see it coming.
 
-**Vigor**: "Your next Attack deals additional damage." Gained by the Eel
-during Thrash (T2). The NEXT attack (Crash, T3) gains +6. Vigor is consumed
-on use. Crash is a single hit, so Vigor adds +6 once.
+**Power — Shriek 70 (A8+: 75)**: when its HP drops to that number or below, it
+becomes Stunned and then uses **Terror**. This is an HP threshold you can read
+and plan around, not a hidden trigger.
 
-Opening damage pattern: T1 Crash = 16, T2 Thrash = 9 (+Vigor), T3 Crash =
-16+6 = 22, T4 Thrash = 9 (+Vigor), T5 Crash = 22, T6 Thrash = 9 (+Vigor)...
-So Crash alternates: 16, 22, 16, 22... (or all 22 after the first cycle
-since Vigor is always active from the previous Thrash).
+**Rotation (loops):** Crash 16 (A9+: 18) · Thrash 3×3 = 9 (A9+: 4×3 = 12) and
+gains **6 Vigor**. It starts on Crash.
 
-Actually: T1 = 16 (no Vigor), T2 = 9 (grants Vigor), T3 = 16+6 = 22 (consumes
-Vigor), T4 = 9 (grants Vigor), T5 = 16+6 = 22 (consumes), T6 = 9... So from
-T3 onward, Crash is always 22 (Vigor is always available from the previous
-Thrash).
+Vigor is spent by its next attack, so Thrash always feeds the following Crash:
+T1 Crash 16, T2 Thrash 9, T3 Crash 22, T4 Thrash 9, T5 Crash 22... From T3 on,
+every Crash lands at 22 (A9+: 24).
 
-**Triggered rotation** (trigger: [UNCERTAIN — wiki says "special power
-broken, or dies and revives"]):
-- T1: Stunned (Stun) — does nothing
-- T2: Terrorize (Debuff) — Vulnerable +99 TO PLAYER. No damage.
-- T3: Crash (16) — player has Vulnerable: 16 × 1.5 = 24
-- T4: Thrash (9) + Vigor +6 — player Vulnerable: 9 × 1.5 = 14 (≈13.5)
-- T5: Crash (16+6 = 22) — player Vulnerable: 22 × 1.5 = 33
-- T6: Thrash (9) + Vigor — Vulnerable: 14
-- T7: Crash (22) — Vulnerable: 33
-- Loops to Crash (T3 position).
+**At the threshold:** Stun (does nothing) → **Terror** applies **99
+Vulnerable** → back to the Crash/Thrash cycle. 99 stacks is the rest of the
+fight, so from that point every attack hits you for 50% more: Crash 22 becomes
+33, Thrash 9 becomes roughly 14.
 
-Vulnerable +99 means 99 turns of +50% damage taken. Effectively permanent
-for this fight.
+**Tactics**: the Stun and Terror turns are two turns where it deals no damage —
+the largest free window in the fight, and it arrives at a moment you choose by
+controlling when you cross 70 HP. The half of the fight after Terror is far
+more expensive than the half before, so the useful question is how much of its
+140 HP you can remove *before* tripping the threshold, and whether you would
+rather arrive at it with Block banked or with the Eel nearly dead. Weak is
+worth most on Thrash turns because it hits three times.
+[Rotation, damage and Vigor from slaythespire2.net; the Shriek threshold and
+Terror from wiki.gg]
 
-**Tactics**: Highest HP Act 1 elite — a DPS check. In the opening rotation,
-Crash alternates 16/22 (A9: 18/24) — block for the 22 hits. Thrash is
-multi-hit (3×3); Weak reduces total by 25% (9→7, 12→9).
+## What each fight asks for (editable)
 
-In the triggered rotation: Stun (T1) and Terrorize (T2) are two free turns
-— push maximum damage. After Terrorize, you have Vulnerable +99: every
-incoming attack deals +50%. First Crash = 24, then 33 with Vigor. Block
-hard: you need ~24–33 block per Crash turn. Use potions (Strength, Fire,
-Block) — this fight needs every advantage.
+Not a ranking, and not a card list — these three punish different deck shapes,
+and a deck built for one is not built for the others.
 
-Applying Vulnerable to the Eel (via Bash, Uppercut) makes YOUR attacks
-deal +50% to the Eel. This is always beneficial and does NOT affect the
-Eel's attacks on you. [Source verified]
+| Elite | HP | The constraint | What that rewards |
+|---|---|---|---|
+| Phantasmal Gardeners | 4× 26–31 | Skittish: Block on first hit each turn | one card that hits many times, or damage that is not an Attack card |
+| Skulking Colony | 75 | Hardened Shell: max 20 HP lost per turn | exactly-enough damage plus Block; surviving 4+ turns, not bursting |
+| Terror Eel | 140 | Shriek 70 → permanent Vulnerable | removing HP before the threshold, and Block banked for after it |
 
-## Ironclad elite comparison (editable)
-
-| Elite | HP | Big hit | Threat | Key card |
-|---|---|---|---|---|
-| Phantasmal Gardeners | 4×26–31 | scattered 15/turn | Strength snowball | Whirlwind |
-| Skulking Colony | 75 | Zoom 14×2 | early burst + Strength | Impervious, Inflame |
-| Terror Eel | 140 | Crash 16→22 | DPS check + Vigor | Bludgeon, Strength pot |
+- Never enter an elite below 60% HP (survival default from
+  `controls/CONTROLS.md`).
+- Don't hoard potions: an elite is what they are for.
+- Vulnerable applied to the enemy makes *your* attacks deal +50% to it. It does
+  not make its attacks hit you harder.

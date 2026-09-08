@@ -4,13 +4,16 @@ character: ironclad
 act: 1
 category: normal
 ascension: a1
-keys: [ironclad, act1, normal, overgrowth, cubex construct, fogmog, flyconid, snapping jaxfruit, fuzzy wurm crawler, shrinker beetle, slithering strangler, mawler, nibbit, vine shambler, eye with teeth]
-sources: [slaythespire2.net]
+keys: [ironclad, act1, normal, overgrowth, cubex construct, fogmog, flyconid, snapping jaxfruit, fuzzy wurm crawler, shrinker beetle, slithering strangler, mawler, nibbit, vine shambler, eye with teeth, inklet, leaf slime, twig slime, ruby raiders, axe raider, assassin raider, brute raider, crossbow raider, tracker raider, wriggler, slimed, shrink, constrict]
+sources: [slaythespire2.net, slaythespire.wiki.gg]
 ---
 
 # Act 1 — Overgrowth normal encounters
 
-All stats verified from slaythespire2.net beta (v0.111.0, display 2026-06-18).
+All stats verified from slaythespire2.net beta (v0.111.0, display 2026-06-18),
+then completed and corrected against slaythespire.wiki.gg, which resolved every
+effect the first source left undefined and supplied two encounter groups the
+first source omitted entirely.
 A8 raises HP; A9 raises damage. Installed build may differ — treat in-game
 intent as authoritative when it conflicts.
 
@@ -21,9 +24,10 @@ intent as authoritative when it conflicts.
 - **Attack · Buff/Debuff** combines damage with a self-buff or player-debuff.
 - "Appears with" on the wiki = possible companions across encounters, NOT a
   guaranteed simultaneous spawn. Actual encounter composition varies.
-- "Triggered during battle" = the enemy switches rotation when a condition is
-  met (wiki: "e.g. a special power is broken, or it dies and revives").
-  Exact trigger conditions are [UNCERTAIN — not fully defined on source pages].
+- Several enemies here pick moves at random rather than cycling. Where that is
+  the case the probabilities are given; read the live intent regardless.
+- Card names are examples of a property, not a shortlist. Read the pool with
+  `research https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List?color=Ironclad`.
 
 ## Key monsters — verified stats and intents
 
@@ -66,27 +70,24 @@ Thwack scales slowly (+1/cycle), so the fight is manageable if you kill within
 3–4 cycles. [Source: slaythespire2.net/monster/fogmog?v=beta]
 
 ### Flyconid — 47–49 HP (A8+: 51–53)
-Possible companions (wiki "Appears with"): Leaf Slime (M), Snapping Jaxfruit,
-Twig Slime (M). Not guaranteed to all spawn together.
 
-- **Vulnerable Spores** (Debuff) — applies Vulnerable +2 TO THE PLAYER. While
-  you have Vulnerable, incoming attacks deal +50% damage to you.
-- **Frail Spores** (Attack·Debuff) — 8 dmg (A9+: 9) + applies Frail +2 TO THE
-  PLAYER. While you have Frail, you gain 25% less Block from cards.
+- **Weakening Spores** (Debuff) — applies **2 Vulnerable** TO THE PLAYER. No
+  damage. While Vulnerable you take 50% more from attacks.
+- **Frail Spores** (Attack·Debuff) — 8 dmg (A9+: 9) + **2 Frail** TO THE PLAYER
+  (you gain 25% less Block from cards).
 - **Smash** (Attack) — 11 dmg (A9+: 12).
 
-**Opening rotation** (50/50 random): Frail Spores (8 dmg + Frail +2) or
-Smash (11 dmg).
+**Move selection.** Turn 1 is Frail Spores (2/3) or Smash (1/3) — it can never
+open with Weakening Spores. Every turn after is Weakening Spores (3/6), Frail
+Spores (2/6) or Smash (1/6), and it cannot repeat the move it just used.
 
-**Triggered rotation** (33/33/33 random): Vulnerable Spores, Frail Spores, or
-Smash. Trigger condition: [UNCERTAIN — wiki says "special power broken, or
-dies and revives"].
+So Weakening Spores is its *most likely* move from turn 2 onward, and the turn
+after it lands is when Frail Spores or Smash hits you at +50%.
 
-**Tactics**: Vulnerable Spores makes YOU take +50% from subsequent Flyconid
-attacks — Frail Spores becomes ~12, Smash becomes ~16–17 while you're
-Vulnerable. Frail Spores reduces your block by 25%. Both debuffs make you
-fragile. Kill fast — Flyconid has low HP (47–49), so 2–3 focused attacks clear
-it. In multi-enemy fights, kill it before it debuffs you. [Source verified]
+**Tactics**: low HP (47–49) and no scaling — the danger is entirely the debuff
+pair, which is worst when other enemies are alive to exploit the Vulnerable.
+Kill it before it can set up the second half of that pattern. [Damage from
+slaythespire2.net; move names and probabilities from wiki.gg]
 
 ### Snapping Jaxfruit — 31–33 HP (A8+: 34–36)
 Possible companions (wiki "Appears with"): Flyconid, Leaf Slime (M/S),
@@ -126,47 +127,43 @@ if possible — damage jumps from 11 to 18. Weak reduces all Acid Goops by 25%
 damage on those turns. [Source verified]
 
 ### Shrinker Beetle — 38–40 HP (A8+: 40–42)
-Possible companions: Fuzzy Wurm Crawler.
 
-- T1: Shrinker (Debuff) — applies Shrink -1
-- T2: Chomp (Attack) — 7 dmg (A9+: 8)
-- T3: Stomp (Attack) — 13 dmg (A9+: 14)
-- Loops to Chomp (T2), repeating Chomp → Stomp.
+- T1: **Shrinker** (Debuff) — applies **Shrink**. No damage.
+- Then alternates **Chomp** — 7 dmg (A9+: 8) — and **Stomp** — 13 dmg (A9+: 14).
 
-**Shrink**: wiki says "This creature's Attacks deal 30% less damage for the
-next 3 turns." The Debuff intent type conventionally targets the player in
-STS, but the description's use of "This creature" (rather than "you") is
-ambiguous. [UNCERTAIN — receiver]:
-- If applied to YOU: your attack cards deal 30% less for 3 turns. This
-  significantly reduces Ironclad's damage output.
-- If applied to the BEETLE (self): Chomp 7 → ~5, Stomp 13 → ~9.
-- Verify in-game which entity receives Shrink.
+**Shrink** (Duration 2, does not stack) is applied **to you**: your Attack cards
+deal 30% less damage for 2 turns. The earlier ambiguity about who receives it is
+resolved — wiki.gg notes that the summon Osty "is not affected by Shrink and
+deals full damage with his own Attack cards", which only makes sense if Shrink
+sits on the player.
 
-**Tactics**: Stomp (13/14) is the big hit — block for it regardless of Shrink
-receiver. Low HP (38–40), so 2–3 attacks kill it. The Shrinker turn (T1) deals
-no damage — push damage then. [Source: slaythespire2.net/monster/shrinker-beetle?v=beta]
+**Tactics**: the opening Shrinker turn deals no damage, but it is also the worst
+turn to spend your biggest attack, because the next two turns of your damage are
+cut by 30%. Push cheap damage or set up while it is active, and land heavy hits
+once it expires. Stomp (13/14) is the hit to block for. At 38–40 HP it dies in
+2–3 clean attacks. [Damage from slaythespire2.net; Shrink's duration, stacking
+and receiver from wiki.gg]
 
 ### Slithering Strangler — 53–55 HP (A8+: 54–56)
-Possible companions: Leaf Slime (M/S), Snapping Jaxfruit, Twig Slime (M/S).
 
-- T1: Constrict (Debuff) — applies Constrict +3 TO THE PLAYER.
-- T2: Random — 50% Thwack / 50% Lash
-- Loops to T1 (Constrict).
+- **Constrict** (Debuff) — applies **3 Constrict** TO THE PLAYER.
+- **Thwack** (Attack·Defend) — 7 dmg (A9+: 8) + gains 5 Block.
+- **Lash** (Attack) — 12 dmg (A9+: 13).
 
-**Constrict**: "While the Slithering Strangler is alive, at the end of your
-turn, take 1 damage." Per stack. With +3 stacks, you take 3 damage at the
-end of each turn. This damage occurs as long as the Strangler is alive.
-[UNCERTAIN — whether this bypasses Block; verify in-game.]
+**Pattern:** Constrict → 50/50 Thwack or Lash → **Constrict again** → 50/50 →
+and so on. It applies Constrict on every other turn, not once.
 
-**Thwack** (Attack·Defend) — 7 dmg (A9+: 8) + 5 block (self). The block makes
-the Strangler harder to damage on Thwack turns.
+**Constrict** (Intensity): "While the Slithering Strangler is alive, at the end
+of your turn, take X damage." Because it re-applies every second turn, the
+stacks accumulate — 3, then 6, then 9 — so the passive drain grows steadily and
+only stops when the Strangler dies.
 
-**Lash** (Attack) — 12 dmg (A9+: 13).
-
-**Tactics**: Constrict is passive damage (3/turn) that only stops when the
-Strangler dies. Kill the Strangler to remove it. Thwack's 5 block makes
-trading inefficient — save big attacks for Lash turns (no block). Focus the
-Strangler after clearing smaller targets. [Source verified]
+**Tactics**: this is a damage race against a stack that compounds every other
+turn, not a fight you can grind. Thwack's 5 Block makes trading on those turns
+inefficient, so save your heavy hits for Lash turns. Killing it removes all
+Constrict damage at once, which makes finishing it worth more than the HP the
+final push costs. [Damage from slaythespire2.net; Constrict's wording and the
+re-application pattern from wiki.gg]
 
 ### Mawler — 72 HP (A8+: 76)
 No companions listed — solo encounter.
@@ -223,25 +220,98 @@ is the big hit — block for it. Swipe is multi-hit (6×2); Weak helps. Don't
 let it cycle — Tangled stacks, making each cycle's T2 increasingly punishing.
 [Source verified]
 
-### Eye with Teeth (Fogmog summon)
-Summoned by Fogmog on T1. No individual page fetched — stats/intents not
-verified. Treat as chip damage; kill Fogmog first.
+### Eye With Teeth (Fogmog summon) — 6 HP
 
-### Inklet / Leaf Slime / Twig Slime
-Not individually verified from source pages. HP ranges from encounter list
-data (prior session). Inklet: ~11–17 HP (swarm of 3). Leaf Slime (M): ~32–35
-HP. Twig Slime (M): ~26–28 HP. Small variants: 7–15 HP. [Source: encounter
-list, not individual pages — verify in-game.]
+- **Illusion** (does not stack): "When this dies, it revives next turn at full
+  HP."
+- **Distract** — shuffles **3 Dazed** into your discard pile. Every turn.
+
+It deals **no damage at all** — it is one of only four enemies in the game
+incapable of dealing damage. The earlier description of it as "chip damage" was
+wrong in both directions: it cannot hurt you, and killing it accomplishes
+nothing because Illusion revives it at full HP the next turn.
+
+**Tactics**: never spend damage on it. Its whole function is to bury your draw
+pile in Dazed, which makes the fight worse the longer it runs — so the answer is
+to kill Fogmog quickly, not to clear the summon. [wiki.gg]
+
+### Inklet — 11–17 HP each (A8+: 12–18), always 3 of them
+
+Each Inklet starts with **Slippery 1** — the same counter Vantom uses: the next
+1 time it loses HP, it only loses 1 HP instead. One throwaway hit per Inklet
+clears it.
+
+- **Jab** — 3 dmg (A9+: 4) · **Windup Punch** — 2×3 = 6 dmg (A9+: 3×3 = 9) ·
+  **Piercing Gaze** — 10 dmg (A9+: 11).
+- The two outer Inklets usually open with Jab; the middle one always opens with
+  Windup Punch. After Windup Punch or Piercing Gaze it always uses Jab; after
+  Jab it picks randomly between Piercing Gaze and Windup Punch.
+
+**Tactics**: three bodies each holding one Slippery stack means your first hit
+on each is worth 1 damage regardless of size. Cheap wide damage strips all three
+stacks far more efficiently than one big attack, which wastes its entire value
+on a single stack.
+
+### Slimes
+
+Four varieties, appearing together or as companions. All of them shuffle
+**Slimed** status cards into your discard pile rather than dealing damage on
+those turns.
+
+| Slime | HP (A8+) | Moves |
+|---|---|---|
+| Leaf Slime (S) | 11–15 (12–16) | Tackle 3 (4) · Goop: 1 Slimed. Random each turn, no repeats. |
+| Leaf Slime (M) | 32–35 (33–36) | Clump Shot 8 (9) · Sticky Shot: 2 Slimed. Opens Sticky Shot, then alternates. |
+| Twig Slime (S) | 7–11 (8–12) | Tackle 4 (5), every turn. |
+| Twig Slime (M) | 26–28 (27–29) | Chomp 11 (12) · Sticky Shot: 1 Slimed. Opens Sticky Shot, then 67% Chomp / 33% Sticky Shot, never Sticky twice running. |
+
+**Tactics**: the damage is low; the cost is deck pollution that persists after
+the fight. A long slime fight leaves you carrying Slimed into the next one, so
+speed matters more than the incoming damage suggests.
+
+### Ruby Raiders — 3 per encounter, drawn from 5 types with no duplicates
+
+| Raider | HP (A8+) | Pattern |
+|---|---|---|
+| Axe Raider | 20–22 (21–23) | Swing 5 (6) + gains 5 (6) Block · Swing · Big Swing 12 (13). Fixed cycle. |
+| Assassin Raider | 18–23 (19–24) | Killshot 10 (11), every turn. |
+| Brute Raider | 30–33 (31–34) | Beat 7 (8) · Clap: gains **3 Strength**. Alternates, starts on Beat. |
+| Crossbow Raider | 18–21 (19–22) | Reload: gains 3 Block · **Fire! 14 (16)**. Alternates, starts on Reload. |
+| Tracker Raider | 21–25 (22–26) | Track: applies **2 Frail** · Unleash the Hounds **1×8** (1×9). Opens Track, then Hounds every turn. |
+
+**Tactics**: which three you face changes the fight completely. Brute Raider is
+the only one that scales, so it is the one that punishes a slow fight. Crossbow
+Raider telegraphs perfectly — Fire! only ever lands on the turn after Reload.
+The Tracker Raider has an exploitable quirk: its hits are 1 damage each, so
+**Weak rounds every hit down to 0** and shuts it off completely. Damage to all
+enemies is strong here given three low-HP bodies. [wiki.gg]
+
+### Wriggler — 17–21 HP (A8+: 18–22)
+
+Appears as 4 in the Dense Vegetation event, and is summoned by the Phrog
+Parasite elite on its death.
+
+- **Nasty Bite** — 6 dmg (A9+: 7).
+- **Wriggle** — shuffles 1 **Infection** into your discard pile and gains **2
+  Strength**.
+- They alternate, and start offset from each other: odd-numbered ones open on
+  Nasty Bite, even-numbered ones on Wriggle.
 
 ## Ironclad strategy notes (editable)
 
 - Burning Blood heals 6 HP post-combat — trading HP for speed is acceptable.
-- Prioritize attack cards in rewards: Carnage, Uppercut, Pommel Strike,
-  Twin Strike, Bludgeon. One block card (Shrug It Off) is enough early.
+- Prioritize attack cards in rewards. The pool is wide — Uppercut, Pommel
+  Strike, Twin Strike, Bludgeon, Cinder, Iron Wave, Hemokinesis, Rampage,
+  Unrelenting and Thunderclap are all live options, and which one is right
+  depends on the fight, not on this list. One block card is enough early.
 - Against Strength-scalers (Cubex Construct, Fuzzy Wurm Crawler, Snapping
   Jaxfruit, Nibbit): kill speed matters more than block. Every turn they
   survive, their damage increases.
 - Against debuffers (Flyconid, Slithering Strangler, Shrinker Beetle): kill
   fast to stop debuff accumulation. Vulnerable/Frail/Constrict/Tangled all
-  make you more fragile.
-- Fogmog's Eye with Teeth summon adds chip damage; kill Fogmog, not the summon.
+  make you more fragile, and Constrict compounds every other turn.
+- Fogmog's Eye With Teeth summon deals no damage and revives when killed — kill
+  Fogmog and ignore the summon entirely.
+- Several Overgrowth fights are decided by the *number* of damage instances
+  rather than their size: Inklets hold a Slippery stack each, and the Tracker
+  Raider's eight 1-damage hits go to zero under Weak.

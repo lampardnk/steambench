@@ -19,7 +19,7 @@ Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028)
 
 | Combat Type | Card Reward | Gold | Extras |
 |---|---|---|---|
-| **Normal Monster** | Choose 1 of 3 cards | 10-20 (7-15 A3+) | Potion (sometimes) |
+| **Normal Monster** | Choose 1 of 3 cards | 10-20 (**8-15** A3+) | Potion (sometimes) |
 | **Elite** | Choose 1 of 3 cards (higher rare/uncommon odds) | 35-45 (26-34 A3+) | Random Relic + Potion (sometimes) |
 | **Boss (Act 1/2)** | Choose 1 of 3 Rare cards | 100 (75 A3+) | Potion (sometimes), then Ancient floor |
 | **Boss (Act 3)** | Run victory | - | Unlocks next Ascension |
@@ -46,9 +46,15 @@ Gold and relics should be taken immediately. Card rewards warrant evaluation.
 
 ## Ancient Choices
 
-Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028)
+Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations)
 
-After each Act boss: Ancient visit (Neow in Act 1). Heals 100% missing HP (80% at A2+). Choose from Ancient relic pool.
+**Every act *starts* by meeting an Ancient, and Act 1 always starts with Neow.**
+The floor after the Act 1 or Act 2 boss is always an Ancient floor — which is
+the same thing seen from the other side, since that floor opens the next act.
+Neow is therefore the first room of the run, not a post-boss reward.
+
+Ancients heal 100% of your **missing** HP (80% at A2+, which explicitly includes
+Neow).
 
 Ancient relic effects (sourced from slaythespire2.net relic database):
 - Downside-bearing Ancient relics include Ectoplasm (cannot gain gold), Sozu (cannot obtain new potions), Velvet Choker (card-play limit), Philosopher's Stone (enemy Strength), Snecko Eye (Confused), and Whispering Earring (Vakuu plays the first turn). Read the exact current effect before choosing.
