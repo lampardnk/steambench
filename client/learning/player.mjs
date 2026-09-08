@@ -352,7 +352,7 @@ async function run(task) {
       // the next decision, which is where Voyager gets most of its value.
       const notes = learnedFiles(skillDir).filter(file => file.endsWith('.md'));
       if (!refining && !fight && curriculum.dueForCheck(state, decision)) {
-        const checked = await curriculum.verify(state, { decision, evidence, notes }).catch(error => {
+        const checked = await curriculum.verify(state, { decision, evidence }).catch(error => {
           record({ type: 'critic_failure', error: error.message });
           return null;
         });
@@ -363,7 +363,7 @@ async function run(task) {
       // Nothing to work towards: ask the curriculum for the next objective. A
       // failure here is not fatal - the player simply plays without one.
       if (!refining && !fight && freshRunVerified && curriculum.needsObjective(state)) {
-        const opened = await curriculum.propose(state, { task, notes, decision }).catch(error => { record({ type: 'curriculum_failure', error: error.message }); return null; });
+        const opened = await curriculum.propose(state, { task, decision }).catch(error => { record({ type: 'curriculum_failure', error: error.message }); return null; });
         if (opened) message(`New objective (${opened.area}): ${opened.text}\nDone when: ${opened.done_when}`, LANE.curriculum);
       }
       const ladder = curriculum.context();

@@ -36,10 +36,9 @@ const MIN_CHECK_GAP = 3;
 // whole run. Half the decision budget is ample for a short answer and still
 // bounds a hung call.
 const AUXILIARY_DEADLINE_MS = Math.round(PROFILE.plannerDeadlineMs / 2);
-// The folders the library actually has. An objective filed under a name no
-// directory answers to - bestiary, setups, pools - reads as a place to put the
-// note and there is nowhere to put it, so every one of those objectives closed
-// with the note unwritten.
+// The folders the library actually has. The area is what biases retrieval
+// towards the notes an objective is about (retrieval.mjs), so a name no
+// directory answers to - bestiary, setups, pools - ranks nothing.
 const AREAS = ['meta_strategy', 'controls', 'act1', 'act2', 'act3', 'characters', 'ascension', 'debugging'];
 const clamp = (value, limit) => (typeof value === 'string' ? value.slice(0, limit) : '');
 
@@ -183,12 +182,11 @@ export class Curriculum {
   }
 
   /** Ask the curriculum reasoner for the next objective, given the frontier. */
-  async propose(state, { task, notes = [], decision = 0 }) {
+  async propose(state, { task, decision = 0 }) {
     const payload = {
       run: situation(state),
       standing_task: clamp(task, 1500),
       curriculum_summary: this.summary(),
-      learned_notes: notes.slice(0, 120),
     };
     const answer = await this.planner.ask({ role: 'curriculum', prompt: 'curriculum.txt', context: payload, deadlineMs: AUXILIARY_DEADLINE_MS });
     const objective = {
@@ -217,7 +215,7 @@ export class Curriculum {
    * a critique, which the next decision receives; after MAX_ATTEMPTS failures the
    * objective is abandoned so the curriculum can propose something reachable.
    */
-  async verify(state, { decision, evidence = [], notes = [] }) {
+  async verify(state, { decision, evidence = [] }) {
     const objective = this.active;
     if (!objective) return null;
     this.lastCheckedAt = decision;
@@ -229,7 +227,6 @@ export class Curriculum {
       previous_critiques: objective.critiques.slice(-2),
       run_now: situation(state),
       evidence: evidence.slice(-12),
-      learned_notes: notes.slice(0, 120),
     };
     const answer = await this.planner.ask({ role: 'critic', prompt: 'critic.txt', context: payload, deadlineMs: AUXILIARY_DEADLINE_MS });
     const verdict = ['success', 'failure', 'pending'].includes(answer?.verdict) ? answer.verdict : 'pending';

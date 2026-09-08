@@ -41,12 +41,12 @@ assert.ok(curriculum.needsObjective(inRun));
 assert.ok(!curriculum.needsObjective({ state_type: 'menu' }), 'no objective is proposed outside a run');
 
 planner.queue({ objective: 'Reach floor 6 without dropping below 60% HP', why: 'the deck can take one more fight', done_when: 'the map shows floor 6 and hp/max_hp >= 0.6', area: 'strategy' });
-const proposed = await curriculum.propose(inRun, { task: 'Win the run', notes: ['bestiary/wriggler.md'], decision: 4 });
+const proposed = await curriculum.propose(inRun, { task: 'Win the run', decision: 4 });
 assert.equal(proposed.status, 'active');
 assert.equal(proposed.opened.room, 'aaaa1111');
 assert.equal(planner.asked[0].prompt, 'curriculum.txt');
 assert.equal(planner.asked[0].role, 'curriculum');
-assert.deepEqual(planner.asked[0].context.learned_notes, ['bestiary/wriggler.md'], 'the proposer sees what is already known');
+assert.ok(!('learned_notes' in planner.asked[0].context), 'the proposer is not handed the note catalogue to find gaps in');
 
 planner.queue({ objective: 'Something vague', why: 'because' });
 await assert.rejects(() => curriculum.propose(inRun, { task: 't', decision: 5 }), /completion condition/, 'an objective without an observable condition is refused');
