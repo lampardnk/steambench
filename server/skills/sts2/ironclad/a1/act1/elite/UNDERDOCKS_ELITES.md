@@ -26,8 +26,6 @@ A8 raises HP; A9 raises damage. Installed build may differ.
   pool is ~90 cards; read it with
   `research https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List?color=Ironclad`.
 
-Never enter an elite below 60% HP (survival default from controls/CONTROLS.md).
-
 ## Phantasmal Gardeners — 4× (26–31 HP each, A8+: 27–32)
 
 **Gimmick:** each one gains Block the first time it is hit each turn, so *how
@@ -141,8 +139,6 @@ and a deck built for one is not built for the others.
 | Skulking Colony | 75 | Hardened Shell: max 20 HP lost per turn | exactly-enough damage plus Block; surviving 4+ turns, not bursting |
 | Terror Eel | 140 | Shriek 70 → permanent Vulnerable | removing HP before the threshold, and Block banked for after it |
 
-- Never enter an elite below 60% HP (survival default from
-  `controls/CONTROLS.md`).
 - Don't hoard potions: an elite is what they are for.
 - Vulnerable applied to the enemy makes *your* attacks deal +50% to it. It does
   not make its attacks hit you harder.

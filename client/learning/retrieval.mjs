@@ -179,6 +179,35 @@ function score(note, { weights, area, generic = new Set() }) {
  */
 const CONTROLS_NOTE = /(?:^|\/)controls\//;
 
+/**
+ * The controls notes, whatever the screen is.
+ *
+ * Retrieval scores a note against the terms the situation carries - enemy
+ * names, the event, the character, the state type. CONTROLS.md carries none of
+ * them, and it cannot: it is about the pad, not about any one screen. On the
+ * Neow bundle screen the situation terms are "bundle" and "select", which
+ * appear in no note's keys, so the one file describing how that screen works
+ * scored zero and was never retrieved - and the actuator worked the screen
+ * blind for fifty-five decisions and three supervisor pauses.
+ *
+ * Ranking control notes first (see retrieve) only reorders notes that already
+ * matched. The pad's manual is not a match to be won; the pad always has it.
+ */
+export function controlManual(skillDir, index, { budget = MAX_NOTE_IN_CONTEXT } = {}) {
+  const out = [];
+  let spent = 0;
+  for (const note of index.filter(item => CONTROLS_NOTE.test(item.path))) {
+    let content;
+    try { content = fs.readFileSync(path.join(skillDir, note.path), 'utf8'); }
+    catch { continue; }
+    const room = Math.max(0, budget - spent);
+    if (room < 200) break;
+    out.push({ path: note.path, description: note.description, matched: ['controls'], relevance: 0, truncated: content.length > room, content: content.slice(0, room) });
+    spent += Math.min(content.length, room);
+  }
+  return out;
+}
+
 export function retrieve(skillDir, index, state, objective, { limit = MAX_RETRIEVED, budget = RETRIEVAL_BUDGET } = {}) {
   const wanted = situationTerms(state, objective);
   if (!wanted.weights.size) return [];

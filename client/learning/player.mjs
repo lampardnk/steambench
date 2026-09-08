@@ -13,7 +13,7 @@ import { Actuator } from './actuator.mjs';
 import { briefing, combatContext, encounterKind, splitNotes, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
 import { Curriculum } from './curriculum.mjs';
-import { indexNotes, retrieve } from './retrieval.mjs';
+import { controlManual, indexNotes, retrieve } from './retrieval.mjs';
 
 // Actions that read or write knowledge and never touch the pad. A decision made
 // only of these cannot change the game, which matters twice below: an unchanged
@@ -370,7 +370,11 @@ async function run(task) {
       // Skill retrieval: the notes this exact situation is about, read for the
       // agent instead of waiting for it to spend a decision recalling them.
       const retrieved = retrieve(skillDir, noteIndex, state, ladder.objective);
-      const { control: controlNotes } = splitNotes(retrieved);
+      // The actuator's manual, always - not whatever retrieval happened to
+      // score. Anything retrieval did surface is already the same file.
+      const manual = controlManual(skillDir, noteIndex);
+      const seenControl = new Set(manual.map(note => note.path));
+      const controlNotes = [...manual, ...splitNotes(retrieved).control.filter(note => !seenControl.has(note.path))];
       lastResult = laneResults[lane] || null;
 
       const counters = { consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet, consecutive_probes_without_acting: probes };

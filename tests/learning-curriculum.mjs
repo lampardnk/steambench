@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Curriculum, situation } from '../client/learning/curriculum.mjs';
-import { MAX_NOTE_IN_CONTEXT, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
+import { MAX_NOTE_IN_CONTEXT, controlManual, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-curriculum-'));
 const skillDir = path.join(root, 'skills', 'sts2');
@@ -220,4 +220,21 @@ assert.deepEqual(summary.enemies, ['Wriggler']);
 assert.equal(summary.hp, 60);
 
 fs.rmSync(root, { recursive: true, force: true });
-console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget'] }));
+// The pad's manual is not a match to be won. Retrieval scores a note against
+// the terms the situation carries, and a controls note carries none of them:
+// on the Neow bundle screen the terms are "bundle" and "select". Live, that
+// scored zero, and the actuator worked the screen blind for 55 decisions.
+{
+  note('ironclad/a1/controls/CONTROLS.md', '---\ndescription: How the pad drives this build.\nkeys: [controls, pad, buttons, focus]\n---\n# Controls\nb closes an overlay.\n');
+  const bundle = { state_type: 'bundle_select', bundle_select: { screen_type: 'bundle' }, player: {}, run: {} };
+  const index = indexNotes(skillDir);
+  const scored = retrieve(skillDir, index, bundle, null).map(note => note.path);
+  assert.ok(!scored.some(path => /controls\//.test(path)), 'retrieval alone does not surface a controls note on this screen');
+  const manual = controlManual(skillDir, index);
+  assert.ok(manual.length > 0, 'the manual is handed over regardless');
+  assert.ok(manual.every(note => /controls\//.test(note.path)), 'and it is only controls notes');
+  assert.ok(manual[0].content.length > 0, 'with its body, not just its name');
+  assert.ok(controlManual(skillDir, index, { budget: 300 }).every(note => note.content.length <= 300), 'and it stays bounded');
+}
+
+console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'the controls manual reaches the pad even when retrieval scores it zero'] }));
