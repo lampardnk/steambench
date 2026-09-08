@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
 import { Actuator, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
-import { ROLE_ACTIONS, ready, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
+import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
 import { API_KEY_ENVS, DEFAULT_MODEL, MODEL_PROFILES, PROFILE } from '../server/lib/learning-profile.mjs';
@@ -256,4 +256,43 @@ test('a menu that lists no controls has not loaded, and is not planned against',
   const settled = await executor.quiesced();
   assert.equal(settled.ui.focused_element, 'element-1');
   assert.ok(reads >= 4, 'it kept reading until the menu arrived');
+});
+
+test('a screen that re-rolls on its own is one screen, not a new one every second', async () => {
+  // Two reads of a live transform preview a second apart. Only the card right
+  // of the chosen one changed - but the mod rebuilds ui.scene_id when that
+  // node is replaced, and scene_id is part of what a plan rests on. A real run
+  // reached Neow, chose a Strike to transform, and then had three plans in a
+  // row thrown away as stale before the room paused, having sent nothing.
+  const { reads: [first, second] } = JSON.parse(fs.readFileSync(new URL('./fixtures/transform-preview-roll.json', import.meta.url), 'utf8'));
+  assert.notEqual(first.ui.scene_id, second.ui.scene_id, 'the raw scene id churns with the roll');
+  assert.notEqual(first.card_select.preview_cards[1].id, second.card_select.preview_cards[1].id);
+
+  // Identity settles the screen itself rather than trusting the caller to have
+  // done it: reading ui.scene_id raw, as it used to, is what let a plan
+  // validate and then be declared stale by the next read of the same screen.
+  assert.equal(planIdentity(first), planIdentity(second), 'it is one screen, however many times the card re-rolls');
+  assert.equal(stateId(first), stateId(second));
+  const [a, b] = [settleAnimation(first), settleAnimation(second)];
+  assert.equal(planIdentity(a), planIdentity(b), 'and settling first changes nothing');
+  assert.equal(stateId(a), stateId(b));
+  assert.equal(stateId(settleAnimation(a)), stateId(a), 'settling twice changes nothing');
+
+  // The chosen card survives; only the roll is taken out.
+  assert.equal(a.card_select.preview_cards.length, 1);
+  assert.equal(a.card_select.preview_cards[0].name, first.card_select.preview_cards[0].name);
+  assert.equal(a.card_select.preview_cards[0].role, 'chosen_card');
+  assert.match(a.ui.scene_id, /^transform-preview:/);
+  const rolled = a.ui.elements.find(item => item.reference?.model_id === 'CARD.<re-rolling>');
+  assert.ok(rolled, 'the rolling card element is neutralised, not deleted');
+  assert.equal(rolled.label, null);
+  // Every other screen is passed through untouched.
+  assert.equal(settleAnimation(reward), reward);
+
+  // It is applied where the sensor is read, so nothing downstream has to know.
+  let read = 0;
+  const executor = new Executor({ call: async () => ({ body: JSON.stringify(read++ % 2 ? second : first) }) });
+  executor.sleep = async () => {};
+  const settled = await executor.quiesced();
+  assert.match(settled.ui.scene_id, /^transform-preview:/);
 });

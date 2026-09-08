@@ -2,7 +2,7 @@ import { elements, pressableElement, targetElement, navigationPath } from './nav
 import { indexNotes } from './retrieval.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
-import { DIRECTIONS, isCardPlay, isCombat, noteProblem, planIdentity, progressId, ready, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
+import { DIRECTIONS, isCardPlay, isCombat, noteProblem, planIdentity, progressId, ready, settleAnimation, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
 
 export const MAX_NOTE = 16000;
 
@@ -86,8 +86,10 @@ export class Executor {
   async observe() {
     this.signal?.throwIfAborted();
     const response = await this.call({ op: 'sts2-get', path: '/api/v1/singleplayer', query: { format: 'json' } });
-    const state = JSON.parse(response.body);
-    if (!state || typeof state.state_type !== 'string') throw new Error('invalid game observation');
+    const raw = JSON.parse(response.body);
+    if (!raw || typeof raw.state_type !== 'string') throw new Error('invalid game observation');
+    // Settled here, once, so every reader downstream sees the same screen.
+    const state = settleAnimation(raw);
     this.record({ type: 'sensor', state, inputCount: this.inputs });
     return state;
   }

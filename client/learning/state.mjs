@@ -5,7 +5,51 @@ export const VERSION = PROFILE.checkpointVersion;
 export const SENSOR_VERSION = 5;
 export const digest = (value) => crypto.createHash('sha256').update(JSON.stringify(value) ?? 'null').digest('hex').slice(0, 16);
 
+/**
+ * The same screen, with the part of it that moves on its own taken out.
+ *
+ * A transform preview shows the chosen card on the left and a card that
+ * re-rolls about once a second on the right. That roll is animation: it never
+ * determines the transformed card. Neutralising the preview cards was not
+ * enough - the roll replaces a node, so the mod rebuilds `ui.scene_id` with it,
+ * and the rolled card's element carries its name and model id. Every one of
+ * those is in the identity a plan rests on, so a run reached Neow, chose a
+ * Strike to transform, and then had three plans in a row thrown away as stale
+ * before the room paused, having sent nothing.
+ *
+ * Applied where the sensor is read, so nothing downstream has to know: the
+ * observation id, the plan identity, the actuator's scene and the executor's
+ * own checks all see one stable screen. Idempotent.
+ */
+export function settleAnimation(state) {
+  const select = state?.card_select;
+  if (!(select?.screen_type === 'transform' && select.preview_showing && Array.isArray(select.preview_cards))) return state;
+  const [chosen] = select.preview_cards;
+  const rolling = select.preview_cards[1]?.id;
+  const result = {
+    ...state,
+    card_select: {
+      ...select,
+      preview_cards: chosen ? [{ ...chosen, role: 'chosen_card' }] : [],
+      random_result_preview: 'the card shown right of the chosen one re-rolls continuously and does not determine the result; it is omitted',
+    },
+  };
+  if (state.ui) {
+    result.ui = {
+      ...state.ui,
+      // Names the screen and the card being transformed, which is what a plan
+      // actually rests on here, rather than whichever card the roll is showing.
+      scene_id: `transform-preview:${chosen?.id ?? 'unknown'}`,
+      elements: (state.ui.elements || []).map(item => (rolling && item.reference?.model_id === `CARD.${rolling}`
+        ? { ...item, label: null, reference: { ...item.reference, model_id: 'CARD.<re-rolling>' } }
+        : item)),
+    };
+  }
+  return result;
+}
+
 export function compactState(state) {
+  state = settleAnimation(state);
   const player = state.player;
   const result = { ...state };
   if (player) {
@@ -23,18 +67,6 @@ export function compactState(state) {
       else cards.set(key, { ...card, count: 1 });
     }
     result.deck = [...cards.values()];
-  }
-  // A transform preview shows the chosen card on the left and a card that re-rolls about once a
-  // second on the right. That roll is animation: it never determines the transformed card. Keeping
-  // it would change the observation identity between every read, so no plan could ever execute.
-  const select = state.card_select;
-  if (select?.screen_type === 'transform' && select.preview_showing && Array.isArray(select.preview_cards)) {
-    const [chosen] = select.preview_cards;
-    result.card_select = {
-      ...select,
-      preview_cards: chosen ? [{ ...chosen, role: 'chosen_card' }] : [],
-      random_result_preview: 'the card shown right of the chosen one re-rolls continuously and does not determine the result; it is omitted',
-    };
   }
   return result;
 }
@@ -62,7 +94,12 @@ export function mapId(state) {
  * what a plan depends on; if those are unchanged the plan is still good.
  */
 export function planIdentity(state) {
-  return digest([progressId(state), state.state_type ?? null, state.menu_screen ?? null, state.ui?.scene_id ?? null, state.ui?.focused_element ?? null]);
+  // Settled here too, not only by the caller. progressId and stateId already
+  // normalise through compactState, and reading ui.scene_id raw while they did
+  // not was the inconsistency that let a plan validate and then be declared
+  // stale by the very next read of the same unchanged screen.
+  const settled = settleAnimation(state);
+  return digest([progressId(settled), settled.state_type ?? null, settled.menu_screen ?? null, settled.ui?.scene_id ?? null, settled.ui?.focused_element ?? null]);
 }
 
 const DIFF_FIELDS = [

@@ -1,0 +1,439 @@
+{
+  "note": "Two reads of the same live transform preview, one second apart. The card right of the chosen one re-rolls on its own; nothing else about the screen changed.",
+  "reads": [
+    {
+      "state_type": "card_select",
+      "run": {
+        "act": 1,
+        "floor": 1,
+        "ascension": 1
+      },
+      "player": {
+        "hp": 80,
+        "max_hp": 80,
+        "gold": 99,
+        "relics": [
+          {
+            "id": "BURNING_BLOOD",
+            "name": "Burning Blood",
+            "description": "At the end of combat, heal 6 HP.",
+            "counter": null,
+            "keywords": []
+          },
+          {
+            "id": "NEW_LEAF",
+            "name": "New Leaf",
+            "description": "Upon pickup, Transform 1 card.",
+            "counter": null,
+            "keywords": [
+              {
+                "name": "Transform",
+                "description": "Transformed cards become a random card of any rarity."
+              }
+            ]
+          }
+        ]
+      },
+      "card_select": {
+        "screen_type": "transform",
+        "prompt": "Choose a card to Transform.",
+        "cards": [
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 0
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 1
+          }
+        ],
+        "preview_showing": true,
+        "preview_cards": [
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 0
+          },
+          {
+            "id": "FORGOTTEN_RITUAL",
+            "name": "Forgotten Ritual",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain [ironclad_energy_icon.png][ironclad_energy_icon.png][ironclad_energy_icon.png]. Exhaust.",
+            "rarity": "Uncommon",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Energy",
+                "description": "Energy is used to play cards from your Hand."
+              },
+              {
+                "name": "Exhaust",
+                "description": "Removed until the end of combat."
+              }
+            ],
+            "index": 1
+          }
+        ],
+        "can_cancel": true,
+        "can_confirm": true
+      },
+      "ui": {
+        "sensor_version": 5,
+        "scene_id": "d62aaf2f9bf8cde8",
+        "focused_element": null,
+        "focus_path": null,
+        "elements": [
+          {
+            "id": "element-92157251186",
+            "label": "Gain    .\nExhaust.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.FORGOTTEN_RITUAL",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            },
+            "bounds": [
+              1108,
+              577,
+              243,
+              136
+            ]
+          },
+          {
+            "id": "element-1021094934441",
+            "label": "ActiveScreenProxy",
+            "reference": {},
+            "type": "Control",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1021094934441",
+              "up": "element-1021094934441",
+              "right": "element-1021094934441",
+              "down": "element-1021094934441"
+            },
+            "bounds": [
+              870,
+              -430,
+              40,
+              40
+            ]
+          },
+          {
+            "id": "element-1020742612884",
+            "label": "PauseButton",
+            "reference": {},
+            "type": "NTopBarPauseButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "bounds": [
+              1824,
+              0,
+              80,
+              80
+            ],
+            "hotkeys": [
+              "mega_pause_and_back"
+            ],
+            "press": "start"
+          },
+          {
+            "id": "element-1020390291327",
+            "label": "10",
+            "reference": {},
+            "type": "NTopBarDeckButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "bounds": [
+              1744,
+              0,
+              80,
+              80
+            ],
+            "hotkeys": [
+              "mega_view_deck_and_tab_left"
+            ],
+            "press": "lb"
+          }
+        ]
+      }
+    },
+    {
+      "state_type": "card_select",
+      "run": {
+        "act": 1,
+        "floor": 1,
+        "ascension": 1
+      },
+      "player": {
+        "hp": 80,
+        "max_hp": 80,
+        "gold": 99,
+        "relics": [
+          {
+            "id": "BURNING_BLOOD",
+            "name": "Burning Blood",
+            "description": "At the end of combat, heal 6 HP.",
+            "counter": null,
+            "keywords": []
+          },
+          {
+            "id": "NEW_LEAF",
+            "name": "New Leaf",
+            "description": "Upon pickup, Transform 1 card.",
+            "counter": null,
+            "keywords": [
+              {
+                "name": "Transform",
+                "description": "Transformed cards become a random card of any rarity."
+              }
+            ]
+          }
+        ]
+      },
+      "card_select": {
+        "screen_type": "transform",
+        "prompt": "Choose a card to Transform.",
+        "cards": [
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 0
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 1
+          }
+        ],
+        "preview_showing": true,
+        "preview_cards": [
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 0
+          },
+          {
+            "id": "RUPTURE",
+            "name": "Rupture",
+            "type": "Power",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Whenever you lose HP on your turn, gain 1 Strength.",
+            "rarity": "Uncommon",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Strength",
+                "description": "Strength adds additional damage to Attacks."
+              }
+            ],
+            "index": 1
+          }
+        ],
+        "can_cancel": true,
+        "can_confirm": true
+      },
+      "ui": {
+        "sensor_version": 5,
+        "scene_id": "61dbed1c4f2d8ced",
+        "focused_element": null,
+        "focus_path": null,
+        "elements": [
+          {
+            "id": "element-92157251186",
+            "label": "Whenever you lose HP on your turn, gain 1 Strength.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.RUPTURE",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            },
+            "bounds": [
+              1108,
+              577,
+              243,
+              136
+            ]
+          },
+          {
+            "id": "element-1021094934441",
+            "label": "ActiveScreenProxy",
+            "reference": {},
+            "type": "Control",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1021094934441",
+              "up": "element-1021094934441",
+              "right": "element-1021094934441",
+              "down": "element-1021094934441"
+            },
+            "bounds": [
+              870,
+              -430,
+              40,
+              40
+            ]
+          },
+          {
+            "id": "element-1020742612884",
+            "label": "PauseButton",
+            "reference": {},
+            "type": "NTopBarPauseButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "bounds": [
+              1824,
+              0,
+              80,
+              80
+            ],
+            "hotkeys": [
+              "mega_pause_and_back"
+            ],
+            "press": "start"
+          },
+          {
+            "id": "element-1020390291327",
+            "label": "10",
+            "reference": {},
+            "type": "NTopBarDeckButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "bounds": [
+              1744,
+              0,
+              80,
+              80
+            ],
+            "hotkeys": [
+              "mega_view_deck_and_tab_left"
+            ],
+            "press": "lb"
+          }
+        ]
+      }
+    }
+  ]
+}
