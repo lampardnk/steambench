@@ -47,7 +47,7 @@ export default function HistoryPage() {
           </a>
           <h1 className="text-xl font-semibold tracking-tight">History</h1>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
           <ul className="flex flex-col gap-2">
             {entries.map((e) => (

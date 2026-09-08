@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { loadSettings, saveSettings, type Settings } from '@/lib/backend'
+import { ThemeToggle } from '@/components/theme'
 
 export function useSettings(): [Settings, (s: Settings) => void, boolean] {
   const [settings, setSettings] = useState<Settings>({ backendUrl: '', token: '' })
@@ -30,6 +31,7 @@ export function SettingsBar({ settings, onChange, status }: { settings: Settings
         </a>
         <span className="text-muted-foreground">{status}</span>
         <div className="flex-1" />
+        <ThemeToggle />
         <button className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" onClick={() => setOpen(!open)}>
           {open ? 'hide settings' : 'settings'}
         </button>

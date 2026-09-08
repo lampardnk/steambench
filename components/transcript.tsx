@@ -153,7 +153,7 @@ function Item({ item }: { item: TranscriptItem }) {
   if (item.kind === 'tool') {
     const args = item.args ? JSON.stringify(item.args) : ''
     return (
-      <details className={`my-1 rounded-md border px-3 py-1 text-xs ${item.isError ? 'border-red-300 bg-red-50' : 'border-border bg-muted/40'}`}>
+      <details className={`my-1 rounded-md border px-3 py-1 text-xs ${item.isError ? 'border-destructive/40 bg-destructive/10' : 'border-border bg-muted/40'}`}>
         <summary className="cursor-pointer select-none font-mono">
           {item.pending ? '⏳' : item.isError ? '✖' : '✓'} {item.toolName}
           <span className="text-muted-foreground"> {args.length > 120 ? args.slice(0, 120) + '…' : args}</span>
@@ -163,7 +163,7 @@ function Item({ item }: { item: TranscriptItem }) {
     )
   }
   if (item.kind === 'system') {
-    return <div className="my-1 text-xs text-amber-700">⚠ {item.text}</div>
+    return <div className="my-1 text-xs text-warning">⚠ {item.text}</div>
   }
   return <div className="my-2 whitespace-pre-wrap">{item.text}</div>
 }

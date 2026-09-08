@@ -107,7 +107,7 @@ export default function RoomPage() {
     <main className="min-h-svh bg-background text-foreground">
       <SettingsBar settings={settings} onChange={setSettings} status={room ? `${room.name} · ${STAGE_LABELS[room.stage] || room.stage}` : connected ? 'connected' : 'connecting…'} />
       <div className="mx-auto w-full max-w-6xl px-4 py-4">
-        {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="mb-2 text-sm text-destructive">{error}</p>}
         {!room && <p className="text-sm text-muted-foreground">{configured ? 'Loading room…' : 'Configure the server URL and token first.'}</p>}
         {room && (
           <>
@@ -137,7 +137,7 @@ export default function RoomPage() {
                     <div className="font-medium">Run {room.finish.result}</div>
                     <p className="text-muted-foreground">{room.finish.summary}</p>
                     {room.finish.disputed && (
-                      <p className="mt-1 text-amber-700">
+                      <p className="mt-1 text-warning">
                         The game still showed a run in progress when the player reported a loss, so this result may be wrong.
                       </p>
                     )}
@@ -159,7 +159,7 @@ export default function RoomPage() {
                   )}
                 </div>
                 {room.attention && (
-                  <div role="alert" className="mb-3 rounded border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+                  <div role="alert" className="mb-3 rounded border border-warning/50 bg-warning/10 p-3 text-sm">
                     <strong>Paused for supervisor review</strong>
                     <p className="mt-1">{room.attention.error}</p>
                     <p className="mt-1 text-xs">
@@ -289,7 +289,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
         <span className="text-xs text-muted-foreground">Extra instructions for the player (optional)</span>
         <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} className="rounded-md border border-border bg-background px-2 py-1" placeholder="e.g. prefer a Strength build; skip shops" />
       </label>
-      {err && <p className="mt-2 text-red-600">{err}</p>}
+      {err && <p className="mt-2 text-destructive">{err}</p>}
       <button disabled={busy} onClick={submit} className="mt-3 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-50">
         Install and start
       </button>
@@ -361,7 +361,7 @@ function HealthPanel({ settings, room }: { settings: ReturnType<typeof useSettin
     <div className="rounded-md border border-border bg-card p-3 text-xs">
       <div className="flex items-center gap-2">
         <span className="font-medium">Health</span>
-        {health && <span className={health.ok ? 'text-emerald-600' : 'text-amber-700'}>{health.ok ? 'all good' : 'needs attention'}</span>}
+        {health && <span className={health.ok ? 'text-success' : 'text-warning'}>{health.ok ? 'all good' : 'needs attention'}</span>}
         <div className="flex-1" />
         {(room.stage === 'error' || room.stage === 'launching') && (
           <button disabled={busy} onClick={retry} className="rounded border border-border px-1.5 py-0.5 hover:bg-muted disabled:opacity-50">
@@ -372,12 +372,12 @@ function HealthPanel({ settings, room }: { settings: ReturnType<typeof useSettin
           {busy ? 'checking…' : 'check'}
         </button>
       </div>
-      {err && <p className="mt-1 text-red-600">{err}</p>}
+      {err && <p className="mt-1 text-destructive">{err}</p>}
       {health && (
         <ul className="mt-2 space-y-0.5">
           {health.checks.map((c) => (
             <li key={c.name} className="flex gap-2">
-              <span className={c.ok ? 'text-emerald-600' : 'text-red-600'}>{c.ok ? '✓' : '✗'}</span>
+              <span className={c.ok ? 'text-success' : 'text-destructive'}>{c.ok ? '✓' : '✗'}</span>
               <span className="w-28 shrink-0 text-muted-foreground">{c.name}</span>
               <span className="break-all">{c.detail}</span>
             </li>
