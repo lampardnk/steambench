@@ -111,6 +111,10 @@ export class Actuator {
     this.screenshot = screenshot;
     this.modelCalls = 0;
     this.resolved = 0;
+    // Label matches the game has already refused on a given screen. Resolving
+    // without the model is an optimisation, and a plan the game rejected is
+    // evidence the optimisation was wrong here.
+    this.rejected = new Set();
     // Kept for the incident record: what the model was actually looking at.
     this.lastImage = null;
   }
@@ -146,9 +150,29 @@ export class Actuator {
     return this.executor.execute(plan, state).catch(error => ({ error: error.message, code: error.code, completed: [], staleState: error.state }));
   }
 
+  /** A key for "this control, on this screen". */
+  static key(state, target) { return `${state?.ui?.scene_id ?? ''}|${target}`; }
+
+  /**
+   * Remember that a resolved plan failed at the game.
+   *
+   * Three decisions in a row died to this: the strategist asked to reach the
+   * elite node and rephrased its goal every time - three different sentences -
+   * but the label match collapsed all three onto the same element, which had no
+   * route from focus. The runtime then saw one identical plan three times over
+   * and told the STRATEGIST it was repeating itself, which it was not, and
+   * which it could not have fixed from where it sat.
+   */
+  noteFailure(state, plan) {
+    const step = plan?.actions?.find(action => action.type === 'activate' || action.type === 'navigate');
+    if (step?.target) this.rejected.add(Actuator.key(state, step.target));
+  }
+
   /** The pad plan for one intent, from the label if it can be, from the model otherwise. */
   async plan(intent, state, { notes = [], controlNotes = [], lastResult = null, instructions = [], from = 'strategist', image = null, counters = {} } = {}) {
-    const direct = resolveIntent(state, intent);
+    const matched = resolveIntent(state, intent);
+    const direct = matched && this.rejected.has(Actuator.key(state, matched.actions[0].target)) ? null : matched;
+    if (matched && !direct) this.record({ type: 'actuator', agent: this.lane, resolution: 'label_refused', goal: intent.goal, element: matched.actions[0].target });
     if (direct) {
       this.resolved++;
       this.record({ type: 'actuator', agent: this.lane, resolution: 'label', goal: intent.goal, target_label: intent.target_label, element: direct.actions[0].target });

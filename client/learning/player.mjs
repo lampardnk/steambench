@@ -483,6 +483,9 @@ async function run(task) {
       probes = probeOnly(plan) ? probes + 1 : 0;
       if (result.code === 'stale_observation' && ++stalePlans < 3) continue;
       if (result.error) {
+        // A resolved plan the game refused must not be resolved the same way
+        // again: the next attempt goes to the actuator, which can see why.
+        if (result.code !== 'stale_observation') actuator.noteFailure(state, plan);
         // Nothing reached the pad, so re-planning cannot compound a mistake and
         // the first-error pause has nothing to protect yet. A stale observation
         // is already bounded by stalePlans above and must not spend this budget

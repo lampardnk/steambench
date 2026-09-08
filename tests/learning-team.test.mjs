@@ -329,3 +329,36 @@ test('the label match declines whenever it is not certain, and the model is aske
   // The ordinary case is untouched: one named control, no competing command.
   assert.equal(resolveIntent(reward, { goal: 'skip this reward', target_label: 'Skip' }).actions[0].type, 'activate');
 });
+
+test('a label match the game refused is not offered a second time', async () => {
+  // Three decisions in a row died to this. The strategist asked to reach the
+  // elite node and rephrased its goal every time - "move to the reachable Elite
+  // node", "...at row 7, then begin the elite encounter", "...on the centre
+  // path" - but the label collapsed all three onto the same element, which had
+  // no route from focus. The runtime then saw one identical plan three times
+  // and told the STRATEGIST it was repeating itself, which it was not.
+  const asked = [];
+  const planner = { ask: async ({ context }) => { asked.push(context.goal); return { observation: stateId(reward), summary: 'press the bound button', note: 'Skip is on B.', actions: [{ type: 'activate', target: 'element-1206550283364', scene: reward.ui.scene_id }] }; } };
+  const executor = { execute: async () => ({ completed: [], state: reward }) };
+  const actuator = new Actuator({ planner, executor, roster: new Roster({ emit: () => {} }) });
+
+  const goals = ['take Glacier from this reward', 'take the Glacier card offered here', 'take Glacier, the block card'];
+  const first = await actuator.plan({ goal: goals[0], target_label: 'Glacier' }, reward, {});
+  assert.equal(first.resolution, 'label');
+  assert.equal(actuator.modelCalls, 0);
+
+  // The game refuses it - no route to that element.
+  actuator.noteFailure(reward, first.plan);
+
+  // Every later phrasing of the same goal now reaches the model, which can see
+  // the element list and the failure and choose differently.
+  for (const goal of goals.slice(1)) {
+    const again = await actuator.plan({ goal, target_label: 'Glacier' }, reward, {});
+    assert.equal(again.resolution, 'model', `"${goal}" must not resolve to the refused element again`);
+  }
+  assert.equal(actuator.modelCalls, 2);
+  assert.deepEqual(asked, goals.slice(1), 'and the model is told what was actually asked for');
+
+  // The memory is per screen and per control: a different control still resolves.
+  assert.equal((await actuator.plan({ goal: 'skip it', target_label: 'Skip' }, reward, {})).resolution, 'label');
+});
