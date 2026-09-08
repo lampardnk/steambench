@@ -1,4 +1,4 @@
-import { normalizePlayerKind } from './learning-profile.mjs';
+import { PROFILE, normalizePlayerKind } from './learning-profile.mjs';
 import { learningReadiness } from './readiness.mjs';
 // Room lifecycle. One room = one Wolf lobby (Steam + game in a container with
 // its own virtual display, audio sink and virtual Xbox pad) + one observer
@@ -266,7 +266,7 @@ export class RoomManager extends EventEmitter {
     if (!fs.existsSync(path.join(base, 'room.json'))) return null;
     const read = (f) => { try { return JSON.parse(fs.readFileSync(path.join(base, f), 'utf8')); } catch { return null; } };
     const text = (f) => { try { return fs.readFileSync(path.join(base, f), 'utf8'); } catch { return null; } };
-    return { room: read('room.json'), transcript: read('transcript.json') || [], padHistory: read('pad-history.json') || [], scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })), gameLog: text('godot.log') };
+    return { room: read('room.json'), transcript: read('transcript.json') || [], agents: read('agents.json') || [], padHistory: read('pad-history.json') || [], scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })), gameLog: text('godot.log') };
   }
 }
 
@@ -690,12 +690,12 @@ export class Room extends EventEmitter {
     this.setDetail('starting the player');
     const agent = new PiAgent({
       name: `steambench-player-${this.id}`, image: this.playerImage,
-      env: { ORCA_KEY: this.cfg.learningKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
+      env: { [PROFILE.apiKeyEnv]: this.cfg.learningKey, STEAMBENCH_MODEL: PROFILE.key, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
       mounts: [`${this.hostHome}/skills:/workspace/skills`],
     });
     this.agent = agent;
     agent.transcript = transcript;
-    for (const ev of ['item', 'delta', 'status']) agent.on(ev, (payload) => { if (this.agent === agent) this.emit(`agent:${ev}`, payload); });
+    for (const ev of ['item', 'delta', 'status', 'agents']) agent.on(ev, (payload) => { if (this.agent === agent) this.emit(`agent:${ev}`, payload); });
     agent.on('attention', () => { if (this.agent === agent) { this.emit('room', this.summary()); this.m.emit('rooms'); } });
     agent.on('status', (status) => {
       if (this.agent !== agent) return;
@@ -871,6 +871,8 @@ export class Room extends EventEmitter {
     const meta = { ...this.summary(), log: this.log, reason, archivedAt: Date.now(), transcriptItems: this.agent?.transcript.length || 0 };
     fs.writeFileSync(path.join(dir, 'room.json'), JSON.stringify(meta, null, 2));
     fs.writeFileSync(path.join(dir, 'transcript.json'), JSON.stringify(this.agent?.transcript || [], null, 2));
+    // The roster the transcript's lanes refer to, or the archive is a chat with unnamed speakers.
+    fs.writeFileSync(path.join(dir, 'agents.json'), JSON.stringify(this.agent?.agents || [], null, 2));
     fs.writeFileSync(path.join(dir, 'pad-history.json'), JSON.stringify(this.padHistory, null, 2));
     if (this.reader?.latest) fs.writeFileSync(path.join(dir, 'last-frame.jpg'), this.reader.latest);
     const scratch = path.join(this.home, 'skills', this.setup?.game || 'sts2', 'scratchpad');

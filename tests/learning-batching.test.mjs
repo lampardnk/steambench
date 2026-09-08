@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import { Executor } from '../client/learning/executor.mjs';
+import { navigationPath } from '../client/learning/navigation.mjs';
 import { PROFILE } from '../client/learning/profile.mjs';
-import { compactState, stateId, validatePlan, needsScreenshot, plannerResult, plannerState, mapId } from '../client/learning/state.mjs';
+import { compactState, stateId, validatePlan, needsScreenshot, plannerResult, mapId, stateDiff } from '../client/learning/state.mjs';
+import { actuatorContext, actuatorElements, combatState, encounterKind, strategistState } from '../client/learning/context.mjs';
+import { matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
+import { Roster, encounterLane } from '../client/learning/agents.mjs';
 
 const planFor = (state, actions) => ({ observation: stateId(state), summary: 'fixture batch', note: 'Test verified local execution.', actions });
 const initialCombat = () => ({
@@ -72,6 +76,35 @@ test('one plan executes deterministic cards and end turn, checking navigation se
   assert.equal(fixtureRun.inputs.length, 15); // 8 directional + 6 select/confirm + end turn
   assert.equal(fixtureRun.sensors(), 11); // fresh guard + 3*(navigation, select, play) + turn
   assert.ok(fixtureRun.sensors() < fixtureRun.inputs.length);
+});
+
+test('a Power settles before the next card is navigated to', async () => {
+  // Inflame killed a real batch: a Power goes to the power area rather than to a
+  // pile, so the wait for a played card's destination had nothing to count and
+  // skipped it. Its buff was still landing when the next card's hand navigation
+  // started, progressId moved underneath it, and a correct three-card turn died
+  // as "gameplay changed during hand navigation".
+  const initial = initialCombat();
+  initial.player.discard_pile_count = 0;
+  initial.player.exhaust_pile_count = 0;
+  initial.player.hand = initial.player.hand.map(card => ({ ...card, type: card.instance_id === 6 ? 'Power' : 'Attack' }));
+  let settling = 0;
+  const fixtureRun = fixture(initial, {
+    afterPlay: (state, played) => {
+      if (played === 6) settling = 2;
+      else state.player.discard_pile_count++;
+    },
+    // The buff and the energy it spent arrive a couple of reads after the card
+    // leaves the hand, which is exactly the window the old code navigated in.
+    onObserve: (state) => {
+      if (settling > 0) { settling--; state.player.buffs = [{ name: 'Strength', amount: settling }]; }
+      return state;
+    },
+  });
+  const result = await fixtureRun.run([play(6), play(3), { type: 'end_turn' }]);
+  assert.equal(result.error, undefined);
+  assert.equal(result.completed.length, 3, 'the Power does not end the batch it starts');
+  assert.equal(fixtureRun.records.filter(event => event.type === 'action' && event.action.type === 'play').length, 2);
 });
 
 test('eight semantic actions are supported and a ninth is rejected before input', async () => {
@@ -247,8 +280,9 @@ test('configuration matches exact OrcaRouter profile with no provider restrictio
   assert.equal(needsScreenshot(initialCombat()), false);
   assert.equal(needsScreenshot({ state_type: 'rewards', ui: { focus_path: '/RewardsContainer/RewardButton' } }), true);
   const state = initialMap();
-  const compact = plannerState(state, { after: { map_id: mapId(state) } }, 'Keep the chosen route.');
+  const compact = strategistState(state, { mapUnchanged: true });
   assert.equal(compact.map.nodes, undefined);
+  assert.equal(compact.map.node_count, state.map.nodes.length);
   assert.deepEqual(compact.map.next_options, state.map.next_options);
 });
 
@@ -469,4 +503,147 @@ test('a selection overlay during combat is a list, not card play', async () => {
   const play = initialCombat();
   assert.throws(() => validatePlan(planFor(play, [{ type: 'input', buttons: ['right', 'right'] }]), play), /batch navigation separately/);
   assert.throws(() => validatePlan(planFor(play, [{ type: 'input', buttons: ['left'], probe: true }]), play), /outside live card play/);
+});
+
+// The semantic navigation branch had no coverage at all, which is part of why
+// nothing noticed that prompt.txt never told the model these actions exist.
+// Shaped like the screen that halted a real run: NCardGrid points a card row's
+// up and down neighbours back at the card and wraps left and right, so Skip
+// sits outside the loop and is reached by its bound button instead.
+const rewardScreen = () => ({
+  state_type: 'card_reward', run: { floor: 1, act: 1 }, player: { hp: 80 },
+  ui: {
+    sensor_version: 5, scene_id: 'scene-reward', focused_element: 'element-card',
+    focus_path: '/root/Run/NCardRewardSelectionScreen/UI/CardRow/GridCardHolder-CARD_AFTERLIFE',
+    elements: [
+      { id: 'element-card', label: 'Afterlife', type: 'NGridCardHolder', visible: true, enabled: true, focus_mode: 'all', selectable: true, activation: 'a', ambiguous: false, bounds: [960, 616, 300, 420], neighbors: { up: 'element-card', down: 'element-card', left: 'element-other', right: 'element-other' } },
+      { id: 'element-other', label: 'Glacier', type: 'NGridCardHolder', visible: true, enabled: true, focus_mode: 'all', selectable: true, activation: 'a', ambiguous: false, bounds: [610, 616, 300, 420], neighbors: { up: 'element-other', down: 'element-other', left: 'element-card', right: 'element-card' } },
+      { id: 'element-skip', label: 'Skip', type: 'NCardRewardAlternativeButton', visible: true, enabled: true, focus_mode: 'all', selectable: true, activation: 'a', press: 'b', hotkeys: ['ui_cancel'], ambiguous: false, bounds: [822, 884, 276, 73], neighbors: { up: 'element-screen', down: 'element-screen', left: 'element-screen', right: 'element-screen' } },
+      { id: 'element-screen', label: 'Rewards', type: 'NRewardsScreen', visible: true, enabled: true, focus_mode: 'click', selectable: false, activation: null, ambiguous: false, bounds: [0, 0, 1920, 1080], neighbors: {} },
+    ],
+  },
+});
+
+test('a control bound to a button is pressed directly, with no route and no focus move', async () => {
+  const screen = fixture(rewardScreen(), { onInput: (state, button) => {
+    if (button === 'b') state.state_type = 'map';
+    return state;
+  } });
+  const result = await screen.run([{ type: 'activate', target: 'element-skip', scene: 'scene-reward' }]);
+  assert.equal(result.error, undefined);
+  assert.equal(result.state.state_type, 'map');
+  assert.deepEqual(screen.inputs.map(input => input.direction || input.button), ['b']);
+  assert.equal(result.completed[0].pressed, 'b');
+  // Focus never moved, and there is genuinely no route: inferring one from the
+  // on-screen geometry would have spent presses that do nothing.
+  assert.equal(result.state.ui.focused_element, 'element-card');
+  assert.throws(() => navigationPath(rewardScreen(), 'element-card', 'element-skip'), /no verified focus path/);
+});
+
+test('an element with no bound button is still reached by the route the game wired', async () => {
+  const screen = fixture(rewardScreen(), { onInput: (state, button) => {
+    if (button === 'left' && state.ui.focused_element === 'element-card') state.ui.focused_element = 'element-other';
+    if (button === 'a' && state.ui.focused_element === 'element-other') state.state_type = 'card_select';
+    return state;
+  } });
+  const result = await screen.run([{ type: 'activate', target: 'element-other', scene: 'scene-reward' }]);
+  assert.equal(result.error, undefined);
+  assert.deepEqual(screen.inputs.map(input => input.direction || input.button), ['left', 'a']);
+});
+
+test('activate works from a screen that holds no focus yet', async () => {
+  const cold = rewardScreen();
+  cold.ui.focused_element = null;
+  const screen = fixture(cold, { onInput: (state, button) => {
+    if (button === 'down' && !state.ui.focused_element) state.ui.focused_element = 'element-card';
+    if (button === 'left' && state.ui.focused_element === 'element-card') state.ui.focused_element = 'element-other';
+    if (button === 'a' && state.ui.focused_element === 'element-other') state.state_type = 'card_select';
+    return state;
+  } });
+  const result = await screen.run([{ type: 'activate', target: 'element-other', scene: 'scene-reward' }]);
+  assert.equal(result.error, undefined);
+  assert.deepEqual(screen.inputs.map(input => input.direction || input.button), ['down', 'left', 'a']);
+});
+
+test('semantic navigation refuses a stale scene and keeps read-only queries input-free', async () => {
+  const screen = rewardScreen();
+  assert.throws(() => validatePlan(planFor(screen, [{ type: 'activate', target: 'element-skip', scene: 'scene-gone' }]), screen), /stale or missing scene ID/);
+  assert.throws(() => validatePlan(planFor(screen, [{ type: 'activate', target: 'element-skip', scene: 'scene-reward' }, { type: 'navigate', target: 'element-card', scene: 'scene-reward' }]), screen), /final scene barrier/);
+  assert.throws(() => validatePlan(planFor(screen, [{ type: 'path', target: 'element-other', scene: 'scene-reward' }, { type: 'navigate', target: 'element-card', scene: 'scene-reward' }]), screen), /read-only query must be standalone/);
+
+  const query = fixture(screen, { onInput: state => state });
+  const asked = await query.run([{ type: 'path', target: 'element-other', scene: 'scene-reward' }]);
+  assert.equal(asked.error, undefined);
+  assert.equal(query.inputs.length, 0);
+  assert.deepEqual(asked.completed[0].path.map(step => step.direction), ['left']);
+});
+
+test('only the actuator is sent the interface, and it is sent what it can press rather than the graph', () => {
+  const screen = rewardScreen();
+  // A labelled focused element is the whole point of the sensor: no screenshot.
+  assert.equal(needsScreenshot(screen), false);
+  const sent = actuatorElements(screen);
+  assert.ok(sent.every(item => item.neighbors === undefined && item.bounds === undefined));
+  const skip = sent.find(item => item.id === 'element-skip');
+  assert.equal(skip.label, 'Skip');
+  assert.equal(skip.press, 'b');
+  assert.deepEqual(skip.hotkeys, ['ui_cancel']);
+  // The executor still sees the full graph it routes with.
+  assert.ok(compactState(screen).ui.elements.every(item => item.neighbors !== undefined));
+  // Nobody who plays the game sees any of it. An element id in front of the
+  // strategist is only something to invent a route through.
+  assert.equal(strategistState(screen).ui, undefined);
+  assert.equal(combatState(initialCombat()).ui, undefined);
+  assert.equal(combatState(initialCombat()).map, undefined);
+  assert.equal(strategistState(initialCombat()).battle, undefined);
+});
+
+test('presentation that moves on its own no longer discards a plan, but a changed scene still does', async () => {
+  // A tween sliding a control changes stateId every read. Nothing the plan
+  // rests on moved, so the plan must still execute: treating this as stale is
+  // what threw away most combat decisions without sending any input.
+  const drifting = fixture(rewardScreen(), {
+    onObserve: (state, reads) => { state.ui.elements[0].bounds = [960, 616 + reads, 300, 420]; return state; },
+    onInput: (state, button) => { if (button === 'b') state.state_type = 'map'; return state; },
+  });
+  const moved = await drifting.run([{ type: 'activate', target: 'element-skip', scene: 'scene-reward' }]);
+  assert.equal(moved.error, undefined);
+  assert.deepEqual(drifting.inputs.map(input => input.direction || input.button), ['b']);
+
+  // A different set of controls is a real change and must not be acted on.
+  const replaced = fixture(rewardScreen(), {
+    onObserve: (state) => { state.ui.scene_id = 'scene-moved-on'; return state; },
+    onInput: state => state,
+  });
+  const stale = await replaced.run([{ type: 'activate', target: 'element-skip', scene: 'scene-reward' }]).catch(error => error);
+  assert.equal(stale.code, 'stale_observation');
+  assert.equal(replaced.inputs.length, 0);
+  // The replan carries what actually moved, so the next call extends instead of
+  // re-deriving the screen from nothing.
+  assert.deepEqual(stateDiff(rewardScreen(), stale.state).scene_id, { was: 'scene-reward', now: 'scene-moved-on' });
+});
+
+test('a screen still arriving is routed around, but gameplay advancing during a route is not', async () => {
+  // A reward deals its cards in after the plan was made: the scene changes with
+  // nothing happening in the run. Recompute the route rather than pausing.
+  let reads = 0;
+  const arriving = fixture(rewardScreen(), {
+    // Read 1 matches the plan; the screen finishes dealing during the route.
+    onObserve: (state) => { if (++reads > 1) state.ui.scene_id = 'scene-dealt'; return state; },
+    onInput: (state, button) => {
+      if (button === 'left' && state.ui.focused_element === 'element-card') state.ui.focused_element = 'element-other';
+      if (button === 'a' && state.ui.focused_element === 'element-other') state.state_type = 'card_select';
+      return state;
+    },
+  });
+  const settled = await arriving.run([{ type: 'activate', target: 'element-other', scene: 'scene-reward' }]);
+  assert.equal(settled.error, undefined);
+  assert.deepEqual(arriving.inputs.map(input => input.direction || input.button), ['left', 'a']);
+
+  // Gameplay moving underneath a route is the real hazard and still stops it.
+  const advancing = fixture(rewardScreen(), {
+    onInput: (state, button) => { if (button === 'left') state.player.hp = 40; return state; },
+  });
+  const hazard = await advancing.run([{ type: 'activate', target: 'element-other', scene: 'scene-reward' }]);
+  assert.match(hazard.error, /gameplay advanced during navigation/);
 });

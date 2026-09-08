@@ -16,6 +16,7 @@ using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 
@@ -37,6 +38,89 @@ public static partial class McpMod
         try { return value?.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(value); }
         catch { return null; }
     }
+    /** Declared-only walk up the hierarchy, so a protected member on a base class is still found. */
+    private static PropertyInfo? FindProperty(Type? type, string name)
+    {
+        for (; type != null; type = type.BaseType)
+        {
+            var property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            if (property != null) return property;
+        }
+        return null;
+    }
+    /**
+     * The game does not use Godot's InputMap: every ui_* action in
+     * project.godot carries an empty events array, and nothing fills them in at
+     * runtime. Input goes through NControllerManager instead, which maps a
+     * MegaInput action to one of these controller button names. The pad Wolf
+     * gives us is an Xbox layout, so south/east/west/north are A/B/X/Y.
+     * Triggers and stick presses have no equivalent in the button vocabulary
+     * the executor can send, so they resolve to nothing rather than a guess.
+     */
+    private static readonly Dictionary<string, string> PadButtons = new()
+    {
+        ["controller_face_button_south"] = "a", ["controller_face_button_east"] = "b",
+        ["controller_face_button_west"] = "x", ["controller_face_button_north"] = "y",
+        ["controller_select_button"] = "back", ["controller_start_button"] = "start",
+        ["controller_left_bumper"] = "lb", ["controller_right_bumper"] = "rb",
+        ["controller_d_pad_up"] = "up", ["controller_d_pad_down"] = "down",
+        ["controller_d_pad_left"] = "left", ["controller_d_pad_right"] = "right",
+    };
+    private static Dictionary<string, string> ControllerMap()
+    {
+        var map = new Dictionary<string, string>();
+        try
+        {
+            var live = NControllerManager.Instance?.GetDefaultControllerInputMap;
+            if (live == null) return map;
+            foreach (var (action, button) in live)
+            {
+                var name = button?.ToString();
+                if (action != null && name != null && PadButtons.TryGetValue(name, out var pad)) map[action.ToString()] = pad;
+            }
+        }
+        catch { }
+        return map;
+    }
+    // Whether the type can carry a binding at all, memoised: this is asked of
+    // every visible control on every observation, and the answer never varies
+    // per instance.
+    private static readonly Dictionary<Type, bool> HotkeyTypes = new();
+    private static bool DeclaresHotkeys(Control control)
+    {
+        var type = control.GetType();
+        if (!HotkeyTypes.TryGetValue(type, out var declares)) HotkeyTypes[type] = declares = FindProperty(type, "Hotkeys") != null;
+        return declares;
+    }
+    /**
+     * The button that activates a control from anywhere, without moving focus.
+     * Some controls cannot be reached by focus at all: NCardGrid and
+     * NCardRewardSelectionScreen wire a card row's up and down neighbours back
+     * to the card itself and wrap left and right within the row, so the row is
+     * a closed loop by design and Skip sits outside it. The way out is the
+     * button the game bound to the action, registered through the game's own
+     * NButton.Hotkeys and NHotkeyManager rather than Godot's BaseButton
+     * Shortcut, and resolved against the game's controller map rather than a
+     * guess about which button means "cancel".
+     */
+    private static (List<string> Actions, string? Button) HotkeyBinding(Control control, Dictionary<string, string> controllerMap)
+    {
+        var actions = new List<string>();
+        string? button = null;
+        try
+        {
+            if (FindProperty(control.GetType(), "Hotkeys")?.GetValue(control) is not System.Collections.IEnumerable items) return (actions, null);
+            foreach (var item in items)
+            {
+                var action = item?.ToString();
+                if (string.IsNullOrWhiteSpace(action)) continue;
+                actions.Add(action);
+                if (button == null && controllerMap.TryGetValue(action, out var pad)) button = pad;
+            }
+        }
+        catch { }
+        return (actions, button);
+    }
     private static IEnumerable<Node> Descendants(Node node)
     {
         var stack = new Stack<Node>(); stack.Push(node);
@@ -46,6 +130,27 @@ public static partial class McpMod
             var next = stack.Pop(); yield return next;
             foreach (var child in next.GetChildren()) stack.Push(child);
         }
+    }
+    /**
+     * A holder often carries no size of its own and draws through children, so
+     * its own rect is a point: the three card holders on a reward screen all
+     * report 0x0. The centre is still right, but nothing can be said about
+     * overlap or containment, so fall back to the extent of what is drawn.
+     */
+    private static Rect2 SolidRect(Control control)
+    {
+        var rect = control.GetGlobalRect();
+        if (rect.Size.X > 0 && rect.Size.Y > 0) return rect;
+        var found = false;
+        foreach (var child in Descendants(control).OfType<Control>())
+        {
+            if (child == control || !child.IsVisibleInTree()) continue;
+            var childRect = child.GetGlobalRect();
+            if (childRect.Size.X <= 0 || childRect.Size.Y <= 0) continue;
+            rect = found ? rect.Merge(childRect) : childRect;
+            found = true;
+        }
+        return rect;
     }
     private static string? VisibleText(Node node)
     {
@@ -92,8 +197,23 @@ public static partial class McpMod
     private static void AddFocusGraph(Dictionary<string, object?> state, Dictionary<string, object?> ui, SceneTree? tree, Control? focus)
     {
         if (tree?.Root == null) return;
-        var controls = Descendants(tree.Root).OfType<Control>()
-            .Where(c => c.IsVisibleInTree() && (c.FocusMode != Control.FocusModeEnum.None || c == focus)).Take(600).ToList();
+        // A control that is only ever activated by its bound button has no
+        // reason to be focusable, so filtering on focus alone dropped exactly
+        // the controls a hotkey makes reachable - the top bar's deck, map and
+        // pause buttons never appeared at all. Keep those too, and carry the
+        // binding forward so it is resolved once per control rather than twice.
+        var controls = new List<Control>();
+        var bindings = new Dictionary<Control, (List<string> Actions, string? Button)>();
+        var controllerMap = ControllerMap();
+        foreach (var control in Descendants(tree.Root).OfType<Control>())
+        {
+            if (!control.IsVisibleInTree()) continue;
+            var binding = DeclaresHotkeys(control) ? HotkeyBinding(control, controllerMap) : (new List<string>(), null);
+            if (control.FocusMode == Control.FocusModeEnum.None && control != focus && binding.Actions.Count == 0) continue;
+            controls.Add(control);
+            bindings[control] = binding;
+            if (controls.Count == 600) break;
+        }
         string Id(Control c) => "element-" + c.GetInstanceId();
         var ids = controls.ToDictionary(c => c.GetInstanceId(), Id);
         var list = new List<Dictionary<string, object?>>();
@@ -104,8 +224,14 @@ public static partial class McpMod
             if (reference.TryGetValue("kind", out var kind) && (string?)kind == "map") label = $"{reference["type"]} at column {reference["col"]}, row {reference["row"]}";
             if (reference.TryGetValue("card", out var cinfo) && cinfo is Dictionary<string, object?> card && card.TryGetValue("name", out var name)) label = name?.ToString();
             if (string.IsNullOrWhiteSpace(label) && reference.TryGetValue("title", out var title)) label = title?.ToString();
-            // Named buttons are descriptive; generated Godot suffixes never are.
-            if (string.IsNullOrWhiteSpace(label) && !control.Name.ToString().Contains('@') && control.Name.ToString().EndsWith("Button")) label = control.Name.ToString();
+            // An author-given node name is descriptive; only Godot's generated
+            // ones (@Control@1386) are not. This has to be broader than "ends
+            // with Button": the character select buttons are named
+            // IRONCLAD_button, and a control that draws its caption as art
+            // rather than a Label has no visible text to read at all. Without a
+            // label the element counts as ambiguous, and activate refuses it -
+            // which is what stranded a run on character select.
+            if (string.IsNullOrWhiteSpace(label) && !control.Name.ToString().Contains('@')) label = control.Name.ToString();
             var enabled = ReadProperty(control, "IsEnabled") as bool? ?? (control is BaseButton button ? !button.Disabled : true);
             var neighbors = new Dictionary<string, object?>();
             foreach (var (direction, side) in new[] { ("left", Side.Left), ("up", Side.Top), ("right", Side.Right), ("down", Side.Bottom) })
@@ -114,15 +240,28 @@ public static partial class McpMod
                 try { neighbor = control.FindValidFocusNeighbor(side); } catch { }
                 neighbors[direction] = neighbor != null && ids.TryGetValue(neighbor.GetInstanceId(), out var other) ? other : null;
             }
-            var rect = control.GetGlobalRect();
-            list.Add(new Dictionary<string, object?> {
+            var rect = SolidRect(control);
+            // The effective mode, not the raw property: Godot 4.5 resolves focus
+            // through get_focus_mode_with_override, which folds in
+            // focus_behavior_recursive from ancestors and can disable a whole
+            // subtree. Only All is reachable with a d-pad; Click is mouse-only,
+            // and reporting it as selectable made tooltips, gold and HP readouts
+            // look like navigation targets.
+            var focusMode = control.GetFocusModeWithOverride().ToString().ToLowerInvariant();
+            var (hotkeys, press) = bindings[control];
+            var element = new Dictionary<string, object?> {
                 ["id"] = Id(control), ["label"] = label, ["reference"] = reference,
                 ["type"] = control.GetType().Name, ["visible"] = true, ["enabled"] = enabled,
-                ["selectable"] = control.FocusMode != Control.FocusModeEnum.None,
+                ["focus_mode"] = focusMode, ["selectable"] = focusMode == "all",
                 ["activation"] = control is BaseButton || control.GetType().Name.Contains("Button") || reference.Count > 0 ? "a" : null,
                 ["ambiguous"] = string.IsNullOrWhiteSpace(label), ["neighbors"] = neighbors,
                 ["bounds"] = new[] { (int)rect.Position.X, (int)rect.Position.Y, (int)rect.Size.X, (int)rect.Size.Y }
-            });
+            };
+            // press is what makes an unreachable control usable; hotkeys names
+            // the actions behind it so a missing binding can be diagnosed.
+            if (hotkeys.Count > 0) element["hotkeys"] = hotkeys;
+            if (press != null) element["press"] = press;
+            list.Add(element);
         }
         // The semantic scene changes when its controls/options change, never merely on focus.
         var scene = JsonSerializer.Serialize(new { type = state.GetValueOrDefault("state_type"), menu = state.GetValueOrDefault("menu_screen"), nodes = list.Select(e => new { id = e["id"], label = e["label"], enabled = e["enabled"] }) });
@@ -136,7 +275,7 @@ public static partial class McpMod
     {
         private static void Postfix(Dictionary<string, object?> __result)
         {
-            var observation = new Dictionary<string, object?> { ["sensor_version"] = 3 };
+            var observation = new Dictionary<string, object?> { ["sensor_version"] = 5 };
             __result["ui"] = observation;
             try
             {

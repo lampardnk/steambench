@@ -29,7 +29,7 @@ export function SteamLogin({ room }: { room: RoomSummary }) {
   }, [room.loginQr])
 
   return (
-    <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm">
+    <div className="rounded-md border border-warning/40 bg-warning/10 p-4 text-sm">
       <div className="font-medium">Sign in to Steam for this room</div>
       <div className="mt-3 flex flex-wrap items-start gap-5">
         <div className="flex flex-col items-center gap-2">
@@ -37,7 +37,7 @@ export function SteamLogin({ room }: { room: RoomSummary }) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={dataUrl} alt="Steam sign-in QR code" className="size-44 rounded bg-white p-1" />
           ) : (
-            <div className="flex size-44 items-center justify-center rounded border border-dashed border-amber-400 text-xs text-muted-foreground">
+            <div className="flex size-44 items-center justify-center rounded border border-dashed border-warning/50 text-xs text-muted-foreground">
               {room.frames > 0 ? 'waiting for a fresh code…' : 'waiting for video…'}
             </div>
           )}

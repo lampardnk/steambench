@@ -20,7 +20,7 @@ const TOKEN = env.STEAMBENCH_TOKEN;
 if (!TOKEN) { console.error('STEAMBENCH_TOKEN is required'); process.exit(2); }
 const here = path.dirname(fileURLToPath(import.meta.url));
 import { learningReadiness } from '../lib/readiness.mjs';
-const learningKey = env.ORCA_KEY || '';
+const learningKey = env[learningProfile.apiKeyEnv] || '';
 
 const cfg = {
   log,
@@ -63,7 +63,7 @@ const cfg = {
 };
 const PORT = Number(env.PORT || 8787);
 const GATEWAY_PORT = Number(env.STEAMBENCH_GATEWAY_PORT || 28771);
-if (!cfg.learningKey) log('ORCA_KEY is absent; the built-in player is unready');
+if (!cfg.learningKey) log(`${learningProfile.apiKeyEnv} is absent; the built-in player is unready`);
 
 const manager = new RoomManager(cfg);
 startGateway({ port: GATEWAY_PORT, resolveInstance: (t) => manager.resolveToken(t), log });
@@ -83,11 +83,19 @@ async function readJson(req) {
   return body ? JSON.parse(body) : {};
 }
 
-/** Skill directories the library currently holds, newest knowledge first. */
+// What both the listing and the skill routes agree is a skill name.
+const SKILL_NAME = /^[a-z0-9_-]+$/;
+
+/**
+ * Skill directories the library currently holds. Only names the skill routes
+ * below actually accept: the library also holds bookkeeping directories, and
+ * .objectives sorts ahead of every real skill, so listing it made the notes
+ * browser open it by default and get "invalid skill" back instead of the notes.
+ */
 function librarySkills(cfg) {
   try {
     return fs.readdirSync(library.libraryDir(cfg), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && entry.name !== '.git')
+      .filter((entry) => entry.isDirectory() && SKILL_NAME.test(entry.name))
       .map((entry) => entry.name).sort();
   } catch { return []; }
 }
@@ -115,8 +123,7 @@ const server = http.createServer(async (req, res) => {
     // The persistent skill library: what the players have learned, as commits.
     if (parts[1] === 'library') {
       const skill = url.searchParams.get('skill') || undefined;
-      if (skill && !/^[a-z0-9_-]+$/.test(skill)) return json(res, 400, { error: 'invalid skill' });
-      if (parts[2] === 'objectives' && req.method === 'GET') return json(res, 200, library.objectivePage(path.join(library.libraryDir(cfg), '.objectives', skill || 'sts2', 'history.json'), Object.fromEntries(url.searchParams)));
+      if (skill && !SKILL_NAME.test(skill)) return json(res, 400, { error: 'invalid skill' });
       if (parts.length === 2 && req.method === 'GET') {
         return json(res, 200, { skills: librarySkills(cfg), ...await library.historyPage(cfg, { ...Object.fromEntries(url.searchParams), skill }) });
       }
@@ -146,7 +153,7 @@ const server = http.createServer(async (req, res) => {
       const room = manager.get(parts[2]);
       if (!room) return json(res, 404, { error: 'no such room' });
       const sub = parts[3];
-      if (!sub && req.method === 'GET') return json(res, 200, { ...room.summary(), transcript: room.agent?.transcript || [], padHistory: room.padHistory, log: room.log });
+      if (!sub && req.method === 'GET') return json(res, 200, { ...room.summary(), transcript: room.agent?.transcript || [], agents: room.agent?.agents || [], padHistory: room.padHistory, log: room.log });
       if (!sub && req.method === 'DELETE') { await manager.remove(room.id, { keepHome: url.searchParams.get('keepHome') === '1', reason: 'deleted by user' }); return json(res, 200, { ok: true, archive: room.archiveDir ? path.basename(room.archiveDir) : null }); }
       if (sub === 'setup' && req.method === 'POST') { const body = await readJson(req); return json(res, 200, await room.applySetup(body)); }
       if (sub === 'objectives' && req.method === 'GET') return json(res, 200, library.objectivePage(path.join(room.home, 'skills', room.setup?.game || 'sts2', 'scratchpad', 'objectives.json'), Object.fromEntries(url.searchParams)));
@@ -272,9 +279,10 @@ function attachMediaSocket(ws, room) {
 
 function attachRoomSocket(ws, room) {
   const send = (obj) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };
-  send({ type: 'snapshot', room: room.summary(), transcript: room.agent?.transcript || [], padHistory: room.padHistory, log: room.log });
+  send({ type: 'snapshot', room: room.summary(), transcript: room.agent?.transcript || [], agents: room.agent?.agents || [], padHistory: room.padHistory, log: room.log });
   const handlers = {
     'agent:item': (item) => send({ type: 'item', item }),
+    'agent:agents': (agents) => send({ type: 'agents', agents }),
     'agent:delta': (d) => send({ type: 'delta', ...d }),
     'agent:status': (s) => send({ type: 'agent_status', status: s }),
     pad: (e) => send({ type: 'pad', event: e }),

@@ -2,10 +2,54 @@ import crypto from 'node:crypto';
 import { PROFILE } from './profile.mjs';
 
 export const VERSION = PROFILE.checkpointVersion;
-export const SENSOR_VERSION = 3;
+export const SENSOR_VERSION = 5;
 export const digest = (value) => crypto.createHash('sha256').update(JSON.stringify(value) ?? 'null').digest('hex').slice(0, 16);
 
+/**
+ * The same screen, with the part of it that moves on its own taken out.
+ *
+ * A transform preview shows the chosen card on the left and a card that
+ * re-rolls about once a second on the right. That roll is animation: it never
+ * determines the transformed card. Neutralising the preview cards was not
+ * enough - the roll replaces a node, so the mod rebuilds `ui.scene_id` with it,
+ * and the rolled card's element carries its name and model id. Every one of
+ * those is in the identity a plan rests on, so a run reached Neow, chose a
+ * Strike to transform, and then had three plans in a row thrown away as stale
+ * before the room paused, having sent nothing.
+ *
+ * Applied where the sensor is read, so nothing downstream has to know: the
+ * observation id, the plan identity, the actuator's scene and the executor's
+ * own checks all see one stable screen. Idempotent.
+ */
+export function settleAnimation(state) {
+  const select = state?.card_select;
+  if (!(select?.screen_type === 'transform' && select.preview_showing && Array.isArray(select.preview_cards))) return state;
+  const [chosen] = select.preview_cards;
+  const rolling = select.preview_cards[1]?.id;
+  const result = {
+    ...state,
+    card_select: {
+      ...select,
+      preview_cards: chosen ? [{ ...chosen, role: 'chosen_card' }] : [],
+      random_result_preview: 'the card shown right of the chosen one re-rolls continuously and does not determine the result; it is omitted',
+    },
+  };
+  if (state.ui) {
+    result.ui = {
+      ...state.ui,
+      // Names the screen and the card being transformed, which is what a plan
+      // actually rests on here, rather than whichever card the roll is showing.
+      scene_id: `transform-preview:${chosen?.id ?? 'unknown'}`,
+      elements: (state.ui.elements || []).map(item => (rolling && item.reference?.model_id === `CARD.${rolling}`
+        ? { ...item, label: null, reference: { ...item.reference, model_id: 'CARD.<re-rolling>' } }
+        : item)),
+    };
+  }
+  return result;
+}
+
 export function compactState(state) {
+  state = settleAnimation(state);
   const player = state.player;
   const result = { ...state };
   if (player) {
@@ -24,18 +68,6 @@ export function compactState(state) {
     }
     result.deck = [...cards.values()];
   }
-  // A transform preview shows the chosen card on the left and a card that re-rolls about once a
-  // second on the right. That roll is animation: it never determines the transformed card. Keeping
-  // it would change the observation identity between every read, so no plan could ever execute.
-  const select = state.card_select;
-  if (select?.screen_type === 'transform' && select.preview_showing && Array.isArray(select.preview_cards)) {
-    const [chosen] = select.preview_cards;
-    result.card_select = {
-      ...select,
-      preview_cards: chosen ? [{ ...chosen, role: 'chosen_card' }] : [],
-      random_result_preview: 'the card shown right of the chosen one re-rolls continuously and does not determine the result; it is omitted',
-    };
-  }
   return result;
 }
 
@@ -52,14 +84,58 @@ export function mapId(state) {
   return state.state_type === 'map' ? digest(state.map) : null;
 }
 
-export function plannerState(state, lastResult, strategy) {
-  const result = compactState(state);
-  if (result.player) for (const pile of ['draw_pile', 'discard_pile', 'exhaust_pile']) delete result.player[pile];
-  if (state.state_type === 'map' && strategy && lastResult?.after?.map_id === mapId(state)) {
-    const { nodes, ...map } = result.map;
-    result.map = { ...map, full_graph_unchanged: true, node_count: nodes?.length };
+/**
+ * What a plan actually rests on. stateId covers every field the sensor reports,
+ * including presentation that moves on its own: a tween sliding a control,
+ * a "Game Saved" toast, a focus outline redraw, an idle animation during
+ * combat. Comparing that against a plan made a few seconds earlier declared
+ * almost every combat decision stale and threw it away without sending input.
+ * Gameplay progress, the set of controls on screen and what holds focus are
+ * what a plan depends on; if those are unchanged the plan is still good.
+ */
+export function planIdentity(state) {
+  // Settled here too, not only by the caller. progressId and stateId already
+  // normalise through compactState, and reading ui.scene_id raw while they did
+  // not was the inconsistency that let a plan validate and then be declared
+  // stale by the very next read of the same unchanged screen.
+  const settled = settleAnimation(state);
+  return digest([progressId(settled), settled.state_type ?? null, settled.menu_screen ?? null, settled.ui?.scene_id ?? null, settled.ui?.focused_element ?? null]);
+}
+
+const DIFF_FIELDS = [
+  ['state_type', state => state.state_type],
+  ['menu_screen', state => state.menu_screen ?? null],
+  ['act', state => state.run?.act ?? null],
+  ['floor', state => state.run?.floor ?? null],
+  ['hp', state => state.player?.hp ?? null],
+  ['gold', state => state.player?.gold ?? null],
+  ['energy', state => state.player?.energy ?? null],
+  ['turn', state => state.battle?.turn ?? null],
+  ['round', state => state.battle?.round ?? null],
+  ['scene_id', state => state.ui?.scene_id ?? null],
+  ['focused_element', state => state.ui?.focused_element ?? null],
+  ['focus_path', state => state.ui?.focus_path ?? null],
+];
+
+/**
+ * The fields that differ between two observations. A replan gets this instead
+ * of being told only that something moved: re-deriving a whole screen because
+ * focus shifted by one row is the expensive way to learn one fact.
+ */
+export function stateDiff(before, after) {
+  const changed = {};
+  for (const [name, read] of DIFF_FIELDS) {
+    const was = read(before);
+    const now = read(after);
+    if (was !== now) changed[name] = { was, now };
   }
-  return result;
+  const labels = state => new Set((state.ui?.elements || []).map(item => item.label).filter(Boolean));
+  const [old, fresh] = [labels(before), labels(after)];
+  const gone = [...old].filter(label => !fresh.has(label)).slice(0, 8);
+  const added = [...fresh].filter(label => !old.has(label)).slice(0, 8);
+  if (gone.length) changed.controls_gone = gone;
+  if (added.length) changed.controls_added = added;
+  return changed;
 }
 
 export function plannerResult(result) {
@@ -120,7 +196,29 @@ export function isCardPlay(state) {
   return isCombat(state) && !/select|overlay|reward/.test(state.state_type);
 }
 
+/**
+ * A menu the game has not built yet. The mod answers as soon as it is loaded,
+ * which is before the main menu scene exists: the very first observation of a
+ * room reported state_type "menu", menu_screen "main" and an EMPTY element list
+ * with null focus, and an empty payload is identical to the next empty payload,
+ * so quiescing declared it settled at once. The actuator then did the only
+ * sensible thing with a menu that lists no controls - pressed A to establish
+ * focus - against a screen that was not listening, and the run paused on its
+ * first decision. Seconds later the same endpoint reported nine elements with
+ * focus on SingleplayerButton.
+ *
+ * A real menu always has at least one control. No controls and no focus is not
+ * a settled screen; it is a screen that has not arrived.
+ */
+export function unbuiltMenu(state) {
+  return state?.state_type === 'menu'
+    && !state.ui?.focused_element
+    && !state.ui?.focus_path
+    && (state.ui?.elements?.length ?? 0) === 0;
+}
+
 export function ready(state) {
+  if (unbuiltMenu(state)) return false;
   return !isCombat(state) || /select|overlay|reward/.test(state.state_type) || (state.battle.is_play_phase === true && state.battle.turn === 'player');
 }
 
@@ -133,6 +231,35 @@ const MOMENT_IN_PATH = /(?:^|[/_-])(?:floor|round|turn|decision|seed)-?\d/;
  * Why a learned note cannot be kept, or null when it is fine. Kept separate from
  * validatePlan so a badly formed note is reported rather than ending the run.
  */
+// A planner that ran out of budget produced no plan at all, which is a different
+// failure from a plan that arrived and was rejected: there is nothing in it to
+// correct, and "fix exactly what this message names" names nothing, so the model
+// reads it as a demand for more care and spends even longer. That is a loop, and
+// three rounds of it end the room - which is how a floor-3 combat died with the
+// model three times hitting `stop reason length` before emitting one character of
+// JSON. Both budgets fail this way: wall-clock deadline, and output tokens the
+// reasoning is spending before it reaches the answer.
+const OUT_OF_BUDGET = /exceeded [\d.]+-second deadline|stop reason length|empty \w+ response/;
+
+// An upstream provider that is busy, rate limited or dropped the connection has
+// told us nothing about the plan: the model never got to answer. Refining against
+// it asks the model to fix someone else's outage, and three refinement rounds end
+// the room - which is how a floor-3 run died to three 429s in a row. Back off and
+// ask again instead. Deliberately narrow: a model or plan error must still be
+// refined, never retried blindly.
+const TRANSIENT_UPSTREAM = /\b(?:429|50[0234])\b|rate[ _-]?limit|temporarily busy|overloaded|try again shortly|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i;
+
+export function transientUpstream(message) {
+  return TRANSIENT_UPSTREAM.test(message || '');
+}
+
+export function plannerGuidance(message) {
+  if (OUT_OF_BUDGET.test(message || '')) {
+    return 'You ran out of budget while reasoning and sent nothing, so the scene is unchanged. There is nothing to fix in the plan - the plan never arrived, and reasoning harder is what just failed. Answer the SAME observation immediately with the line you had already settled on, and stop there: no second option weighed, no simulation of later turns, no draw you have not seen, and drop strategy and lesson from the JSON this time. A good-enough plan sent now beats a better one that never gets sent, and the next observation is where you correct anything this one gets slightly wrong.';
+  }
+  return 'The plan was rejected before any input was sent, so the scene is unchanged. Fix exactly what this message names and answer again from the same observation.';
+}
+
 export function noteProblem(action) {
   if (typeof action?.path !== 'string' || !/^[a-z0-9][a-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('//') || action.path.includes('..')) {
     return 'learn.path must be a lowercase .md path under ironclad/a1/ (for example ironclad/a1/act1/normal/wriggler.md), or under the cross-character roots characters/ or ascension/';
@@ -149,7 +276,33 @@ export function noteProblem(action) {
   return null;
 }
 
-export function validatePlan(plan, state) {
+/**
+ * A card's cost as a number, or null when the arithmetic is not knowable.
+ * The sensor reports cost as a STRING ("2", not 2), which silently disabled the
+ * budget check below for every card in the game until a floor-3 plan spent 4
+ * energy on a 3-energy turn and failed at the game with two cards already sent.
+ * X-cost and unplayable cards report something that is not a number, and those
+ * genuinely are unknowable, so they still skip the check rather than count zero.
+ */
+export function energyCost(cost) {
+  const value = typeof cost === 'string' && /^\d+$/.test(cost.trim()) ? Number(cost) : cost;
+  return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/**
+ * What each member of the team is allowed to ask for. The split is the point:
+ * a strategist that cannot name an element id cannot invent one, and a combat
+ * agent that cannot press a raw button cannot wander off the fight. The
+ * executor is the strictest reader of all - it accepts every concrete action
+ * and refuses `intent`, so an unresolved goal can never reach the pad.
+ */
+export const ROLE_ACTIONS = {
+  strategist: new Set(['intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
+  combat: new Set(['play', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
+  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'learn', 'wait', 'report_issue']),
+};
+
+export function validatePlan(plan, state, { role = null } = {}) {
   if (!plan || plan.observation !== stateId(state)) throw new Error('stale or missing observation ID');
   if (!Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > 8) throw new Error('a plan needs 1–8 actions');
   if (typeof plan.summary !== 'string' || plan.summary.length > 300) throw new Error('summary must be at most 300 characters');
@@ -162,7 +315,17 @@ export function validatePlan(plan, state) {
   const actions = notes.length ? plan.actions.slice(0, -1) : plan.actions;
   for (const action of plan.actions) {
     if (!action || typeof action !== 'object') throw new Error('invalid action');
-    if (action.type === 'play') {
+    const allowed = role ? ROLE_ACTIONS[role] : null;
+    if (allowed && !allowed.has(action.type)) throw new Error(`the ${role} cannot use ${action.type}; its actions are ${[...allowed].join(', ')}`);
+    if (action.type === 'intent') {
+      // One intent per plan. It is a scene barrier by construction: the screen
+      // it acts on is gone once it lands, so anything planned behind it was
+      // planned against a screen that no longer exists.
+      if (!role) throw new Error('an intent must be resolved into concrete input before it reaches the game');
+      if (actions.length !== 1) throw new Error('one intent per plan; it ends at the screen it acts on');
+      if (typeof action.goal !== 'string' || !action.goal.trim() || action.goal.length > 300) throw new Error('intent.goal must be a 1-300 character description of what you want done');
+      if (action.target_label !== undefined && action.target_label !== null && (typeof action.target_label !== 'string' || !action.target_label.trim() || action.target_label.length > 80)) throw new Error('intent.target_label must be the on-screen name of the target, at most 80 characters');
+    } else if (action.type === 'play') {
       if (!isCombat(state) || !Number.isInteger(action.card) || !state.player.hand.some(card => card.instance_id === action.card)) throw new Error('unknown card instance');
       if (action.target != null && typeof action.target !== 'string') throw new Error('invalid target');
       const card = state.player.hand.find(item => item.instance_id === action.card);
@@ -221,10 +384,10 @@ export function validatePlan(plan, state) {
   // an unknown cost, or a card whose effects can change the energy available.
   const played = actions.filter(action => action.type === 'play')
     .map(action => state.player?.hand?.find(card => card.instance_id === action.card));
-  if (played.length > 1 && Number.isInteger(state.player?.energy)
-    && played.every(card => card && Number.isInteger(card.cost) && card.cost >= 0 && !uncertainCard(card))) {
-    const total = played.reduce((sum, card) => sum + card.cost, 0);
-    if (total > state.player.energy) throw new Error(`this plan spends ${total} energy and the turn has ${state.player.energy}: ${played.map(card => `${card.name} ${card.cost}`).join(', ')}. Plan what the turn can pay for`);
+  const costs = played.map(card => (card && !uncertainCard(card) ? energyCost(card.cost) : null));
+  if (played.length > 1 && Number.isInteger(state.player?.energy) && costs.every(cost => cost !== null)) {
+    const total = costs.reduce((sum, cost) => sum + cost, 0);
+    if (total > state.player.energy) throw new Error(`this plan spends ${total} energy and the turn has ${state.player.energy}: ${played.map((card, index) => `${card.name} ${costs[index]}`).join(', ')}. Plan what the turn can pay for`);
   }
   if (new Set(actions.filter(a => a.type === 'play').map(a => a.card)).size !== played.length) throw new Error('a card instance may appear only once in a plan');
   if (plan.strategy != null && (typeof plan.strategy !== 'string' || plan.strategy.length > 1200)) throw new Error('strategy exceeds 1200 characters');

@@ -1,0 +1,1984 @@
+{
+ "state_type": "card_reward",
+ "card_reward": {
+  "cards": [
+   {
+    "id": "GLACIER",
+    "name": "Glacier",
+    "type": "Skill",
+    "cost": "2",
+    "star_cost": null,
+    "description": "Gain 6 Block. Channel 2 Frost.",
+    "rarity": "Uncommon",
+    "is_upgraded": false,
+    "keywords": [
+     {
+      "name": "Channel",
+      "description": "Channeling an Orb puts it into your first empty slot. If you have no empty slots, your first Orb is automatically Evoked to make room."
+     },
+     {
+      "name": "Frost",
+      "description": "Orb: Gains Block."
+     },
+     {
+      "name": "Block",
+      "description": "Until next turn, prevents damage."
+     }
+    ],
+    "index": 0
+   },
+   {
+    "id": "AFTERLIFE",
+    "name": "Afterlife",
+    "type": "Skill",
+    "cost": "1",
+    "star_cost": null,
+    "description": "Summon 6. Exhaust.",
+    "rarity": "Common",
+    "is_upgraded": false,
+    "keywords": [
+     {
+      "name": "Summon 6",
+      "description": "Summon Osty with 6 HP.\nIf already summoned, raise his Max HP by 6 for this combat."
+     },
+     {
+      "name": "Exhaust",
+      "description": "Removed until the end of combat."
+     }
+    ],
+    "index": 1
+   },
+   {
+    "id": "ACCELERANT",
+    "name": "Accelerant",
+    "type": "Power",
+    "cost": "1",
+    "star_cost": null,
+    "description": "Poison is triggered 1 additional time.",
+    "rarity": "Uncommon",
+    "is_upgraded": false,
+    "keywords": [
+     {
+      "name": "Poison",
+      "description": "Poisoned creatures lose HP at the start of their turn. Each turn, Poison is reduced by 1."
+     }
+    ],
+    "index": 2
+   }
+  ],
+  "can_skip": true
+ },
+ "run": {
+  "act": 1,
+  "floor": 1,
+  "ascension": 1
+ },
+ "player": {
+  "character": "The Ironclad",
+  "hp": 80,
+  "max_hp": 80,
+  "block": 0,
+  "gold": 99,
+  "status": [],
+  "relics": [
+   {
+    "id": "BURNING_BLOOD",
+    "name": "Burning Blood",
+    "description": "At the end of combat, heal 6 HP.",
+    "counter": null,
+    "keywords": []
+   },
+   {
+    "id": "KALEIDOSCOPE",
+    "name": "Kaleidoscope",
+    "description": "Upon pickup, obtain 2 card rewards from other characters.",
+    "counter": null,
+    "keywords": []
+   }
+  ],
+  "potions": [],
+  "max_potion_slots": 3
+ },
+ "ui": {
+  "sensor_version": 5,
+  "scene_id": "ca500d427e09c04b",
+  "focused_element": "element-108380819979",
+  "elements": [
+   {
+    "id": "element-1208077010243",
+    "label": "Removed until the end of combat.",
+    "reference": {},
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     1142,
+     623,
+     300,
+     54
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-1207523362090",
+    "label": "Summon Osty with 6 HP.\nIf already summoned, raise his Max HP by 6 for this combat.",
+    "reference": {},
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1100400837863",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     1142,
+     448,
+     300,
+     108
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-776869001132",
+    "label": "",
+    "reference": {},
+    "type": "Control",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": null,
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-776869001132",
+     "up": "element-776869001132",
+     "right": "element-776869001132",
+     "down": "element-776869001132"
+    },
+    "bounds": [
+     870,
+     -430,
+     40,
+     40
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-775577155426",
+    "label": "Game Saved",
+    "reference": {},
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     1264,
+     19,
+     200,
+     80
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-775375828822",
+    "label": "",
+    "reference": {},
+    "type": "NTopBarBossIcon",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-775241611086",
+     "up": "element-775375828822",
+     "right": "element-775375828822",
+     "down": "element-824767955328"
+    },
+    "bounds": [
+     858,
+     0,
+     48,
+     83
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-775241611086",
+    "label": "1",
+    "reference": {},
+    "type": "NTopBarFloorIcon",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-775140947784",
+     "up": "element-775241611086",
+     "right": "element-775375828822",
+     "down": "element-824767955328"
+    },
+    "bounds": [
+     788,
+     0,
+     64,
+     83
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-775140947784",
+    "label": "",
+    "reference": {},
+    "type": "NTopBarRoomIcon",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-824398856554",
+     "up": "element-775140947784",
+     "right": "element-775241611086",
+     "down": "element-824767955328"
+    },
+    "bounds": [
+     735,
+     -4,
+     44,
+     87
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-824398856554",
+    "label": "",
+    "reference": {},
+    "type": "NPotionHolder",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-824029757780",
+     "up": "element-824398856554",
+     "right": "element-775140947784",
+     "down": "element-824767955328"
+    },
+    "bounds": [
+     627,
+     9,
+     60,
+     60
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-824029757780",
+    "label": "",
+    "reference": {},
+    "type": "NPotionHolder",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-823660659006",
+     "up": "element-824029757780",
+     "right": "element-824398856554",
+     "down": "element-824767955328"
+    },
+    "bounds": [
+     565,
+     9,
+     60,
+     60
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-823660659006",
+    "label": "",
+    "reference": {},
+    "type": "NPotionHolder",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-774520190755",
+     "up": "element-823660659006",
+     "right": "element-824029757780",
+     "down": "element-824767955328"
+    },
+    "bounds": [
+     503,
+     9,
+     60,
+     60
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-774520190755",
+    "label": "99",
+    "reference": {},
+    "type": "NTopBarGold",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-774419527453",
+     "up": "element-774520190755",
+     "right": "element-823660659006",
+     "down": "element-824767955328"
+    },
+    "bounds": [
+     323,
+     0,
+     138,
+     83
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-774419527453",
+    "label": "80/80",
+    "reference": {},
+    "type": "NTopBarHp",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-774201423632",
+     "up": "element-774419527453",
+     "right": "element-774520190755",
+     "down": "element-824767955328"
+    },
+    "bounds": [
+     120,
+     0,
+     179,
+     83
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-774201423632",
+    "label": "1",
+    "reference": {},
+    "type": "NTopBarPortraitTip",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-774201423632",
+     "up": "element-774201423632",
+     "right": "element-774419527453",
+     "down": "element-774201423632"
+    },
+    "bounds": [
+     16,
+     4,
+     72,
+     71
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-1098253353867",
+    "label": null,
+    "reference": {
+     "kind": "relic",
+     "model_id": null,
+     "title": null,
+     "description": null
+    },
+    "type": "NRelicInventoryHolder",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-824767955328",
+     "up": "element-823660659006",
+     "right": "element-824767955328",
+     "down": "element-776869001132"
+    },
+    "bounds": [
+     80,
+     82,
+     68,
+     68
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-1098286908301",
+    "label": null,
+    "reference": {
+     "kind": "model",
+     "model_id": "RELIC.KALEIDOSCOPE",
+     "title": null,
+     "description": null
+    },
+    "type": "NRelic",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-824767955328",
+     "up": "element-774419527453",
+     "right": "element-774419527453",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     80,
+     82,
+     68,
+     68
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-824767955328",
+    "label": null,
+    "reference": {
+     "kind": "relic",
+     "model_id": null,
+     "title": null,
+     "description": null
+    },
+    "type": "NRelicInventoryHolder",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-1098253353867",
+     "up": "element-823660659006",
+     "right": "element-1098253353867",
+     "down": "element-776869001132"
+    },
+    "bounds": [
+     12,
+     82,
+     68,
+     68
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-824801509762",
+    "label": null,
+    "reference": {
+     "kind": "model",
+     "model_id": "RELIC.BURNING_BLOOD",
+     "title": null,
+     "description": null
+    },
+    "type": "NRelic",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": true,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098253353867",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     12,
+     82,
+     68,
+     68
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-1206550283364",
+    "label": "Skip",
+    "reference": {},
+    "type": "NCardRewardAlternativeButton",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     822,
+     884,
+     276,
+     73
+    ],
+    "focus_mode": "all",
+    "hotkeys": [
+     "ui_cancel",
+     "mega_pause_and_back"
+    ],
+    "press": "b"
+   },
+   {
+    "id": "element-108380819979",
+    "label": "Afterlife",
+    "reference": {
+     "kind": "card",
+     "instance_id": 1,
+     "card": {
+      "id": "AFTERLIFE",
+      "name": "Afterlife",
+      "type": "Skill",
+      "cost": "1",
+      "star_cost": null,
+      "description": "Summon 6. Exhaust.",
+      "rarity": "Common",
+      "is_upgraded": false,
+      "keywords": [
+       {
+        "name": "Summon 6",
+        "description": "Summon Osty with 6 HP.\nIf already summoned, raise his Max HP by 6 for this combat."
+       },
+       {
+        "name": "Exhaust",
+        "description": "Removed until the end of combat."
+       }
+      ]
+     }
+    },
+    "type": "NGridCardHolder",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-108447928847",
+     "up": "element-108380819979",
+     "right": "element-108313711111",
+     "down": "element-108380819979"
+    },
+    "bounds": [
+     960,
+     616,
+     0,
+     0
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-104085852451",
+    "label": "Summon 6.\nExhaust.",
+    "reference": {
+     "kind": "model",
+     "model_id": "CARD.AFTERLIFE",
+     "title": null,
+     "description": null
+    },
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     838,
+     653,
+     243,
+     136
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-108313711111",
+    "label": "Accelerant",
+    "reference": {
+     "kind": "card",
+     "instance_id": 2,
+     "card": {
+      "id": "ACCELERANT",
+      "name": "Accelerant",
+      "type": "Power",
+      "cost": "1",
+      "star_cost": null,
+      "description": "Poison is triggered 1 additional time.",
+      "rarity": "Uncommon",
+      "is_upgraded": false,
+      "keywords": [
+       {
+        "name": "Poison",
+        "description": "Poisoned creatures lose HP at the start of their turn. Each turn, Poison is reduced by 1."
+       }
+      ]
+     }
+    },
+    "type": "NGridCardHolder",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-108380819979",
+     "up": "element-108313711111",
+     "right": "element-108447928847",
+     "down": "element-108313711111"
+    },
+    "bounds": [
+     1310,
+     616,
+     0,
+     0
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-102894670046",
+    "label": "Poison is triggered 1 additional time.",
+    "reference": {
+     "kind": "model",
+     "model_id": "CARD.ACCELERANT",
+     "title": null,
+     "description": null
+    },
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     1212,
+     645,
+     194,
+     108
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-108447928847",
+    "label": "Glacier",
+    "reference": {
+     "kind": "card",
+     "instance_id": 3,
+     "card": {
+      "id": "GLACIER",
+      "name": "Glacier",
+      "type": "Skill",
+      "cost": "2",
+      "star_cost": null,
+      "description": "Gain 6 Block. Channel 2 Frost.",
+      "rarity": "Uncommon",
+      "is_upgraded": false,
+      "keywords": [
+       {
+        "name": "Channel",
+        "description": "Channeling an Orb puts it into your first empty slot. If you have no empty slots, your first Orb is automatically Evoked to make room."
+       },
+       {
+        "name": "Frost",
+        "description": "Orb: Gains Block."
+       },
+       {
+        "name": "Block",
+        "description": "Until next turn, prevents damage."
+       }
+      ]
+     }
+    },
+    "type": "NGridCardHolder",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-108313711111",
+     "up": "element-108447928847",
+     "right": "element-108380819979",
+     "down": "element-108447928847"
+    },
+    "bounds": [
+     610,
+     616,
+     0,
+     0
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-105277034856",
+    "label": "Gain 6 Block.\nChannel 2 Frost.",
+    "reference": {
+     "kind": "model",
+     "model_id": "CARD.GLACIER",
+     "title": null,
+     "description": null
+    },
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     512,
+     645,
+     194,
+     108
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-1098488234998",
+    "label": "Skip | Add a card to your deck. | Loot!",
+    "reference": {},
+    "type": "NRewardsScreen",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     0,
+     0,
+     1920,
+     1080
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-1098689561753",
+    "label": "Add a card to your deck.",
+    "reference": {},
+    "type": "VBoxContainer",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     758,
+     374,
+     402,
+     182
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-1100400837863",
+    "label": "Add a card to your deck.",
+    "reference": {
+     "kind": "reward",
+     "model_id": null,
+     "title": null,
+     "description": null
+    },
+    "type": "NRewardButton",
+    "visible": true,
+    "enabled": true,
+    "selectable": true,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1100400837863",
+     "up": null,
+     "right": "element-1100400837863",
+     "down": "element-1100400837863"
+    },
+    "bounds": [
+     758,
+     470,
+     402,
+     86
+    ],
+    "focus_mode": "all"
+   },
+   {
+    "id": "element-1100551832816",
+    "label": "Add a card to your deck.",
+    "reference": {
+     "kind": "reward",
+     "model_id": null,
+     "title": null,
+     "description": null
+    },
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1100400837863",
+     "up": "element-1098488234998",
+     "right": "element-1100400837863",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     840,
+     474,
+     316,
+     78
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-1099746526410",
+    "label": "Add a card to your deck.",
+    "reference": {
+     "kind": "reward",
+     "model_id": null,
+     "title": null,
+     "description": null
+    },
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": "a",
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     840,
+     378,
+     316,
+     78
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-899711779707",
+    "label": "NEOW",
+    "reference": {},
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-776869001132",
+     "right": null,
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     48,
+     -38,
+     1920,
+     1080
+    ],
+    "focus_mode": "click"
+   },
+   {
+    "id": "element-903855752223",
+    "label": "..still.. lost.. to rage... good...",
+    "reference": {},
+    "type": "MegaRichTextLabel",
+    "visible": true,
+    "enabled": true,
+    "selectable": false,
+    "activation": null,
+    "ambiguous": false,
+    "neighbors": {
+     "left": "element-1098488234998",
+     "up": "element-1098488234998",
+     "right": "element-1098488234998",
+     "down": "element-1098488234998"
+    },
+    "bounds": [
+     668,
+     978,
+     634,
+     34
+    ],
+    "focus_mode": "click"
+   }
+  ],
+  "elements_truncated": false,
+  "focus_path": "/root/Game/RootSceneContainer/Run/GlobalUi/OverlayScreensContainer/NCardRewardSelectionScreen/UI/CardRow/GridCardHolder-CARD_AFTERLIFE",
+  "focus_type": "NGridCardHolder",
+  "hand_mode": null,
+  "in_card_play": false,
+  "selected_card": null,
+  "game_build": "8a76776c-0ce1-4d4f-90bd-8cce653dad8e",
+  "mod_build": "338473d2-bb23-4b14-955c-e32a232b1604",
+  "targeting": false,
+  "focused_card": 1,
+  "focused_creature": null,
+  "targets": [],
+  "encounter_id": null
+ },
+ "map": {
+  "current_position": {
+   "col": 3,
+   "row": 0,
+   "type": "Ancient"
+  },
+  "visited": [
+   {
+    "col": 3,
+    "row": 0,
+    "type": "Ancient"
+   }
+  ],
+  "next_options": [],
+  "nodes": [
+   {
+    "col": 3,
+    "row": 0,
+    "type": "Ancient",
+    "children": [
+     [
+      0,
+      1
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      6,
+      1
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 1,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      2
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 2,
+    "type": "Unknown",
+    "children": [
+     [
+      0,
+      3
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 3,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      4
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 4,
+    "type": "Unknown",
+    "children": [
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      5
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 5,
+    "type": "Shop",
+    "children": [
+     [
+      0,
+      6
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 6,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      7
+     ],
+     [
+      1,
+      7
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 7,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      8
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 8,
+    "type": "RestSite",
+    "children": [
+     [
+      0,
+      9
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 9,
+    "type": "Treasure",
+    "children": [
+     [
+      0,
+      10
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 10,
+    "type": "Elite",
+    "children": [
+     [
+      0,
+      11
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 11,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      12
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 12,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      13
+     ],
+     [
+      1,
+      13
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 13,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      14
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 14,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      15
+     ]
+    ]
+   },
+   {
+    "col": 0,
+    "row": 15,
+    "type": "RestSite",
+    "children": [
+     [
+      3,
+      16
+     ]
+    ]
+   },
+   {
+    "col": 1,
+    "row": 3,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      4
+     ],
+     [
+      2,
+      4
+     ]
+    ]
+   },
+   {
+    "col": 1,
+    "row": 5,
+    "type": "Monster",
+    "children": [
+     [
+      0,
+      6
+     ]
+    ]
+   },
+   {
+    "col": 1,
+    "row": 7,
+    "type": "Unknown",
+    "children": [
+     [
+      0,
+      8
+     ]
+    ]
+   },
+   {
+    "col": 1,
+    "row": 13,
+    "type": "Elite",
+    "children": [
+     [
+      1,
+      14
+     ],
+     [
+      2,
+      14
+     ]
+    ]
+   },
+   {
+    "col": 1,
+    "row": 14,
+    "type": "Shop",
+    "children": [
+     [
+      2,
+      15
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 2,
+    "type": "Monster",
+    "children": [
+     [
+      1,
+      3
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 4,
+    "type": "Monster",
+    "children": [
+     [
+      2,
+      5
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 5,
+    "type": "Monster",
+    "children": [
+     [
+      2,
+      6
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 6,
+    "type": "Monster",
+    "children": [
+     [
+      2,
+      7
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 7,
+    "type": "Unknown",
+    "children": [
+     [
+      2,
+      8
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 8,
+    "type": "Monster",
+    "children": [
+     [
+      3,
+      9
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 10,
+    "type": "Elite",
+    "children": [
+     [
+      2,
+      11
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 11,
+    "type": "Monster",
+    "children": [
+     [
+      2,
+      12
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 12,
+    "type": "Elite",
+    "children": [
+     [
+      2,
+      13
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 13,
+    "type": "Unknown",
+    "children": [
+     [
+      2,
+      14
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 14,
+    "type": "Monster",
+    "children": [
+     [
+      2,
+      15
+     ]
+    ]
+   },
+   {
+    "col": 2,
+    "row": 15,
+    "type": "RestSite",
+    "children": [
+     [
+      3,
+      16
+     ]
+    ]
+   },
+   {
+    "col": 3,
+    "row": 1,
+    "type": "Monster",
+    "children": [
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      4,
+      2
+     ]
+    ]
+   },
+   {
+    "col": 3,
+    "row": 2,
+    "type": "Monster",
+    "children": [
+     [
+      3,
+      3
+     ]
+    ]
+   },
+   {
+    "col": 3,
+    "row": 3,
+    "type": "Monster",
+    "children": [
+     [
+      3,
+      4
+     ]
+    ]
+   },
+   {
+    "col": 3,
+    "row": 4,
+    "type": "Unknown",
+    "children": [
+     [
+      4,
+      5
+     ]
+    ]
+   },
+   {
+    "col": 3,
+    "row": 6,
+    "type": "RestSite",
+    "children": [
+     [
+      2,
+      7
+     ]
+    ]
+   },
+   {
+    "col": 3,
+    "row": 9,
+    "type": "Treasure",
+    "children": [
+     [
+      2,
+      10
+     ],
+     [
+      4,
+      10
+     ]
+    ]
+   },
+   {
+    "col": 3,
+    "row": 13,
+    "type": "Monster",
+    "children": [
+     [
+      2,
+      14
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 2,
+    "type": "Monster",
+    "children": [
+     [
+      4,
+      3
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 3,
+    "type": "Monster",
+    "children": [
+     [
+      4,
+      4
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 4,
+    "type": "Monster",
+    "children": [
+     [
+      4,
+      5
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 5,
+    "type": "Unknown",
+    "children": [
+     [
+      3,
+      6
+     ],
+     [
+      4,
+      6
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 6,
+    "type": "Unknown",
+    "children": [
+     [
+      4,
+      7
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 7,
+    "type": "Elite",
+    "children": [
+     [
+      5,
+      8
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 10,
+    "type": "Monster",
+    "children": [
+     [
+      4,
+      11
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 11,
+    "type": "Unknown",
+    "children": [
+     [
+      4,
+      12
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 12,
+    "type": "Elite",
+    "children": [
+     [
+      3,
+      13
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 14,
+    "type": "Monster",
+    "children": [
+     [
+      4,
+      15
+     ]
+    ]
+   },
+   {
+    "col": 4,
+    "row": 15,
+    "type": "RestSite",
+    "children": [
+     [
+      3,
+      16
+     ]
+    ]
+   },
+   {
+    "col": 5,
+    "row": 8,
+    "type": "Monster",
+    "children": [
+     [
+      6,
+      9
+     ]
+    ]
+   },
+   {
+    "col": 5,
+    "row": 10,
+    "type": "RestSite",
+    "children": [
+     [
+      5,
+      11
+     ]
+    ]
+   },
+   {
+    "col": 5,
+    "row": 11,
+    "type": "Elite",
+    "children": [
+     [
+      5,
+      12
+     ]
+    ]
+   },
+   {
+    "col": 5,
+    "row": 12,
+    "type": "RestSite",
+    "children": [
+     [
+      5,
+      13
+     ]
+    ]
+   },
+   {
+    "col": 5,
+    "row": 13,
+    "type": "Elite",
+    "children": [
+     [
+      4,
+      14
+     ]
+    ]
+   },
+   {
+    "col": 5,
+    "row": 15,
+    "type": "RestSite",
+    "children": [
+     [
+      3,
+      16
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 1,
+    "type": "Monster",
+    "children": [
+     [
+      6,
+      2
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 2,
+    "type": "Unknown",
+    "children": [
+     [
+      6,
+      3
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 3,
+    "type": "Monster",
+    "children": [
+     [
+      6,
+      4
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 4,
+    "type": "Unknown",
+    "children": [
+     [
+      6,
+      5
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 5,
+    "type": "Shop",
+    "children": [
+     [
+      6,
+      6
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 6,
+    "type": "Monster",
+    "children": [
+     [
+      6,
+      7
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 7,
+    "type": "RestSite",
+    "children": [
+     [
+      5,
+      8
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 9,
+    "type": "Treasure",
+    "children": [
+     [
+      5,
+      10
+     ],
+     [
+      6,
+      10
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 10,
+    "type": "Unknown",
+    "children": [
+     [
+      6,
+      11
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 11,
+    "type": "RestSite",
+    "children": [
+     [
+      6,
+      12
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 12,
+    "type": "Unknown",
+    "children": [
+     [
+      6,
+      13
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 13,
+    "type": "Monster",
+    "children": [
+     [
+      6,
+      14
+     ]
+    ]
+   },
+   {
+    "col": 6,
+    "row": 14,
+    "type": "Monster",
+    "children": [
+     [
+      5,
+      15
+     ]
+    ]
+   },
+   {
+    "col": 3,
+    "row": 16,
+    "type": "Boss",
+    "children": [],
+    "id": "VANTOM_BOSS",
+    "name": "Vantom"
+   }
+  ],
+  "boss": {
+   "col": 3,
+   "row": 16,
+   "id": "VANTOM_BOSS",
+   "name": "Vantom"
+  },
+  "bosses": [
+   {
+    "col": 3,
+    "row": 16,
+    "id": "VANTOM_BOSS",
+    "name": "Vantom"
+   }
+  ]
+ },
+ "deck": [
+  {
+   "id": "STRIKE_IRONCLAD",
+   "name": "Strike",
+   "type": "Attack",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Deal 6 damage.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": []
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "name": "Strike",
+   "type": "Attack",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Deal 6 damage.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": []
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "name": "Strike",
+   "type": "Attack",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Deal 6 damage.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": []
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "name": "Strike",
+   "type": "Attack",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Deal 6 damage.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": []
+  },
+  {
+   "id": "STRIKE_IRONCLAD",
+   "name": "Strike",
+   "type": "Attack",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Deal 6 damage.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": []
+  },
+  {
+   "id": "DEFEND_IRONCLAD",
+   "name": "Defend",
+   "type": "Skill",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Gain 5 Block.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": [
+    {
+     "name": "Block",
+     "description": "Until next turn, prevents damage."
+    }
+   ]
+  },
+  {
+   "id": "DEFEND_IRONCLAD",
+   "name": "Defend",
+   "type": "Skill",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Gain 5 Block.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": [
+    {
+     "name": "Block",
+     "description": "Until next turn, prevents damage."
+    }
+   ]
+  },
+  {
+   "id": "DEFEND_IRONCLAD",
+   "name": "Defend",
+   "type": "Skill",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Gain 5 Block.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": [
+    {
+     "name": "Block",
+     "description": "Until next turn, prevents damage."
+    }
+   ]
+  },
+  {
+   "id": "DEFEND_IRONCLAD",
+   "name": "Defend",
+   "type": "Skill",
+   "cost": "1",
+   "star_cost": null,
+   "description": "Gain 5 Block.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": [
+    {
+     "name": "Block",
+     "description": "Until next turn, prevents damage."
+    }
+   ]
+  },
+  {
+   "id": "BASH",
+   "name": "Bash",
+   "type": "Attack",
+   "cost": "2",
+   "star_cost": null,
+   "description": "Deal 8 damage. Apply 2 Vulnerable.",
+   "rarity": "Basic",
+   "is_upgraded": false,
+   "keywords": [
+    {
+     "name": "Vulnerable",
+     "description": "Vulnerable creatures take 50% more damage from Attacks."
+    }
+   ]
+  }
+ ]
+}

@@ -25,8 +25,6 @@ A8 raises HP; A9 raises damage. Installed build may differ.
   pool is ~90 cards; read it with
   `research https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List?color=Ironclad`.
 
-Never enter an elite below 60% HP (survival default from controls/CONTROLS.md).
-
 ## Bygone Effigy — 127 HP (A8+: 132)
 
 **Gimmick:** every card you play makes it take 10% more Attack damage that

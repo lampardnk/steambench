@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Curriculum, situation } from '../client/learning/curriculum.mjs';
-import { MAX_NOTE_IN_CONTEXT, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
+import { MAX_NOTE_IN_CONTEXT, controlManual, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-curriculum-'));
 const skillDir = path.join(root, 'skills', 'sts2');
@@ -41,12 +41,12 @@ assert.ok(curriculum.needsObjective(inRun));
 assert.ok(!curriculum.needsObjective({ state_type: 'menu' }), 'no objective is proposed outside a run');
 
 planner.queue({ objective: 'Reach floor 6 without dropping below 60% HP', why: 'the deck can take one more fight', done_when: 'the map shows floor 6 and hp/max_hp >= 0.6', area: 'strategy' });
-const proposed = await curriculum.propose(inRun, { task: 'Win the run', notes: ['bestiary/wriggler.md'], decision: 4 });
+const proposed = await curriculum.propose(inRun, { task: 'Win the run', decision: 4 });
 assert.equal(proposed.status, 'active');
 assert.equal(proposed.opened.room, 'aaaa1111');
 assert.equal(planner.asked[0].prompt, 'curriculum.txt');
 assert.equal(planner.asked[0].role, 'curriculum');
-assert.deepEqual(planner.asked[0].context.learned_notes, ['bestiary/wriggler.md'], 'the proposer sees what is already known');
+assert.ok(!('learned_notes' in planner.asked[0].context), 'the proposer is not handed the note catalogue to find gaps in');
 
 planner.queue({ objective: 'Something vague', why: 'because' });
 await assert.rejects(() => curriculum.propose(inRun, { task: 't', decision: 5 }), /completion condition/, 'an objective without an observable condition is refused');
@@ -107,12 +107,34 @@ assert.equal(Object.values(frontier.curriculum_summary).reduce((n, x) => n + x.c
 // --- checking happens at progress boundaries, not every decision -----------
 planner.queue({ objective: 'Learn the Wriggler intent cycle', why: 'unknown elite', done_when: 'two full cycles observed', area: 'bestiary' });
 await curriculum.propose(inRun, { task: 't', decision: 40 });
+curriculum.crossedBoundary = false;
 assert.equal(curriculum.dueForCheck(inRun, 41), false, 'not before the first observation');
 curriculum.observe(inRun);
 assert.equal(curriculum.dueForCheck(inRun, 42), false, 'not while nothing has moved');
 const nextFloor = { ...inRun, run: { ...inRun.run, floor: 4 } };
+curriculum.observe(nextFloor);
 assert.equal(curriculum.dueForCheck(nextFloor, 41), false, 'not within the minimum gap');
 assert.equal(curriculum.dueForCheck(nextFloor, 45), true, 'a floor change is a boundary');
+
+// The crossing that combat swallows. In STS2 the floor advances exactly when a
+// fight starts, and the caller refuses to run the critic while state.battle is
+// set - so the decision that sees the transition is always skipped. Comparing
+// against the immediately previous decision therefore lost every boundary in the
+// run: the critic did not fire once in 85 decisions. The crossing has to survive
+// until a check consumes it.
+curriculum.lastCheckedAt = 50;
+curriculum.crossedBoundary = false;
+curriculum.observe(nextFloor);
+const inCombat = { ...inRun, run: { ...inRun.run, floor: 5 }, battle: { round: 1, enemies: [] } };
+curriculum.observe(inCombat);                       // the boundary, skipped by the caller
+curriculum.observe(inCombat);                       // several more combat decisions
+curriculum.observe(inCombat);
+const afterCombat = { ...inRun, run: { ...inRun.run, floor: 5 }, state_type: 'rewards' };
+curriculum.observe(afterCombat);
+assert.equal(curriculum.dueForCheck(afterCombat, 60), true, 'a boundary crossed during combat is still due once combat ends');
+curriculum.lastCheckedAt = 60;
+curriculum.crossedBoundary = false;
+assert.equal(curriculum.dueForCheck(afterCombat, 70), false, 'and it is consumed, not re-fired every decision after');
 
 // --- a run that ends closes whatever was open ------------------------------
 curriculum.closeRun(inRun, { decision: 50, result: 'lost' });
@@ -198,4 +220,21 @@ assert.deepEqual(summary.enemies, ['Wriggler']);
 assert.equal(summary.hp, 60);
 
 fs.rmSync(root, { recursive: true, force: true });
-console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget'] }));
+// The pad's manual is not a match to be won. Retrieval scores a note against
+// the terms the situation carries, and a controls note carries none of them:
+// on the Neow bundle screen the terms are "bundle" and "select". Live, that
+// scored zero, and the actuator worked the screen blind for 55 decisions.
+{
+  note('ironclad/a1/controls/CONTROLS.md', '---\ndescription: How the pad drives this build.\nkeys: [controls, pad, buttons, focus]\n---\n# Controls\nb closes an overlay.\n');
+  const bundle = { state_type: 'bundle_select', bundle_select: { screen_type: 'bundle' }, player: {}, run: {} };
+  const index = indexNotes(skillDir);
+  const scored = retrieve(skillDir, index, bundle, null).map(note => note.path);
+  assert.ok(!scored.some(path => /controls\//.test(path)), 'retrieval alone does not surface a controls note on this screen');
+  const manual = controlManual(skillDir, index);
+  assert.ok(manual.length > 0, 'the manual is handed over regardless');
+  assert.ok(manual.every(note => /controls\//.test(note.path)), 'and it is only controls notes');
+  assert.ok(manual[0].content.length > 0, 'with its body, not just its name');
+  assert.ok(controlManual(skillDir, index, { budget: 300 }).every(note => note.content.length <= 300), 'and it stays bounded');
+}
+
+console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'the controls manual reaches the pad even when retrieval scores it zero'] }));

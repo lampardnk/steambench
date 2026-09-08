@@ -4,7 +4,7 @@ character: ironclad
 act: any
 category: controls
 ascension: a1
-keys: [controls, execution, contract, pad, buttons, focus, navigation, d-pad, card play, targeting, scout, map, batching, pause, incident, safety]
+keys: [controls, execution, contract, pad, buttons, focus, navigation, d-pad, card play, targeting, scout, map, batching, pause, incident, safety, potion, overlay, hand, bundle, neow, preview, confirm]
 sources: [operator observation, live verification]
 ---
 
@@ -42,6 +42,17 @@ overlay listing the whole deck appears, `b` closes it.
   suffixes are not map coordinates.
 - **Pack, bundle and card-selection screens.** LEFT/RIGHT moves between choices,
   `a` opens a preview, `y` confirms, `b` cancels the preview.
+- **The bundle preview IS the confirm step.** On the Neow bundle screen `a` on a
+  bundle opens the three cards side by side, with a back arrow on `b` and a
+  CHECKMARK ON `y`. Pressing `y` there takes the bundle; it is not an obstacle
+  in front of the choice, and backing out with `b` only returns you to where you
+  started. `Confirm`, `Cancel` and `View Upgrades` do not exist on the bundle
+  screen itself - they appear only inside a preview. A further `a` zooms one
+  card, and that zoom is the ONLY view carrying `Y  View Upgrades` along the
+  bottom, where `y` toggles the upgrade rendering instead of confirming.
+  Every open and close leaves the previous generation's card nodes in the tree,
+  so one card name can match three visible focusable elements at once. Confirm
+  the bundle; never route to a card here.
 - **Transform preview.** Choosing a card shows it beside a card that re-rolls
   about once a second. That roll is animation and never determines the result:
   confirm immediately with `y`. It is not a timing challenge.
@@ -55,6 +66,54 @@ overlay listing the whole deck appears, `b` closes it.
   `in_card_play` and `selected_card`; never blindly double-`a` or navigate the
   hand during targeting. Do not assume first-card or last-card focus, or stable
   hand indices.
+
+- **Bound buttons beat navigation.** An element in `ui.elements` carrying
+  `press` is activated by that controller button FROM ANYWHERE, whatever holds
+  focus. Some controls are reachable no other way. A card reward's card row
+  wires each card's up and down neighbours back to the card itself and wraps
+  left/right within the row, so the row is a CLOSED LOOP by design and Skip sits
+  outside it: no sequence of directional presses reaches it, and Skip is bound to
+  `b`. "No verified focus path" means the route does not exist, not that it has
+  not been found - look for `press` rather than probing.
+- **Reward screens.** Read `rewards.items` live: the count and contents vary by
+  seed, and a screen may hold several independent gold rows plus a card row.
+  Each collectible row is focused and activated separately, and collecting one
+  removes only that row and moves focus to an auto-generated sibling, so re-read
+  focus before the next activation. A card row opens the card-reward screen.
+  When `items` is empty and `can_proceed` is true, `y` returns to the map.
+- **Rest sites.** Read `rest_site.options` and their enabled state; services vary
+  by run. An empty `options` with `can_proceed` true is a resolved site, not
+  missing UI: `y` proceeds.
+- **Hand-selection overlays.** `hand_select.cards` is the candidate set and may
+  omit cards already in `selected_cards` rather than repeating the whole hand.
+  `a` selects the focused candidate and `can_confirm` reports whether the
+  selection is valid; confirmation is a separate control.
+- **Zero energy.** Every card with a positive cost reports `can_play: false` with
+  `EnergyCostTooHigh`. Costs are reported as STRINGS ("2"), so compare them as
+  numbers. A batch spends energy as it goes: sum the whole plan against the
+  energy the turn actually has, not one card at a time.
+- **Powers.** A Power leaves the hand for the power area rather than a discard or
+  exhaust pile, so nothing lands in a pile to wait on. Let it settle before
+  navigating to the next card.
+- **Main menu.** A visibly loaded main menu can report null focus. One `a`
+  establishes focus on SingleplayerButton; observe before activating anything.
+- **Top-bar panels during combat.** `x` opens the potion panel and focus lands
+  INSIDE the popup on its Discard button - one `a` there throws the potion away.
+  `b` closes the panel, but focus returns to the combat field
+  (`AllyContainer/Creature/Hitbox`), not to the hand.
+- **`focused_card` null in combat means focus is outside the hand**, not that
+  input was lost. Directional presses do not find their way back: `down` from
+  the ally creature, and from the top bar, wanders between relics, potions and
+  the field, and each attempt trips the no-progress guard. The hand's cards are
+  ordinary addressable elements - the card name is the label, `focus_mode` is
+  `all` and `activation` is `a` - so route to one BY LABEL and focus lands in
+  the hand. Never plan a card play while `focused_card` is null.
+- **Two enabled controls can share one bound button.** `SelectModeConfirmButton`
+  and `End Turn 2` both report `press: y` in combat; `View Upgrades` and
+  `Confirm` both report `press: y` in the card zoom. The press reaches only one
+  of them, so when the screen does not change the way a bound button promised,
+  look for a second element carrying the same `press` before concluding the
+  input failed.
 
 A directional press that changes nothing means the focus was already at that
 edge of the reachable options. One standalone exploratory press is always safe;
@@ -94,12 +153,6 @@ re-read the highlight before assuming a move is still needed.
   rather than generating unbounded input.
 - Reloading the player does not restart the game. Resume the supervisor-reviewed
   interaction from fresh state; never repeat the startup sequence.
-
-## Survival defaults
-
-- Below 40% HP prefer a rest site to a fight, and rest rather than smith.
-- Never enter an elite below 60% HP.
-- When an enemy intends more damage than your current HP, block first.
 
 ## Starting a run
 

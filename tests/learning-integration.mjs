@@ -9,13 +9,53 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { Executor } from '../client/learning/executor.mjs';
 import { stateId, VERSION } from '../client/learning/state.mjs';
+import { PROFILE } from '../server/lib/learning-profile.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-fixtures-'));
 const binary = path.join(temporary, 'pi');
 fs.symlinkSync(path.join(root, 'tests/fixtures/fake-pi.cjs'), binary);
 fs.chmodSync(binary, 0o755);
-const baseState = { state_type: 'event', run: { floor: 1, act: 1 }, player: { hp: 80 }, ui: { sensor_version: 3, game_build: 'fixture-game', mod_build: 'fixture-mod', focus_path: null } };
+// A menu is pure actuation, so these scenarios exercise the actuator on its own -
+// which is where the probe, note and screenshot bounds all live.
+const baseState = {
+  state_type: 'menu', menu_screen: 'main', run: { floor: 1, act: 1 }, player: { hp: 80 },
+  // A built menu: it holds focus and lists at least one control. A menu with
+  // neither has not loaded yet and is deliberately never planned against, so a
+  // fixture without them would wait for a screen that never arrives.
+  // The focused control carries no label, which is what keeps the screenshot
+  // path in play for the stale_image scenario.
+  ui: {
+    sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod',
+    scene_id: 'scene-menu', focus_path: null, focused_element: 'element-menu',
+    elements: [{ id: 'element-menu', type: 'Control', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} }],
+  },
+};
+// A fight, and the reward screen it resolves into once a turn has been ended.
+// This is the whole encounter lifecycle: an agent is opened for the fight, plays
+// it, and is closed with one report the strategist can act on.
+const fightState = {
+  state_type: 'monster', run: { floor: 2, act: 1, ascension: 1 },
+  player: { character: 'The Ironclad', hp: 70, max_hp: 80, energy: 3, gold: 99, relics: [], potions: [], hand: [{ instance_id: 1, index: 0, name: 'Defend', type: 'Skill', cost: '1', can_play: true, target_type: 'Self', description: 'Gain 5 Block.' }] },
+  battle: { round: 1, turn: 'player', is_play_phase: true, enemies: [{ entity_id: 'ENEMY_0', combat_id: 'c0', name: 'Fogmog', hp: 20, intents: [{ name: 'Attack', damage: 9 }] }] },
+  ui: { sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-fight', hand_mode: 'Play', in_card_play: false, focused_card: 1, focus_path: '/Fight/NHandCardHolder-CARD_DEFEND', focused_element: null, elements: [] },
+};
+const afterFightState = {
+  state_type: 'rewards', run: { floor: 2, act: 1, ascension: 1 },
+  player: { character: 'The Ironclad', hp: 63, max_hp: 80, gold: 110, relics: [], potions: [] },
+  ui: { sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-rewards', focus_path: '/Rewards/LeaveButton', focused_element: 'element-leave', elements: [{ id: 'element-leave', label: 'Leave', type: 'Button', visible: true, enabled: true, selectable: true, activation: 'a', ambiguous: false, focus_mode: 'all', neighbors: {} }] },
+};
+// A screen with a named control on it, so the strategist can state a goal and the
+// actuator answer it from the label without a second model call.
+const eventState = {
+  state_type: 'event', run: { floor: 1, act: 1 }, player: { hp: 80 },
+  event: { name: 'Fixture Event', options: [{ text: 'Leave' }] },
+  ui: {
+    sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod',
+    scene_id: 'scene-event', focus_path: '/Event/LeaveButton', focused_element: 'element-leave',
+    elements: [{ id: 'element-leave', label: 'Leave', type: 'Button', visible: true, enabled: true, selectable: true, activation: 'a', ambiguous: false, focus_mode: 'all', neighbors: {} }],
+  },
+};
 const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const children = new Set();
 
@@ -44,9 +84,15 @@ async function scenario(mode) {
       let result = {};
       if (request.op === 'sts2-get') {
         reads++;
-        const state = structuredClone(baseState);
+        const state = structuredClone(
+          mode === 'delegated_goal' ? eventState
+            : mode === 'encounter' ? (inputs.length ? afterFightState : fightState)
+              : baseState);
         if (mode === 'bad_sensor') state.ui.sensor_version = 0;
-        if (mode === 'stale') state.ui.focus_path = String(reads);
+        // Staleness is about what a plan rests on, not about presentation that
+        // moves on its own, so this has to churn the scene itself: a drifting
+        // focus_path alone is deliberately no longer enough to discard a plan.
+        if (mode === 'stale') { state.ui.focus_path = String(reads); state.ui.scene_id = `scene-${reads}`; }
         // Focus moves only when a press arrives, so each probe succeeds and
         // nothing is stale: only the bound stops the run.
         if (mode === 'probes_only') state.ui.focus_path = `focus-${inputs.length}`;
@@ -67,7 +113,7 @@ async function scenario(mode) {
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   function start() {
-    const child = spawn(process.execPath, [path.join(root, 'client/learning/player.mjs')], { env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, ORCA_KEY: 'fixture-only', STEAMBENCH_PROCESS_GATEWAY: `127.0.0.1:${server.address().port}`, STEAMBENCH_PROCESS_TOKEN: '', STEAMBENCH_LEARNING_SCRATCHPAD: directory, STEAMBENCH_ROOM_ID: 'bbbb2222', FIXTURE_MODE: mode, FIXTURE_CALLS: callsFile }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [path.join(root, 'client/learning/player.mjs')], { env: { ...process.env, PATH: `${temporary}:${process.env.PATH}`, [PROFILE.apiKeyEnv]: 'fixture-only', STEAMBENCH_PROCESS_GATEWAY: `127.0.0.1:${server.address().port}`, STEAMBENCH_PROCESS_TOKEN: '', STEAMBENCH_LEARNING_SCRATCHPAD: directory, STEAMBENCH_ROOM_ID: 'bbbb2222', FIXTURE_MODE: mode, FIXTURE_CALLS: callsFile }, stdio: ['pipe', 'pipe', 'pipe'] });
     children.add(child);
     child.events = [];
     child.errors = '';
@@ -110,13 +156,61 @@ async function scenario(mode) {
     const checkpoint = JSON.parse(fs.readFileSync(path.join(directory, 'checkpoint.json')));
     assert.equal(checkpoint.version, VERSION);
     assert.equal(checkpoint.attention.id, attention.id);
-    const calls = fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8').trim().split('\n').length : 0;
-    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : mode === 'probes_only' ? 2 : 0);
+    const roles = fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8').trim().split('\n').filter(Boolean) : [];
+    const calls = roles.length;
+    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective', 'delegated_goal'].includes(mode) ? 1 : mode === 'probes_only' ? 2 : mode === 'encounter' ? 2 : 0);
     // A planner failure sends nothing, so it is refined with the reason in
     // context before the run is paused. Anything that reached the game is not.
     const refinable = ['provider_error', 'empty'].includes(mode);
     // notes_only writes two notes, is refused a third, then spends the refine budget.
-    assert.equal(calls, ['bad_sensor', 'stale_image'].includes(mode) ? 0 : mode === 'stale' ? 3 : refinable ? 3 : mode === 'notes_only' ? 5 : mode === 'probes_only' ? 5 : 1);
+    assert.equal(calls, ['bad_sensor', 'stale_image'].includes(mode) ? 0 : mode === 'stale' ? 3 : refinable ? 3 : mode === 'notes_only' ? 5 : mode === 'probes_only' ? 5 : mode === 'encounter' ? 3 : 1);
+    if (mode === 'encounter') {
+      // The fight got its own agent, and the strategist never saw a turn of it.
+      const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+      const opened = events.find(event => event.type === 'encounter_open');
+      assert.equal(opened.kind, 'normal');
+      assert.equal(opened.floor, 2);
+      assert.deepEqual(opened.enemies, ['Fogmog']);
+      assert.match(opened.agent, /^combat-001-a1f2$/);
+      assert.equal(events.find(event => event.type === 'decision_context' && event.role === 'combat').agent, opened.agent);
+      // Closed with one report, and that report is what reaches the strategist.
+      const closed = events.find(event => event.type === 'encounter_close');
+      assert.equal(closed.agent, opened.agent);
+      assert.equal(closed.outcome, 'won');
+      assert.equal(closed.hp_cost, 7);
+      assert.match(closed.deck_need, /two enemies at once/);
+      const ledger = fs.readFileSync(path.join(directory, 'encounters.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+      assert.equal(ledger.length, 1);
+      assert.equal(ledger[0].enemy_note, 'Fogmog alternates a 9 attack with a block.');
+      // Combat plays the turn, the closing report costs one call, and the
+      // strategist picks up the reward screen. Nobody is asked twice for the
+      // same decision, and the strategist is never asked about the fight.
+      assert.deepEqual(roles, ['combat', 'handoff', 'strategist']);
+      const roster = JSON.parse(fs.readFileSync(path.join(directory, 'metrics.json'), 'utf8')).agents;
+      const encounterLane = roster.find(member => member.id === opened.agent);
+      assert.equal(encounterLane.status, 'closed');
+      assert.equal(encounterLane.outcome, 'won');
+      assert.match(encounterLane.title, /normal · act 1 floor 2 · Fogmog/);
+    } else if (mode === 'delegated_goal') {
+      // The strategist named what it wanted and was never shown a control. The
+      // label answered it outright, so the pad moved on ONE model call: the
+      // whole point of resolving a goal before asking anyone.
+      assert.deepEqual(roles, ['strategist'], 'the actuator was not asked; the label already answered');
+      const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+      const asked = events.find(event => event.type === 'decision_context');
+      assert.equal(asked.role, 'strategist');
+      assert.equal(asked.agent, 'strategist');
+      const resolved = events.find(event => event.type === 'actuator');
+      assert.equal(resolved.resolution, 'label');
+      assert.equal(resolved.element, 'element-leave');
+      assert.equal(events.some(event => event.type === 'actuator_context'), false, 'no actuator model call was needed');
+      const ran = events.find(event => event.type === 'decision_result');
+      assert.equal(ran.agent, 'strategist', 'the decision is filed under whoever made it');
+      assert.deepEqual(ran.plan.actions.map(action => action.type), ['activate'], 'the intent reached the pad as a concrete activation');
+    } else if (mode !== 'encounter') {
+      // Every other scenario is a menu, which is actuation and nothing else.
+      assert.ok(roles.every(role => role === 'actuator'), `menus are the actuator's alone, saw ${roles}`);
+    }
     if (mode === 'probes_only') {
       // A probe answers where focus is. A run of them answers nothing, and the
       // player was oscillating between two positions instead of committing.
@@ -148,7 +242,7 @@ async function scenario(mode) {
     assert.equal((await command(child, { type: 'resume', issueId: 'wrong', message: 'No review' })).success, false);
     assert.equal((await command(child, { type: 'resume', issueId: attention.id, message: '   ' })).success, false);
     await sleep(250);
-    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective'].includes(mode) ? 1 : mode === 'probes_only' ? 2 : 0);
+    assert.equal(inputs.length, ['input', 'transport_error', 'inherited_objective', 'delegated_goal'].includes(mode) ? 1 : mode === 'probes_only' ? 2 : mode === 'encounter' ? 2 : 0);
     if (mode === 'report') {
       const notes = fs.readFileSync(path.join(directory, 'learning.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
       assert.equal(notes[0].kind, 'pre_action_hypothesis');
@@ -193,7 +287,7 @@ async function scenario(mode) {
 }
 
 try {
-  for (const mode of ['report', 'input', 'transport_error', 'provider_error', 'empty', 'bad_sensor', 'stale_image', 'stale', 'notes_only', 'probes_only', 'inherited_objective']) await scenario(mode);
+  for (const mode of ['report', 'input', 'transport_error', 'provider_error', 'empty', 'bad_sensor', 'stale_image', 'stale', 'notes_only', 'probes_only', 'inherited_objective', 'delegated_goal', 'encounter']) await scenario(mode);
   const state = { state_type: 'combat', ui: { hand_mode: 'Play', focused_card: 1, in_card_play: false }, player: { hand: [{ instance_id: 1, index: 0, can_play: true, target_type: 'Self' }, { instance_id: 2, index: 1, can_play: true, target_type: 'Self' }] }, battle: { is_play_phase: true, turn: 'player', enemies: [], round: 1 } };
   const inputs = [];
   const executor = new Executor({ call: async request => { if (request.op === 'sts2-get') return { body: JSON.stringify(state) }; inputs.push(request); return {}; } });

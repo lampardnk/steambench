@@ -19,6 +19,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { digest } from './state.mjs';
+import { PROFILE } from './profile.mjs';
 
 export const CURRICULUM_FILE = 'curriculum.json';
 const SCHEMA = 1;
@@ -29,7 +30,16 @@ const MAX_ATTEMPTS = 3;
 // boundaries, and never more than once every few decisions.
 const CHECK_EVERY = 12;
 const MIN_CHECK_GAP = 3;
-const AREAS = ['meta_strategy', 'controls', 'act1', 'act2', 'act3', 'characters', 'ascension', 'strategy', 'bestiary', 'events', 'setups'];
+// The auxiliary calls run on the same model as the decision, which answers in
+// tens of seconds. At 15 seconds every propose and every verify timed out, so
+// no objective was ever opened and the curriculum silently did nothing for a
+// whole run. Half the decision budget is ample for a short answer and still
+// bounds a hung call.
+const AUXILIARY_DEADLINE_MS = Math.round(PROFILE.plannerDeadlineMs / 2);
+// The folders the library actually has. The area is what biases retrieval
+// towards the notes an objective is about (retrieval.mjs), so a name no
+// directory answers to - bestiary, setups, pools - ranks nothing.
+const AREAS = ['meta_strategy', 'controls', 'act1', 'act2', 'act3', 'characters', 'ascension', 'debugging'];
 const clamp = (value, limit) => (typeof value === 'string' ? value.slice(0, limit) : '');
 
 /** A small, stable description of where the run is, for proposal and verification. */
@@ -61,6 +71,7 @@ export class Curriculum {
     this.roomId = roomId;
     this.lastCheckedAt = 0;
     this.lastMarker = null;
+    this.crossedBoundary = false;
     this.load();
     this.retireForeignObjective();
   }
@@ -116,7 +127,7 @@ export class Curriculum {
   summary() {
     const areas = {};
     for (const item of this.ledger.objectives) {
-      const area = AREAS.includes(item.area) ? item.area : 'strategy';
+      const area = AREAS.includes(item.area) ? item.area : 'meta_strategy';
       areas[area] ||= { completed: 0, abandoned: 0 };
       if (item.status === 'completed') areas[area].completed++;
       if (item.status === 'abandoned') areas[area].abandoned++;
@@ -153,30 +164,37 @@ export class Curriculum {
     const objective = this.active;
     if (!objective) return false;
     if (decision - this.lastCheckedAt < MIN_CHECK_GAP) return false;
-    const marker = `${state?.run?.act}/${state?.run?.floor}/${state?.state_type === 'game_over'}`;
-    if (marker !== this.lastMarker && this.lastMarker !== null) return true;
-    return false;
+    return this.crossedBoundary;
   }
 
+  /**
+   * Latch the boundary rather than compare against the immediately previous
+   * decision. In STS2 the floor number advances exactly when a fight begins, and
+   * the caller will not run the critic while state.battle is set - so the one
+   * decision that saw the transition was always skipped, and this method then
+   * overwrote the marker and erased the evidence. The critic never ran once in
+   * 85 decisions. A crossing stays pending until a check actually consumes it.
+   */
   observe(state) {
-    this.lastMarker = `${state?.run?.act}/${state?.run?.floor}/${state?.state_type === 'game_over'}`;
+    const marker = `${state?.run?.act}/${state?.run?.floor}/${state?.state_type === 'game_over'}`;
+    if (this.lastMarker !== null && marker !== this.lastMarker) this.crossedBoundary = true;
+    this.lastMarker = marker;
   }
 
   /** Ask the curriculum reasoner for the next objective, given the frontier. */
-  async propose(state, { task, notes = [], decision = 0 }) {
+  async propose(state, { task, decision = 0 }) {
     const payload = {
       run: situation(state),
       standing_task: clamp(task, 1500),
       curriculum_summary: this.summary(),
-      learned_notes: notes.slice(0, 120),
     };
-    const answer = await this.planner.ask({ role: 'curriculum', prompt: 'curriculum.txt', context: payload, deadlineMs: 15000 });
+    const answer = await this.planner.ask({ role: 'curriculum', prompt: 'curriculum.txt', context: payload, deadlineMs: AUXILIARY_DEADLINE_MS });
     const objective = {
       id: `obj-${digest({ decision, text: answer?.objective, at: Date.now() }).slice(0, 8)}`,
       text: clamp(answer?.objective, 240),
       why: clamp(answer?.why, 400),
       done_when: clamp(answer?.done_when, 300),
-      area: AREAS.includes(answer?.area) ? answer.area : 'strategy',
+      area: AREAS.includes(answer?.area) ? answer.area : 'meta_strategy',
       status: 'active',
       attempts: 0,
       critiques: [],
@@ -185,6 +203,7 @@ export class Curriculum {
     if (!objective.text || !objective.done_when) throw new Error('curriculum returned no objective and completion condition');
     this.ledger.objectives.push(objective);
     this.lastCheckedAt = decision;
+    this.crossedBoundary = false;
     this.save();
     this.record({ type: 'objective_opened', objective });
     return objective;
@@ -196,10 +215,11 @@ export class Curriculum {
    * a critique, which the next decision receives; after MAX_ATTEMPTS failures the
    * objective is abandoned so the curriculum can propose something reachable.
    */
-  async verify(state, { decision, evidence = [], notes = [] }) {
+  async verify(state, { decision, evidence = [] }) {
     const objective = this.active;
     if (!objective) return null;
     this.lastCheckedAt = decision;
+    this.crossedBoundary = false;
     const payload = {
       objective: { text: objective.text, why: objective.why, done_when: objective.done_when },
       opened_at: objective.opened,
@@ -207,9 +227,8 @@ export class Curriculum {
       previous_critiques: objective.critiques.slice(-2),
       run_now: situation(state),
       evidence: evidence.slice(-12),
-      learned_notes: notes.slice(0, 120),
     };
-    const answer = await this.planner.ask({ role: 'critic', prompt: 'critic.txt', context: payload, deadlineMs: 15000 });
+    const answer = await this.planner.ask({ role: 'critic', prompt: 'critic.txt', context: payload, deadlineMs: AUXILIARY_DEADLINE_MS });
     const verdict = ['success', 'failure', 'pending'].includes(answer?.verdict) ? answer.verdict : 'pending';
     const reasoning = clamp(answer?.reasoning, 600);
     const critique = clamp(answer?.critique, 600);

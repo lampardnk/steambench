@@ -1,0 +1,2775 @@
+{
+  "note": "Two reads of the same live transform preview, one second apart. The card right of the chosen one re-rolls on its own; nothing else about the screen changed. Element bounds removed; everything else is as the sensor reported it.",
+  "reads": [
+    {
+      "state_type": "card_select",
+      "run": {
+        "act": 1,
+        "floor": 1,
+        "ascension": 1
+      },
+      "player": {
+        "hp": 80,
+        "max_hp": 80,
+        "gold": 99
+      },
+      "card_select": {
+        "screen_type": "transform",
+        "prompt": "Choose a card to Transform.",
+        "cards": [
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 0
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 1
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 2
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 3
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 4
+          },
+          {
+            "id": "DEFEND_IRONCLAD",
+            "name": "Defend",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain 5 Block.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Block",
+                "description": "Until next turn, prevents damage."
+              }
+            ],
+            "index": 5
+          },
+          {
+            "id": "DEFEND_IRONCLAD",
+            "name": "Defend",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain 5 Block.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Block",
+                "description": "Until next turn, prevents damage."
+              }
+            ],
+            "index": 6
+          },
+          {
+            "id": "DEFEND_IRONCLAD",
+            "name": "Defend",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain 5 Block.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Block",
+                "description": "Until next turn, prevents damage."
+              }
+            ],
+            "index": 7
+          },
+          {
+            "id": "DEFEND_IRONCLAD",
+            "name": "Defend",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain 5 Block.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Block",
+                "description": "Until next turn, prevents damage."
+              }
+            ],
+            "index": 8
+          },
+          {
+            "id": "BASH",
+            "name": "Bash",
+            "type": "Attack",
+            "cost": "2",
+            "star_cost": null,
+            "description": "Deal 8 damage. Apply 2 Vulnerable.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Vulnerable",
+                "description": "Vulnerable creatures take 50% more damage from Attacks."
+              }
+            ],
+            "index": 9
+          }
+        ],
+        "preview_showing": true,
+        "preview_cards": [
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 0
+          },
+          {
+            "id": "FORGOTTEN_RITUAL",
+            "name": "Forgotten Ritual",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain [ironclad_energy_icon.png][ironclad_energy_icon.png][ironclad_energy_icon.png]. Exhaust.",
+            "rarity": "Uncommon",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Energy",
+                "description": "Energy is used to play cards from your Hand."
+              },
+              {
+                "name": "Exhaust",
+                "description": "Removed until the end of combat."
+              }
+            ],
+            "index": 1
+          }
+        ],
+        "can_cancel": true,
+        "can_confirm": true
+      },
+      "ui": {
+        "sensor_version": 5,
+        "scene_id": "d62aaf2f9bf8cde8",
+        "focused_element": null,
+        "focus_path": null,
+        "elements": [
+          {
+            "id": "element-1021094934441",
+            "label": "ActiveScreenProxy",
+            "reference": {},
+            "type": "Control",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1021094934441",
+              "up": "element-1021094934441",
+              "right": "element-1021094934441",
+              "down": "element-1021094934441"
+            }
+          },
+          {
+            "id": "element-1020742612884",
+            "label": "PauseButton",
+            "reference": {},
+            "type": "NTopBarPauseButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "hotkeys": [
+              "mega_pause_and_back"
+            ],
+            "press": "start"
+          },
+          {
+            "id": "element-1020390291327",
+            "label": "10",
+            "reference": {},
+            "type": "NTopBarDeckButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "hotkeys": [
+              "mega_view_deck_and_tab_left"
+            ],
+            "press": "lb"
+          },
+          {
+            "id": "element-1020071524204",
+            "label": "Map",
+            "reference": {},
+            "type": "NTopBarMapButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "hotkeys": [
+              "mega_view_map"
+            ],
+            "press": "back"
+          },
+          {
+            "id": "element-1019803088735",
+            "label": "Game Saved",
+            "reference": {},
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-1019601762131",
+            "label": "BossIcon",
+            "reference": {},
+            "type": "NTopBarBossIcon",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019467544395",
+              "up": "element-1019601762131",
+              "right": "element-1019601762131",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1019467544395",
+            "label": "1",
+            "reference": {},
+            "type": "NTopBarFloorIcon",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019366881093",
+              "up": "element-1019467544395",
+              "right": "element-1019601762131",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1019366881093",
+            "label": "RoomIcon",
+            "reference": {},
+            "type": "NTopBarRoomIcon",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068624789863",
+              "up": "element-1019366881093",
+              "right": "element-1019467544395",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1019048113970",
+            "label": "PotionShortcutButton",
+            "reference": {},
+            "type": "NPotionShortcutButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018746124064",
+              "up": "element-1018746124064",
+              "right": "element-1067886592315",
+              "down": "element-1018746124064"
+            },
+            "hotkeys": [
+              "mega_top_panel"
+            ],
+            "press": "x"
+          },
+          {
+            "id": "element-1068624789863",
+            "label": "",
+            "reference": {},
+            "type": "NPotionHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": true,
+            "neighbors": {
+              "left": "element-1068255691089",
+              "up": "element-1068624789863",
+              "right": "element-1019366881093",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1068255691089",
+            "label": "",
+            "reference": {},
+            "type": "NPotionHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": true,
+            "neighbors": {
+              "left": "element-1067886592315",
+              "up": "element-1068255691089",
+              "right": "element-1068624789863",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1067886592315",
+            "label": "PotionHolder",
+            "reference": {},
+            "type": "NPotionHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018746124064",
+              "up": "element-1067886592315",
+              "right": "element-1068255691089",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1018746124064",
+            "label": "99",
+            "reference": {},
+            "type": "NTopBarGold",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018645460762",
+              "up": "element-1018746124064",
+              "right": "element-1067886592315",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1018645460762",
+            "label": "80/80",
+            "reference": {},
+            "type": "NTopBarHp",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018427356941",
+              "up": "element-1018645460762",
+              "right": "element-1018746124064",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1018427356941",
+            "label": "1",
+            "reference": {},
+            "type": "NTopBarPortraitTip",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018427356941",
+              "up": "element-1018427356941",
+              "right": "element-1018645460762",
+              "down": "element-1018427356941"
+            }
+          },
+          {
+            "id": "element-1165077004953",
+            "label": "NRelicContainerHolder-RELIC_NEW_LEAF",
+            "reference": {
+              "kind": "relic",
+              "model_id": null,
+              "title": null,
+              "description": null
+            },
+            "type": "NRelicInventoryHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068993888637",
+              "up": "element-1067886592315",
+              "right": "element-1068993888637",
+              "down": "element-1021094934441"
+            }
+          },
+          {
+            "id": "element-1165110559387",
+            "label": "Relic",
+            "reference": {
+              "kind": "model",
+              "model_id": "RELIC.NEW_LEAF",
+              "title": null,
+              "description": null
+            },
+            "type": "NRelic",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068993888637",
+              "up": "element-1018645460762",
+              "right": "element-1018645460762",
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-1068993888637",
+            "label": "NRelicContainerHolder-RELIC_BURNING_BLOOD",
+            "reference": {
+              "kind": "relic",
+              "model_id": null,
+              "title": null,
+              "description": null
+            },
+            "type": "NRelicInventoryHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1165077004953",
+              "up": "element-1067886592315",
+              "right": "element-1165077004953",
+              "down": "element-1021094934441"
+            }
+          },
+          {
+            "id": "element-1069027443071",
+            "label": "Relic",
+            "reference": {
+              "kind": "model",
+              "model_id": "RELIC.BURNING_BLOOD",
+              "title": null,
+              "description": null
+            },
+            "type": "NRelic",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": "element-1018427356941",
+              "right": "element-1165077004953",
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-1168583443281",
+            "label": "Choose a card to Transform.",
+            "reference": {},
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-1167711027997",
+            "label": "Confirm",
+            "reference": {},
+            "type": "NConfirmButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": null
+            },
+            "hotkeys": [
+              "ui_confirm"
+            ],
+            "press": "y"
+          },
+          {
+            "id": "element-1167325152006",
+            "label": "Cancel",
+            "reference": {},
+            "type": "NBackButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": "element-1183045403223",
+              "right": "element-1183045403223",
+              "down": null
+            },
+            "hotkeys": [
+              "ui_cancel",
+              "mega_pause_and_back",
+              "mega_back"
+            ],
+            "press": "b"
+          },
+          {
+            "id": "element-92157251186",
+            "label": "Gain    .\nExhaust.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.FORGOTTEN_RITUAL",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-1183045403223",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 1,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NPreviewCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068624789863",
+              "up": "element-1019366881093",
+              "right": "element-1019366881093",
+              "down": null
+            }
+          },
+          {
+            "id": "element-93365210806",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018746124064",
+              "up": "element-1183045403223",
+              "right": "element-1019467544395",
+              "down": null
+            }
+          },
+          {
+            "id": "element-1166469513939",
+            "label": "Confirm",
+            "reference": {},
+            "type": "NConfirmButton",
+            "visible": true,
+            "enabled": false,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": null
+            },
+            "hotkeys": [
+              "ui_confirm"
+            ],
+            "press": "y"
+          },
+          {
+            "id": "element-1166083637948",
+            "label": "Close",
+            "reference": {},
+            "type": "NBackButton",
+            "visible": true,
+            "enabled": false,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": "element-1068993888637",
+              "right": "element-1068993888637",
+              "down": null
+            },
+            "hotkeys": [
+              "ui_cancel",
+              "mega_pause_and_back",
+              "mega_back"
+            ],
+            "press": "b"
+          },
+          {
+            "id": "element-108447928847",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 1,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-105277034856",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1165077004953",
+              "up": "element-1165077004953",
+              "right": "element-1183045403223",
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-107843949035",
+            "label": "Bash",
+            "reference": {
+              "kind": "card",
+              "instance_id": 2,
+              "card": {
+                "id": "BASH",
+                "name": "Bash",
+                "type": "Attack",
+                "cost": "2",
+                "star_cost": null,
+                "description": "Deal 8 damage. Apply 2 Vulnerable.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Vulnerable",
+                    "description": "Vulnerable creatures take 50% more damage from Attacks."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-94556393211",
+            "label": "Deal 8 damage.\nApply 2 Vulnerable.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.BASH",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-107911057903",
+            "label": "Defend",
+            "reference": {
+              "kind": "card",
+              "instance_id": 3,
+              "card": {
+                "id": "DEFEND_IRONCLAD",
+                "name": "Defend",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Gain 5 Block.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Block",
+                    "description": "Until next turn, prevents damage."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-95747575616",
+            "label": "Gain 5 Block.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.DEFEND_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-107978166771",
+            "label": "Defend",
+            "reference": {
+              "kind": "card",
+              "instance_id": 4,
+              "card": {
+                "id": "DEFEND_IRONCLAD",
+                "name": "Defend",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Gain 5 Block.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Block",
+                    "description": "Until next turn, prevents damage."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-96938758021",
+            "label": "Gain 5 Block.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.DEFEND_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-108045275639",
+            "label": "Defend",
+            "reference": {
+              "kind": "card",
+              "instance_id": 5,
+              "card": {
+                "id": "DEFEND_IRONCLAD",
+                "name": "Defend",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Gain 5 Block.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Block",
+                    "description": "Until next turn, prevents damage."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-98129940426",
+            "label": "Gain 5 Block.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.DEFEND_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018746124064",
+              "up": "element-1183045403223",
+              "right": "element-1019366881093",
+              "down": null
+            }
+          },
+          {
+            "id": "element-108112384507",
+            "label": "Defend",
+            "reference": {
+              "kind": "card",
+              "instance_id": 6,
+              "card": {
+                "id": "DEFEND_IRONCLAD",
+                "name": "Defend",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Gain 5 Block.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Block",
+                    "description": "Until next turn, prevents damage."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-99321122831",
+            "label": "Gain 5 Block.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.DEFEND_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1165077004953",
+              "up": "element-1183045403223",
+              "right": "element-1183045403223",
+              "down": null
+            }
+          },
+          {
+            "id": "element-108179493375",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 7,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-100512305236",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-108246602243",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 8,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-101703487641",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-108313711111",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 9,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-102894670046",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-108380819979",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 10,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-104085852451",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1067886592315",
+              "up": "element-1019366881093",
+              "right": "element-1019366881093",
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-1134190146665",
+            "label": "NEOW",
+            "reference": {},
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068993888637",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-1138317345272",
+            "label": "...awaken...\n..Awaken.....",
+            "reference": {},
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068624789863",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "state_type": "card_select",
+      "run": {
+        "act": 1,
+        "floor": 1,
+        "ascension": 1
+      },
+      "player": {
+        "hp": 80,
+        "max_hp": 80,
+        "gold": 99
+      },
+      "card_select": {
+        "screen_type": "transform",
+        "prompt": "Choose a card to Transform.",
+        "cards": [
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 0
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 1
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 2
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 3
+          },
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 4
+          },
+          {
+            "id": "DEFEND_IRONCLAD",
+            "name": "Defend",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain 5 Block.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Block",
+                "description": "Until next turn, prevents damage."
+              }
+            ],
+            "index": 5
+          },
+          {
+            "id": "DEFEND_IRONCLAD",
+            "name": "Defend",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain 5 Block.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Block",
+                "description": "Until next turn, prevents damage."
+              }
+            ],
+            "index": 6
+          },
+          {
+            "id": "DEFEND_IRONCLAD",
+            "name": "Defend",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain 5 Block.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Block",
+                "description": "Until next turn, prevents damage."
+              }
+            ],
+            "index": 7
+          },
+          {
+            "id": "DEFEND_IRONCLAD",
+            "name": "Defend",
+            "type": "Skill",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Gain 5 Block.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Block",
+                "description": "Until next turn, prevents damage."
+              }
+            ],
+            "index": 8
+          },
+          {
+            "id": "BASH",
+            "name": "Bash",
+            "type": "Attack",
+            "cost": "2",
+            "star_cost": null,
+            "description": "Deal 8 damage. Apply 2 Vulnerable.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Vulnerable",
+                "description": "Vulnerable creatures take 50% more damage from Attacks."
+              }
+            ],
+            "index": 9
+          }
+        ],
+        "preview_showing": true,
+        "preview_cards": [
+          {
+            "id": "STRIKE_IRONCLAD",
+            "name": "Strike",
+            "type": "Attack",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Deal 6 damage.",
+            "rarity": "Basic",
+            "is_upgraded": false,
+            "keywords": [],
+            "index": 0
+          },
+          {
+            "id": "RUPTURE",
+            "name": "Rupture",
+            "type": "Power",
+            "cost": "1",
+            "star_cost": null,
+            "description": "Whenever you lose HP on your turn, gain 1 Strength.",
+            "rarity": "Uncommon",
+            "is_upgraded": false,
+            "keywords": [
+              {
+                "name": "Strength",
+                "description": "Strength adds additional damage to Attacks."
+              }
+            ],
+            "index": 1
+          }
+        ],
+        "can_cancel": true,
+        "can_confirm": true
+      },
+      "ui": {
+        "sensor_version": 5,
+        "scene_id": "61dbed1c4f2d8ced",
+        "focused_element": null,
+        "focus_path": null,
+        "elements": [
+          {
+            "id": "element-1021094934441",
+            "label": "ActiveScreenProxy",
+            "reference": {},
+            "type": "Control",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1021094934441",
+              "up": "element-1021094934441",
+              "right": "element-1021094934441",
+              "down": "element-1021094934441"
+            }
+          },
+          {
+            "id": "element-1020742612884",
+            "label": "PauseButton",
+            "reference": {},
+            "type": "NTopBarPauseButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "hotkeys": [
+              "mega_pause_and_back"
+            ],
+            "press": "start"
+          },
+          {
+            "id": "element-1020390291327",
+            "label": "10",
+            "reference": {},
+            "type": "NTopBarDeckButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "hotkeys": [
+              "mega_view_deck_and_tab_left"
+            ],
+            "press": "lb"
+          },
+          {
+            "id": "element-1020071524204",
+            "label": "Map",
+            "reference": {},
+            "type": "NTopBarMapButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": "element-1019601762131"
+            },
+            "hotkeys": [
+              "mega_view_map"
+            ],
+            "press": "back"
+          },
+          {
+            "id": "element-1019803088735",
+            "label": "Game Saved",
+            "reference": {},
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-1019601762131",
+            "label": "BossIcon",
+            "reference": {},
+            "type": "NTopBarBossIcon",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019467544395",
+              "up": "element-1019601762131",
+              "right": "element-1019601762131",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1019467544395",
+            "label": "1",
+            "reference": {},
+            "type": "NTopBarFloorIcon",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019366881093",
+              "up": "element-1019467544395",
+              "right": "element-1019601762131",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1019366881093",
+            "label": "RoomIcon",
+            "reference": {},
+            "type": "NTopBarRoomIcon",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068624789863",
+              "up": "element-1019366881093",
+              "right": "element-1019467544395",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1019048113970",
+            "label": "PotionShortcutButton",
+            "reference": {},
+            "type": "NPotionShortcutButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018746124064",
+              "up": "element-1018746124064",
+              "right": "element-1067886592315",
+              "down": "element-1018746124064"
+            },
+            "hotkeys": [
+              "mega_top_panel"
+            ],
+            "press": "x"
+          },
+          {
+            "id": "element-1068624789863",
+            "label": "",
+            "reference": {},
+            "type": "NPotionHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": true,
+            "neighbors": {
+              "left": "element-1068255691089",
+              "up": "element-1068624789863",
+              "right": "element-1019366881093",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1068255691089",
+            "label": "",
+            "reference": {},
+            "type": "NPotionHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": true,
+            "neighbors": {
+              "left": "element-1067886592315",
+              "up": "element-1068255691089",
+              "right": "element-1068624789863",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1067886592315",
+            "label": "PotionHolder",
+            "reference": {},
+            "type": "NPotionHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018746124064",
+              "up": "element-1067886592315",
+              "right": "element-1068255691089",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1018746124064",
+            "label": "99",
+            "reference": {},
+            "type": "NTopBarGold",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018645460762",
+              "up": "element-1018746124064",
+              "right": "element-1067886592315",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1018645460762",
+            "label": "80/80",
+            "reference": {},
+            "type": "NTopBarHp",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018427356941",
+              "up": "element-1018645460762",
+              "right": "element-1018746124064",
+              "down": "element-1068993888637"
+            }
+          },
+          {
+            "id": "element-1018427356941",
+            "label": "1",
+            "reference": {},
+            "type": "NTopBarPortraitTip",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018427356941",
+              "up": "element-1018427356941",
+              "right": "element-1018645460762",
+              "down": "element-1018427356941"
+            }
+          },
+          {
+            "id": "element-1165077004953",
+            "label": "NRelicContainerHolder-RELIC_NEW_LEAF",
+            "reference": {
+              "kind": "relic",
+              "model_id": null,
+              "title": null,
+              "description": null
+            },
+            "type": "NRelicInventoryHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068993888637",
+              "up": "element-1067886592315",
+              "right": "element-1068993888637",
+              "down": "element-1021094934441"
+            }
+          },
+          {
+            "id": "element-1165110559387",
+            "label": "Relic",
+            "reference": {
+              "kind": "model",
+              "model_id": "RELIC.NEW_LEAF",
+              "title": null,
+              "description": null
+            },
+            "type": "NRelic",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068993888637",
+              "up": "element-1018645460762",
+              "right": "element-1018645460762",
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-1068993888637",
+            "label": "NRelicContainerHolder-RELIC_BURNING_BLOOD",
+            "reference": {
+              "kind": "relic",
+              "model_id": null,
+              "title": null,
+              "description": null
+            },
+            "type": "NRelicInventoryHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1165077004953",
+              "up": "element-1067886592315",
+              "right": "element-1165077004953",
+              "down": "element-1021094934441"
+            }
+          },
+          {
+            "id": "element-1069027443071",
+            "label": "Relic",
+            "reference": {
+              "kind": "model",
+              "model_id": "RELIC.BURNING_BLOOD",
+              "title": null,
+              "description": null
+            },
+            "type": "NRelic",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": "element-1018427356941",
+              "right": "element-1165077004953",
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-1168583443281",
+            "label": "Choose a card to Transform.",
+            "reference": {},
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-1167711027997",
+            "label": "Confirm",
+            "reference": {},
+            "type": "NConfirmButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": null
+            },
+            "hotkeys": [
+              "ui_confirm"
+            ],
+            "press": "y"
+          },
+          {
+            "id": "element-1167325152006",
+            "label": "Cancel",
+            "reference": {},
+            "type": "NBackButton",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": "element-1183045403223",
+              "right": "element-1183045403223",
+              "down": null
+            },
+            "hotkeys": [
+              "ui_cancel",
+              "mega_pause_and_back",
+              "mega_back"
+            ],
+            "press": "b"
+          },
+          {
+            "id": "element-92157251186",
+            "label": "Whenever you lose HP on your turn, gain 1 Strength.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.RUPTURE",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-1183045403223",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 1,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NPreviewCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "all",
+            "selectable": true,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068624789863",
+              "up": "element-1019366881093",
+              "right": "element-1019366881093",
+              "down": null
+            }
+          },
+          {
+            "id": "element-93365210806",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "accessibility",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018746124064",
+              "up": "element-1183045403223",
+              "right": "element-1019467544395",
+              "down": null
+            }
+          },
+          {
+            "id": "element-1166469513939",
+            "label": "Confirm",
+            "reference": {},
+            "type": "NConfirmButton",
+            "visible": true,
+            "enabled": false,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": null
+            },
+            "hotkeys": [
+              "ui_confirm"
+            ],
+            "press": "y"
+          },
+          {
+            "id": "element-1166083637948",
+            "label": "Close",
+            "reference": {},
+            "type": "NBackButton",
+            "visible": true,
+            "enabled": false,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": "element-1068993888637",
+              "right": "element-1068993888637",
+              "down": null
+            },
+            "hotkeys": [
+              "ui_cancel",
+              "mega_pause_and_back",
+              "mega_back"
+            ],
+            "press": "b"
+          },
+          {
+            "id": "element-108447928847",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 1,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-105277034856",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1165077004953",
+              "up": "element-1165077004953",
+              "right": "element-1183045403223",
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-107843949035",
+            "label": "Bash",
+            "reference": {
+              "kind": "card",
+              "instance_id": 2,
+              "card": {
+                "id": "BASH",
+                "name": "Bash",
+                "type": "Attack",
+                "cost": "2",
+                "star_cost": null,
+                "description": "Deal 8 damage. Apply 2 Vulnerable.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Vulnerable",
+                    "description": "Vulnerable creatures take 50% more damage from Attacks."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-94556393211",
+            "label": "Deal 8 damage.\nApply 2 Vulnerable.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.BASH",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-107911057903",
+            "label": "Defend",
+            "reference": {
+              "kind": "card",
+              "instance_id": 3,
+              "card": {
+                "id": "DEFEND_IRONCLAD",
+                "name": "Defend",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Gain 5 Block.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Block",
+                    "description": "Until next turn, prevents damage."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-95747575616",
+            "label": "Gain 5 Block.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.DEFEND_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-107978166771",
+            "label": "Defend",
+            "reference": {
+              "kind": "card",
+              "instance_id": 4,
+              "card": {
+                "id": "DEFEND_IRONCLAD",
+                "name": "Defend",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Gain 5 Block.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Block",
+                    "description": "Until next turn, prevents damage."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-96938758021",
+            "label": "Gain 5 Block.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.DEFEND_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-108045275639",
+            "label": "Defend",
+            "reference": {
+              "kind": "card",
+              "instance_id": 5,
+              "card": {
+                "id": "DEFEND_IRONCLAD",
+                "name": "Defend",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Gain 5 Block.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Block",
+                    "description": "Until next turn, prevents damage."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-98129940426",
+            "label": "Gain 5 Block.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.DEFEND_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1018746124064",
+              "up": "element-1183045403223",
+              "right": "element-1019366881093",
+              "down": null
+            }
+          },
+          {
+            "id": "element-108112384507",
+            "label": "Defend",
+            "reference": {
+              "kind": "card",
+              "instance_id": 6,
+              "card": {
+                "id": "DEFEND_IRONCLAD",
+                "name": "Defend",
+                "type": "Skill",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Gain 5 Block.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": [
+                  {
+                    "name": "Block",
+                    "description": "Until next turn, prevents damage."
+                  }
+                ]
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-99321122831",
+            "label": "Gain 5 Block.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.DEFEND_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1165077004953",
+              "up": "element-1183045403223",
+              "right": "element-1183045403223",
+              "down": null
+            }
+          },
+          {
+            "id": "element-108179493375",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 7,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-100512305236",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-108246602243",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 8,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-101703487641",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1019601762131",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-108313711111",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 9,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-102894670046",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1183045403223",
+              "up": "element-1019601762131",
+              "right": null,
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-108380819979",
+            "label": "Strike",
+            "reference": {
+              "kind": "card",
+              "instance_id": 10,
+              "card": {
+                "id": "STRIKE_IRONCLAD",
+                "name": "Strike",
+                "type": "Attack",
+                "cost": "1",
+                "star_cost": null,
+                "description": "Deal 6 damage.",
+                "rarity": "Basic",
+                "is_upgraded": false,
+                "keywords": []
+              }
+            },
+            "type": "NGridCardHolder",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": null,
+              "up": null,
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-104085852451",
+            "label": "Deal 6 damage.",
+            "reference": {
+              "kind": "model",
+              "model_id": "CARD.STRIKE_IRONCLAD",
+              "title": null,
+              "description": null
+            },
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": "a",
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1067886592315",
+              "up": "element-1019366881093",
+              "right": "element-1019366881093",
+              "down": "element-1183045403223"
+            }
+          },
+          {
+            "id": "element-1134190146665",
+            "label": "NEOW",
+            "reference": {},
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068993888637",
+              "up": "element-1021094934441",
+              "right": null,
+              "down": null
+            }
+          },
+          {
+            "id": "element-1138317345272",
+            "label": "...awaken...\n..Awaken.....",
+            "reference": {},
+            "type": "MegaRichTextLabel",
+            "visible": true,
+            "enabled": true,
+            "focus_mode": "none",
+            "selectable": false,
+            "activation": null,
+            "ambiguous": false,
+            "neighbors": {
+              "left": "element-1068624789863",
+              "up": "element-1183045403223",
+              "right": null,
+              "down": null
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

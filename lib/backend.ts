@@ -74,9 +74,26 @@ export type PadEvent = {
   y?: number
 }
 
+/** One member of the playing team, as the player's runtime publishes it. */
+export type AgentInfo = {
+  id: string
+  role: string
+  label: string
+  title?: string | null
+  parent?: string | null
+  status: 'open' | 'closed'
+  openedAt?: number
+  closedAt?: number | null
+  decisions?: number
+  outcome?: string | null
+  summary?: string | null
+}
+
 export type TranscriptItem = {
   id: string
   t: number
+  /** Which member said it. Items from before the team split carry no lane. */
+  agent?: string
   kind: 'user' | 'thinking' | 'text' | 'tool' | 'system'
   text?: string
   from?: string

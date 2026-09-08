@@ -4,6 +4,10 @@ import { EventEmitter } from 'node:events';
 import { spawnRun, rmForce, allContainers } from './docker.js';
 
 const MAX_ITEMS = 400;
+// What the dashboard shows before the player has published anything. The
+// player is the authority the moment it speaks.
+const DEFAULT_AGENTS = [{ id: 'room', role: 'room', label: 'Room', title: 'The operator, the runtime, and the run itself.', status: 'open', decisions: 0 }];
+const DEFAULT_LANE = 'room';
 const MAX_TEXT = 20000;
 const MAX_RESULT = 4000;
 
@@ -27,7 +31,14 @@ export class PiAgent extends EventEmitter {
     this.transcript = [];
     this.pending = new Map();
     this.nextId = 1;
-    this.current = { thinking: null, text: null };
+    // The roster the player publishes: who is on the team, what each of them is
+    // for, and which encounters have opened and closed. The dashboard renders
+    // this list, so it must survive a player with nothing to say yet.
+    this.agents = DEFAULT_AGENTS;
+    // Streaming text, per lane. Two members never speak at once today, but a
+    // single `current` would silently splice one member's tokens onto another's
+    // message the first time that changed.
+    this.current = new Map();
     this.exitInfo = null;
     this.stderrTail = '';
     this.attention = null;
@@ -93,7 +104,7 @@ export class PiAgent extends EventEmitter {
   /** Send a user message; steers if the agent is mid-run. */
   async prompt(message, { from = 'user' } = {}) {
     const running = this.status === 'running';
-    this._push({ kind: 'user', text: message, from, queued: running });
+    this._push({ kind: 'user', text: message, from, queued: running, agent: DEFAULT_LANE });
     const res = await this.send(running ? { type: 'steer', message } : { type: 'prompt', message });
     if (res && res.success === false) throw new Error(res.error || 'prompt rejected');
     return res;
@@ -120,7 +131,11 @@ export class PiAgent extends EventEmitter {
       if (msg.success === false && msg.command !== 'get_state') this._system(`${msg.command} failed: ${msg.error || 'unknown error'}`);
       return;
     }
+    const lane = msg.agent || DEFAULT_LANE;
     switch (msg.type) {
+      case 'steambench_agents':
+        if (Array.isArray(msg.agents) && msg.agents.length) { this.agents = msg.agents; this.emit('agents', this.agents); }
+        break;
       case 'steambench_attention':
         this.attention = msg.attention || null;
         if (this.attention) this._system(`Supervisor required [${this.attention.id}]: ${String(this.attention.error || '').slice(0, 1200)}`);
@@ -129,23 +144,27 @@ export class PiAgent extends EventEmitter {
       case 'agent_start':
         this.status = 'running'; this.emit('status', this.status); break;
       case 'agent_settled':
-        this.status = 'idle'; this.current = { thinking: null, text: null }; this.emit('status', this.status); break;
+        this.status = 'idle'; this.current.clear(); this.emit('status', this.status); break;
       case 'message_start':
-        this.current = { thinking: null, text: null }; break;
+        this.current.delete(lane); break;
       case 'message_update': {
         const ev = msg.assistantMessageEvent;
         if (!ev) break;
-        if (ev.type === 'thinking_delta') this._appendDelta('thinking', ev.delta);
-        else if (ev.type === 'text_delta') this._appendDelta('text', ev.delta);
-        else if (ev.type === 'thinking_end' || ev.type === 'text_end') { const k = ev.type.startsWith('thinking') ? 'thinking' : 'text'; if (this.current[k]) { this.current[k].done = true; this.emit('item', this.current[k]); this.current[k] = null; } }
+        if (ev.type === 'thinking_delta') this._appendDelta('thinking', ev.delta, lane);
+        else if (ev.type === 'text_delta') this._appendDelta('text', ev.delta, lane);
+        else if (ev.type === 'thinking_end' || ev.type === 'text_end') {
+          const k = ev.type.startsWith('thinking') ? 'thinking' : 'text';
+          const open = this.current.get(lane);
+          if (open?.[k]) { open[k].done = true; this.emit('item', open[k]); open[k] = null; }
+        }
         else if (ev.type === 'toolcall_end' && ev.toolCall) {
-          this._push({ kind: 'tool', toolCallId: ev.toolCall.id, toolName: ev.toolCall.name, args: ev.toolCall.arguments ?? ev.toolCall.args ?? {}, pending: true });
+          this._push({ kind: 'tool', agent: lane, toolCallId: ev.toolCall.id, toolName: ev.toolCall.name, args: ev.toolCall.arguments ?? ev.toolCall.args ?? {}, pending: true });
         }
         break;
       }
       case 'tool_execution_start': {
         const existing = this.transcript.find((it) => it.kind === 'tool' && it.toolCallId === msg.toolCallId);
-        if (!existing) this._push({ kind: 'tool', toolCallId: msg.toolCallId, toolName: msg.toolName, args: msg.args ?? {}, pending: true });
+        if (!existing) this._push({ kind: 'tool', agent: lane, toolCallId: msg.toolCallId, toolName: msg.toolName, args: msg.args ?? {}, pending: true });
         break;
       }
       case 'tool_execution_end': {
@@ -166,18 +185,20 @@ export class PiAgent extends EventEmitter {
     this.emit('event', msg);
   }
 
-  _appendDelta(kind, delta) {
+  _appendDelta(kind, delta, lane = DEFAULT_LANE) {
     if (!delta) return;
-    let item = this.current[kind];
-    if (!item) { item = this._push({ kind, text: '' }); this.current[kind] = item; }
+    if (!this.current.has(lane)) this.current.set(lane, { thinking: null, text: null });
+    const open = this.current.get(lane);
+    let item = open[kind];
+    if (!item) { item = this._push({ kind, agent: lane, text: '' }); open[kind] = item; }
     if (item.text.length < MAX_TEXT) item.text += delta;
-    this.emit('delta', { id: item.id, kind, delta });
+    this.emit('delta', { id: item.id, kind, agent: lane, delta });
   }
 
-  _system(text) { this._push({ kind: 'system', text }); }
+  _system(text, agent = DEFAULT_LANE) { this._push({ kind: 'system', agent, text }); }
 
   _push(partial) {
-    const item = { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, t: Date.now(), ...partial };
+    const item = { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`, t: Date.now(), agent: DEFAULT_LANE, ...partial };
     this.transcript.push(item);
     if (this.transcript.length > MAX_ITEMS) this.transcript.splice(0, this.transcript.length - MAX_ITEMS);
     this.emit('item', item);

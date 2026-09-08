@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { api, type PadEvent, type RoomSummary, type TranscriptItem } from '@/lib/backend'
+import { api, type AgentInfo, type PadEvent, type RoomSummary, type TranscriptItem } from '@/lib/backend'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { Transcript } from '@/components/transcript'
 
 type Entry = RoomSummary & { dir: string; reason: string; archivedAt: number; transcriptItems: number }
-type Detail = { room: Entry; transcript: TranscriptItem[]; padHistory: PadEvent[]; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
+type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; padHistory: PadEvent[]; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
 
 export default function HistoryPage() {
   const [settings, setSettings, loaded] = useSettings()
@@ -47,7 +47,7 @@ export default function HistoryPage() {
           </a>
           <h1 className="text-xl font-semibold tracking-tight">History</h1>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
           <ul className="flex flex-col gap-2">
             {entries.map((e) => (
@@ -73,7 +73,7 @@ export default function HistoryPage() {
                 )}
                 {open.room.lastState && <p className="font-mono text-xs">{JSON.stringify(open.room.lastState)}</p>}
               </div>
-              <Transcript items={open.transcript} />
+              <Transcript items={open.transcript} agents={open.agents} />
               {open.scratchpad.length > 0 && (
                 <details className="rounded-md border border-border bg-card p-3 text-xs">
                   <summary className="cursor-pointer font-medium">scratchpad</summary>

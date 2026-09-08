@@ -1,5 +1,28 @@
 {
   "providers": {
+    "experiential": {
+      "baseUrl": "https://api.experientiallabs.ai/v1",
+      "api": "openai-completions",
+      "apiKey": "$EXPLABS_API_KEY",
+      "models": [
+        {
+          "id": "gpt-5.6-luna",
+          "name": "Experiential GPT-5.6 Luna",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1050000,
+          "maxTokens": 16384,
+          "compat": {
+            "supportsStore": false,
+            "supportsReasoningEffort": false,
+            "maxTokensField": "max_tokens"
+          }
+        }
+      ]
+    },
     "orcarouter": {
       "baseUrl": "https://api.orcarouter.ai/v1",
       "api": "openai-completions",

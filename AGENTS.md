@@ -2,7 +2,7 @@
 
 `steambench` operates containerized autonomous players inside isolated Steam gaming rooms observed on steambench.dev. The primary supported game is **Slay the Spire 2 (STS2)** (Steam App ID `2868840`).
 
-The sole builtin player is **`STS2-Pi-OrcaRouter`** (running `z-ai/glm-5.3-flash-free` via `ORCA_KEY` on `https://api.orcarouter.ai/v1`, image `steambench-learning:latest`).
+The sole builtin player is **`STS2-Pi-Experiential`** (running `gpt-5.6-luna` via `EXPLABS_API_KEY` on `https://api.experientiallabs.ai/v1`, image `steambench-learning:latest`). The model is a one-word switch: `MODEL_PROFILES` in `server/lib/learning-profile.mjs`, selected by `STEAMBENCH_MODEL` (default `experiential`, `orcarouter` also configured). Nothing outside that file names a provider, a base URL or a key.
 
 ---
 
@@ -12,7 +12,7 @@ The sole builtin player is **`STS2-Pi-OrcaRouter`** (running `z-ai/glm-5.3-flash
 - **Startup is destructive:** `RoomManager.init()` deletes leftover player containers and room homes; `connectWolf()` terminates previous sessions. Active rooms live in memory and do not survive a server restart.
 - **Native Docker Engine Required:** Always execute Docker commands with `DOCKER_CONTEXT=default`. Docker Desktop VM lacks direct GPU/evdev device passthrough. Never change the user's global Docker context.
 - **Protect Personal Steam/Host Data:** Host game installations and Steam data are mounted read-only. Never modify host Steam settings, workshop items, or configuration files.
-- **Credentials & Secrets:** Never commit `.env`, `.runtime/`, keys (`ORCA_KEY`, `STEAMBENCH_TOKEN`), or conversation dumps. Protect Steam authentication snapshots in `.runtime/wolf/steam-login`.
+- **Credentials & Secrets:** Never commit `.env`, `.runtime/`, keys (`EXPLABS_API_KEY`, `ORCA_KEY`, `STEAMBENCH_TOKEN`), or conversation dumps. Protect Steam authentication snapshots in `.runtime/wolf/steam-login`.
 
 ---
 
@@ -74,8 +74,15 @@ node host/learning-player.mjs inspect $ROOM_ID
 ## 4. Player Runtime & Supervisor Contract
 
 The player runtime (`client/learning/`) is configured as follows:
-- **Model Identity:** `STS2-Pi-OrcaRouter` using `z-ai/glm-5.3-flash-free` via OrcaRouter (`https://api.orcarouter.ai/v1`, key from system environment variable `ORCA_KEY`).
-- **Pi Configuration & Probe Verification:** Provider configuration in `models.json` resolves the key from the environment via `"apiKey": "$ORCA_KEY"`. The capability probe (`node host/learning-decision-probe.mjs`) verifies both text streaming JSON and multimodal image recognition (e.g. color identification) with two HTTP 200 requests to `z-ai/glm-5.3-flash-free` sending zero game inputs.
+- **Model Identity:** `STS2-Pi-Experiential` using `gpt-5.6-luna` via the Experiential gateway (`https://api.experientiallabs.ai/v1`, key from system environment variable `EXPLABS_API_KEY`). Switch with `STEAMBENCH_MODEL=<profile>` and a player-image rebuild; `client/learning/models.json` already carries every profile, so no Pi configuration is edited.
+- **Reasoning tokens are spent out of `maxTokens`.** A budget sized for the answer alone returns `finish_reason: "length"` with no content at all. The `experiential` profile budgets 16384 against a 128K ceiling.
+- **A team, not one agent.** The run is played by scoped roles (`client/learning/agents.mjs`), each with its own system prompt, its own context projection and its own dashboard lane. Nothing else may read outside its projection.
+  - **Strategist** (`strategist.txt`): map, routing, drafting, shops, events, rest sites. Reads the sensor with `ui` and `battle` removed. Cannot press a button; it states an `intent`.
+  - **Combat** (`combat.txt`): one encounter, opened when the fight starts and closed with one report when it ends. Reads the sensor with `ui`, `map` and `deck` removed. Its lane id is `combat-<ordinal>-a<act>f<floor>`; the report lands in `scratchpad/encounters.jsonl` and reaches the strategist as `last_encounter`.
+  - **Actuator** (`actuator.txt`): owns the controller and is the only role shown `ui.elements`, focus paths or a screenshot. A goal carrying a `target_label` that matches exactly one addressable control is resolved with no model call at all (`actuator.mjs`); the model is the fallback.
+  - **Curriculum** and **Critic**, unchanged, in their own lanes.
+- **Intent cannot reach the pad.** `validatePlan(plan, state, { role })` gates each role's action set, and the executor's own reading (no role) refuses `intent` outright, so an unresolved goal can never be pressed.
+- **Pi Configuration & Probe Verification:** Provider configuration in `models.json` resolves each key from the environment via `"apiKey": "$<VAR>"`. The capability probe (`node host/learning-decision-probe.mjs`) verifies text streaming JSON and multimodal image recognition against a generated 64x64 colour swatch, with two HTTP 200 requests and zero game inputs. It also asserts the outgoing request carries no vendor extras, so a provider knob cannot be turned on unnoticed.
 - **Singleton Execution:** Only one player container (`steambench-player-<id>`) per room.
 - **First Failure Pause:** On the first planner, provider, or executor failure, input immediately stops, the virtual pad returns to neutral, incident evidence (before/after states, sensor rings, screenshots) is saved under `scratchpad/incidents/<id>/`, and the player pauses for review.
 - **Unresponsive Supervisor Invariant:** If a supervisor or operator is unresponsive, the player MUST remain safely paused. It MUST NOT retry inputs blindly, hammer game controls, or guess recovery actions.
