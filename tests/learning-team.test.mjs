@@ -1,3 +1,38 @@
+
+// A route ends where it was aimed, whatever the graph predicted on the way.
+//
+// Live, on a reward screen at act 1 floor 6. The screen was still dealing its
+// rows in, so two recovery passes went on re-scening. On the third and last
+// pass the route walked, and `down` landed on exactly the element the plan
+// asked for - but the rows are named with auto-generated siblings
+// (@Control@1848), so it did not equal the id the graph had predicted. That
+// marked the walk failed, the loop ran out, and it threw "navigation recovery
+// budget exhausted" with focus already sitting on the target.
+{
+  const row = (id, y, neighbors) => ({ id, label: id, focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [758, y, 402, 86], neighbors });
+  const rows = [
+    row('gold', 374, { down: 'potion' }),
+    row('potion', 470, { down: 'phantom', up: 'gold' }),
+    row('phantom', 520, { down: 'card', up: 'potion' }),
+    row('card', 566, { up: 'phantom' }),
+  ];
+  const screen = (focused, scene) => ({ state_type: 'rewards', run: { act: 1, floor: 6, ascension: 1 }, player: { hp: 58, max_hp: 80 },
+    ui: { scene_id: scene, focused_element: focused, elements: rows } });
+
+  // The screen settles under the first press, then the walk lands on the card.
+  const reads = [screen('gold', 'rewards-2'), screen('potion', 'rewards-2'), screen('card', 'rewards-2'), screen('card', 'rewards-2')];
+  const walked = [];
+  let at = 0;
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (direction) => { walked.push(direction); };
+  executor.observe = async () => reads[Math.min(at++, reads.length - 1)];
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const landed = await executor.navigateElement({ type: 'activate', target: 'card', scene: 'rewards-1' }, screen('gold', 'rewards-1'));
+  assert.equal(landed.ui.focused_element, 'card', 'standing on the target is arrival, whatever the graph predicted');
+}
+
 // The team: who reads what, who is allowed to ask for what, and who owns the pad.
 import test from 'node:test';
 import assert from 'node:assert/strict';
