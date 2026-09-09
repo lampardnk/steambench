@@ -337,9 +337,9 @@ export function energyCost(cost) {
  * and refuses `intent`, so an unresolved goal can never reach the pad.
  */
 export const ROLE_ACTIONS = {
-  strategist: new Set(['intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
-  combat: new Set(['play', 'use_potion', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
-  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'learn', 'wait', 'report_issue']),
+  strategist: new Set(['choose', 'intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
+  combat: new Set(['play', 'use_potion', 'choose', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
+  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'choose', 'learn', 'wait', 'report_issue']),
 };
 
 export function validatePlan(plan, state, { role = null } = {}) {
@@ -370,6 +370,15 @@ export function validatePlan(plan, state, { role = null } = {}) {
       if (action.target != null && typeof action.target !== 'string') throw new Error('invalid target');
       const card = state.player.hand.find(item => item.instance_id === action.card);
       if (card.target_type === 'AnyEnemy' && !state.battle.enemies.some(enemy => enemy.entity_id === action.target && enemy.hp > 0)) throw new Error('unknown enemy target');
+    } else if (action.type === 'choose') {
+      const screen = state?.hand_select || state?.card_select;
+      if (!screen) throw new Error('choose needs an open card-selection screen');
+      if (!Array.isArray(action.cards) || !action.cards.length || action.cards.length > 12 || !action.cards.every(Number.isInteger)) throw new Error('choose.cards must be 1-12 card indices from the open screen');
+      if (new Set(action.cards).size !== action.cards.length) throw new Error('a card index may appear only once');
+      for (const index of action.cards) {
+        if (!(screen.cards || []).some(card => card.index === index)) throw new Error(`no card at index ${index}; the screen offers ${(screen.cards || []).map(card => `${card.index} (${card.name})`).join(', ')}`);
+      }
+      if (actions.length !== 1) throw new Error('one choose per plan; what it does is only visible afterwards');
     } else if (action.type === 'use_potion') {
       // Named the way the state names it: a slot, and for a thrown potion the
       // combat_id it goes at. The runtime owns the presses.

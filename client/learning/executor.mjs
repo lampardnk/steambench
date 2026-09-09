@@ -566,6 +566,65 @@ export class Executor {
     return state;
   }
 
+  /**
+   * Resolve a card-selection screen: pick the named cards and confirm.
+   *
+   * A card or potion that opens one of these ("Choose a card to Exhaust",
+   * "Choose a card", an upgrade prompt) left the model hand-pressing `a` and
+   * `y` at a screen that reports NO selected list. `a` toggles, so a press that
+   * worked and one that undid the last one look identical, and runs have
+   * pressed `a` ten times and then hammered a Confirm that had gone dark.
+   * can_confirm is the only readout, so every press here is judged by it.
+   *
+   * The screen often opens with a card ALREADY selected for you, and an `a`
+   * would deselect it. That is not knowable up front - no selected list - so it
+   * is handled by watching can_confirm fall and pressing again.
+   */
+  async chooseCards(action, before) {
+    const screenOf = value => value?.hand_select || value?.card_select || null;
+    let state = before;
+    if (!screenOf(state)) throw new Error('no card-selection screen is open');
+    const wanted = action.cards;
+    // Cards are drawn in index order, reading rows top to bottom.
+    const holders = value => (value.ui?.elements || [])
+      .filter(item => item.reference?.kind === 'card' && Array.isArray(item.bounds))
+      .sort((a, b) => (Math.abs(a.bounds[1] - b.bounds[1]) > 40 ? a.bounds[1] - b.bounds[1] : a.bounds[0] - b.bounds[0]));
+
+    for (const index of wanted) {
+      const screen = screenOf(state);
+      if (!screen) throw new Error('the selection screen closed before every card was picked');
+      const card = (screen.cards || []).find(item => item.index === index);
+      if (!card) throw new Error(`no card at index ${index}; the screen offers ${(screen.cards || []).map(item => `${item.index} (${item.name})`).join(', ')}`);
+      const row = holders(state);
+      const target = row[index];
+      if (target && state.ui?.focused_element !== target.id) {
+        const walked = await this.navigateElement({ type: 'navigate', target: target.id, scene: state.ui?.scene_id }, state).catch(() => null);
+        if (walked) state = walked;
+      }
+      const beforePress = screenOf(state)?.can_confirm === true;
+      await this.button('a');
+      state = await this.observe();
+      if (!screenOf(state)) break; // a single-pick screen can resolve on the press
+      // can_confirm falling means that `a` DESELECTED something the screen had
+      // chosen for us. Press again: now the selection is the one we asked for.
+      if (beforePress && screenOf(state).can_confirm === false) {
+        await this.button('a');
+        state = await this.observe();
+      }
+    }
+    const screen = screenOf(state);
+    if (!screen) {
+      this.record({ type: 'cards_chosen', cards: wanted, confirmed: 'screen resolved on selection' });
+      return this.settled(state);
+    }
+    if (screen.can_confirm !== true) throw new Error(`the screen still reports can_confirm false after picking ${wanted.join(', ')}; it wants a different number of cards${reachable(state)}`);
+    await this.button('y');
+    state = await this.settled();
+    if (screenOf(state) && screenOf(state).can_confirm === true) throw new Error(`confirming with y left the selection screen open${reachable(state)}`);
+    this.record({ type: 'cards_chosen', cards: wanted, confirmed: 'y' });
+    return state;
+  }
+
   async play(action, before, targetCombatId) {
     if (!ready(before) || !isCombat(before)) throw new Error('not an actionable combat');
     const card = before.player.hand.find(item => item.instance_id === action.card);
@@ -794,6 +853,11 @@ export class Executor {
             this.record({ type: 'action', before, after: state, action, verified: true, barrier: true });
             break;
           }
+        } else if (action.type === 'choose') {
+          state = await this.chooseCards(action, before);
+          completed.push({ action, verified: true, barrier: 'selection: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
         } else if (action.type === 'use_potion') {
           state = await this.usePotion(action, before);
           completed.push({ action, verified: true, potion: (before.player?.potions || []).find(item => item.slot === action.slot)?.name || null, barrier: 'potion: replan from fresh state' });

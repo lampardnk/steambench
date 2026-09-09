@@ -915,3 +915,47 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   // It steered the aim off the Tough Egg the game picked and onto the Ovicopter.
   assert.deepEqual(pressed, ['x', 'right', 'a', 'a', 'right', 'a'], `exact sequence: ${pressed.join(',')}`);
 }
+
+// A selection screen is resolved by the runtime, including the card it
+// pre-picked for you.
+//
+// These screens report NO selected list, so `a` that worked and `a` that undid
+// the last one look identical - runs have pressed it ten times and then
+// hammered a Confirm gone dark. can_confirm is the only readout. An upgrade or
+// exhaust prompt usually opens with a card ALREADY chosen and can_confirm
+// already true, and an `a` there deselects it; that is not knowable up front,
+// so it is caught by watching can_confirm fall and pressing again.
+{
+  const card = (index, name, x) => ({ id: `sel-${index}`, label: name, reference: { kind: 'card', instance_id: 500 + index },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [x, 400, 180, 260], neighbors: {} });
+  const elements = [card(0, 'Strike', 400), card(1, 'Strike', 600), card(2, 'Pommel Strike', 800)];
+  const cards = [{ index: 0, name: 'Strike' }, { index: 1, name: 'Strike' }, { index: 2, name: 'Pommel Strike' }];
+
+  // The screen opens with index 0 pre-picked, so can_confirm starts true.
+  let picked = new Set([0]);
+  let open = true;
+  const pressed = [];
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (button === 'a') { const at = 2; picked.has(at) ? picked.delete(at) : picked.add(at); }
+    if (button === 'y' && picked.size) open = false;
+  };
+  const read = () => ({ state_type: 'monster', run: { act: 1, floor: 5, ascension: 1 },
+    player: { hp: 50, max_hp: 80, hand: [] },
+    battle: { round: 2, turn: 'player', is_play_phase: true, enemies: [] },
+    ...(open ? { hand_select: { mode: 'simple_select', prompt: 'Choose a card to Exhaust.', cards, can_confirm: picked.size > 0 } } : {}),
+    ui: { scene_id: 'select', focused_element: 'sel-2', elements } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.navigateElement = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  // Ask for index 2. The first `a` toggles it ON (can_confirm stays true), then y.
+  const after = await executor.chooseCards({ type: 'choose', cards: [2] }, read());
+  assert.equal(after.hand_select, undefined, `the screen closes: pressed ${pressed.join(',')}`);
+  assert.equal(pressed.at(-1), 'y', `and it is confirmed with y: ${pressed.join(',')}`);
+  assert.ok(pressed.filter(button => button === 'a').length <= 2, `without hammering a: ${pressed.join(',')}`);
+}
