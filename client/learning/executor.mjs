@@ -54,6 +54,23 @@ export function selectionGate(state) {
  */
 const identified = (element) => Boolean(element?.label) || Boolean(element?.reference?.kind);
 
+<<<<<<< HEAD
+/**
+ * Why a press did nothing, when the state already says so.
+ *
+ * `a` on the empty leftmost potion holder reports `activation: null`, and the
+ * run was told only that nothing changed - twice in one boss turn, because
+ * "nothing changed" gives a model no reason to try a different element. The
+ * screen knew: the thing under focus does not take that button.
+ */
+function inertPress(state, buttons = []) {
+  const focused = (state?.ui?.elements || []).find(item => item.id === state.ui.focused_element);
+  if (!focused || !buttons.includes('a') || focused.activation === 'a') return '';
+  return `: the focused element (${focused.label || focused.reference?.kind || focused.id}) reports activation ${JSON.stringify(focused.activation ?? null)}, so \`a\` does nothing on it`;
+}
+
+=======
+>>>>>>> origin/main
 export function reachable(state) {
   const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
   const gates = ['can_confirm', 'can_proceed', 'can_cancel']
@@ -637,7 +654,7 @@ export class Executor {
             this.record({ type: 'action', before, after: state, action, verified: true, moved: false });
             break;
           }
-          if (stateId(state) === stateId(before)) throw new Error('UI sequence produced no observed change; stopping before further input');
+          if (stateId(state) === stateId(before)) throw new Error(`UI sequence produced no observed change${inertPress(state, action.buttons)}; stopping before further input${reachable(state)}`);
           // A wrong prediction is not a failed action. What the gate protects
           // against is sending the NEXT input into a scene that is not the one
           // planned for - so on the last step, with the scene demonstrably

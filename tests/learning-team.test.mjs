@@ -722,3 +722,30 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.equal(result.error, undefined, `an unlabelled holder the mod typed is activatable: ${result.error}`);
   assert.deepEqual(pressed, ['a'], `and it takes one press: ${pressed.join(',')}`);
 }
+
+// A press that does nothing says why, when the screen already knows.
+//
+// Live, twice in one boss turn of room 70f25b98: `x` lands on the leftmost
+// potion holder whether or not it holds a potion, and that one was empty. The
+// run pressed `a`, was told only "no observed change", and pressed it again.
+// The holder reports activation null - the screen knew all along.
+{
+  const empty = { id: 'element-714910744891', label: 'PotionHolder', reference: { kind: 'potion' }, focus_mode: 'all',
+    selectable: true, enabled: true, visible: true, activation: null, bounds: [503, 9, 60, 60], neighbors: {} };
+  const full = { ...empty, id: 'element-715279843665', label: null, activation: 'a', ambiguous: true, bounds: [565, 9, 60, 60] };
+  const executor = Object.create(Executor.prototype);
+  executor.button = async () => {};
+  const read = () => ({ state_type: 'monster', run: { act: 1, floor: 17, ascension: 1 }, player: { hp: 31, max_hp: 80 },
+    ui: { scene_id: 'boss', focused_element: empty.id, elements: [empty, full] } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+  executor.inputs = 0;
+
+  const start = read();
+  const result = await executor.execute({ observation: stateId(start), summary: 'open the potion', note: 'n',
+    actions: [{ type: 'input', buttons: ['a'] }] }, start);
+  assert.match(result.error, /activation null/, `it names the reason: ${result.error}`);
+  assert.match(result.error, /PotionHolder/, `and which element: ${result.error}`);
+}
