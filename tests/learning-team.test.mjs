@@ -1263,3 +1263,28 @@ test('every item on a real shelf resolves to its own control', async () => {
   const broke = { ...shelf, player: { gold: 10 }, shop: { ...shelf.shop, items: shelf.shop.items.map(item => ({ ...item, can_afford: item.price <= 10 })) } };
   assert.throws(() => validatePlan({ observation: stateId(broke), summary: 's', note: 'n', actions: [{ type: 'buy', item: 1 }] }, broke, { role: 'strategist' }), /costs 154 and you have 10/);
 });
+
+// Captured from a live Act 1 rest site. The element list gives Smith before
+// Rest while `rest_site.options` gives Rest before Smith, so anything that
+// resolved an option by its position in either list would take the wrong one
+// half the time. The name is the only thing both agree on.
+test('a rest option is taken by name, not by the order either list happens to use', async () => {
+  const site = JSON.parse(fs.readFileSync(new URL('./fixtures/rest-site.json', import.meta.url), 'utf8'));
+  assert.deepEqual(site.ui.elements.filter(el => el.reference?.kind === 'option').map(el => el.label), ['Smith', 'Rest'], 'the fixture still disagrees with the state, which is the point of it');
+
+  for (const option of site.rest_site.options) {
+    const ex = new Executor({ call: async () => ({}) });
+    let picked = null;
+    ex.navigateElement = async (action) => { picked = action.target; return site; };
+    ex.button = async () => {};
+    ex.settled = async () => ({ ...site, state_type: 'map', rest_site: null, ui: { ...site.ui, focused_element: 'elsewhere' } });
+    await ex.restOption({ type: 'rest', option: option.index }, site);
+    assert.equal(site.ui.elements.find(el => el.id === picked)?.label.trim(), option.name, `${option.name} reaches its own control`);
+  }
+
+  // A site that offers nothing is already resolved, and is left rather than rested at.
+  const spent = { ...site, rest_site: { options: [], can_proceed: true } };
+  assert.throws(() => validatePlan({ observation: stateId(spent), summary: 's', note: 'n', actions: [{ type: 'rest', option: 0 }] }, spent, { role: 'strategist' }), /already resolved and is left with leave/);
+  const closed = { ...site, rest_site: { ...site.rest_site, options: site.rest_site.options.map(o => o.index === 1 ? { ...o, is_enabled: false } : o) } };
+  assert.throws(() => validatePlan({ observation: stateId(closed), summary: 's', note: 'n', actions: [{ type: 'rest', option: 1 }] }, closed, { role: 'strategist' }), /Smith is not available/);
+});
