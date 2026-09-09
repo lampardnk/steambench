@@ -1353,3 +1353,37 @@ test('an overlay over a fight is still the fight', () => {
   assert.equal(encounterOver({ ...at('elite'), run: { act: 1, floor: 8 } }, fight), true, 'and so is being on another floor');
   assert.equal(encounterOver(at('elite'), null), false, 'with no fight open there is nothing to close');
 });
+
+// Stomp costs 1 less for each Attack played this turn, and the hand reports
+// only what it costs right now - so the agent could see the current cost but
+// not what three Strikes would make it. The game keeps the tally; the mod does
+// not publish it; the runtime counts it from the piles.
+test('the turn tallies its own attacks, and says so only when it can', () => {
+  const pad = new EncounterScratchpad();
+  const attack = (id, name) => ({ instance_id: id, name, type: 'Attack', cost: '1', description: 'Deal 6 damage.' });
+  const at = (round, discard, exhaust = []) => ({
+    state_type: 'elite', run: { act: 1, floor: 7 },
+    player: { hp: 46, max_hp: 80, energy: 4, hand: [attack(90, 'Stomp')], discard_pile: discard, exhaust_pile: exhaust, potions: [], relics: [] },
+    battle: { round, turn: 'player', enemies: [{ combat_id: 1, name: 'Bygone Effigy', hp: 33, intents: [] }] },
+  });
+
+  assert.equal(pad.observe(at(4, [])).attacks_played_this_turn, 0, 'a turn opens having played nothing');
+  assert.equal(pad.observe(at(4, [attack(91, 'Strike'), attack(92, 'Strike')])).attacks_played_this_turn, 2);
+  const three = pad.observe(at(4, [attack(91, 'Strike'), attack(92, 'Strike'), attack(93, 'Strike')]));
+  assert.equal(three.attacks_played_this_turn, 3, 'which is what makes Stomp free');
+  assert.equal(three.cards_played_this_turn, 3);
+
+  // A skill played this turn counts as a card but not as an Attack.
+  assert.equal(pad.observe(at(4, [attack(91, 'Strike'), { instance_id: 94, name: 'Defend', type: 'Skill' }])).attacks_played_this_turn, 1);
+
+  // The next round starts over.
+  assert.equal(pad.observe(at(5, [attack(91, 'Strike')])).attacks_played_this_turn, 0);
+
+  // A reshuffle empties the discard back into the draw pile, so the delta stops
+  // meaning anything. Report that, rather than a smaller number.
+  pad.observe(at(6, [attack(95, 'Strike'), attack(96, 'Strike')]));
+  const reshuffled = pad.observe(at(6, []));
+  assert.equal(reshuffled.attacks_played_this_turn, null, 'unknowable is not zero');
+  assert.equal(reshuffled.cards_played_this_turn, null);
+  assert.match(reshuffled.authority, /null means a reshuffle/);
+});
