@@ -27,6 +27,32 @@
   assert.deepEqual(walked, ['down', 'down', 'down'], `and presses down each time: ${walked.join(',')}`);
 }
 
+// A caption is not a control, and the node it names is.
+//
+// The map legend is a column of captions - "Unknown", "Merchant", "Rest" -
+// with no activation, while each reachable node is labelled "Unknown at column
+// 6, row 2", matching its next_options entry exactly. Matching over everything
+// let the caption win on an exact match while the node only matched as a
+// substring, so a run walked the map for six presses trying to reach a caption
+// while already standing on the node it wanted.
+{
+  const map = { state_type: 'map', run: { act: 1, floor: 2, ascension: 1 }, player: {}, ui: {
+    scene_id: 'map-1', focused_element: 'point-a', elements: [
+      { id: 'legend-unknown', label: 'Unknown', focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [1582, 390, 280, 48] },
+      { id: 'node-unknown', label: 'Unknown at column 6, row 2', activation: 'a', focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [1345, 367, 56, 56] },
+      { id: 'point-a', label: 'Monster at column 4, row 2', activation: 'a', focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [1060, 381, 56, 56] },
+    ] } };
+  const resolved = resolveIntent(map, { goal: 'Route to the Unknown room', target_label: 'Unknown' });
+  assert.ok(resolved, 'it resolves rather than giving up');
+  assert.equal(resolved.actions[0].target, 'node-unknown',
+    'the caption is not a candidate, so the node it names wins even on a weaker match');
+
+  // With no node to find, a screen of captions resolves to nothing at all.
+  const captionsOnly = structuredClone(map);
+  captionsOnly.ui.elements = captionsOnly.ui.elements.filter(item => item.id !== 'node-unknown');
+  assert.equal(resolveIntent(captionsOnly, { goal: 'Route to the Unknown room', target_label: 'Unknown' }), null);
+}
+
 // Half the library was unreadable by name.
 //
 // `learn` insists on lowercase so proposals arrive in one naming style, and

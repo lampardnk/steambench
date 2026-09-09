@@ -64,6 +64,11 @@ still needed.
   visual order; up and down do nothing. `map.current_position` is the last
   visited LOCATION, not a cursor - a next node may already be highlighted. Read
   `map.nodes` and `next_options` rather than tracing a route from a screenshot.
+  Each reachable node IS an element, labelled "<Type> at column C, row R" -
+  the same col, row and type its `next_options` entry carries, so the two line
+  up exactly. Its focus PATH is an auto-generated `@Control@362`, which names
+  nothing; the label does. The type names down the right-hand side at x=1582
+  are the legend, and carry no activation: they are captions, not nodes.
 - **Selection screens confirm separately, and `can_confirm` says when.**
   `hand_select` and `card_select` name a candidate set; `a` on a candidate
   selects it and NEVER finishes the screen. A separate Confirm bound to `y` does.
