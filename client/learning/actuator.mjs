@@ -39,7 +39,14 @@ export function matchElement(state, wanted) {
   const target = normalizeLabel(wanted);
   if (target.length < 2) return null;
   const focused = state.ui?.focused_element ?? null;
-  const candidates = dedupeElements(state.ui?.elements || []).filter(item => addressable(item, focused) && item.enabled === true && item.label);
+  // Only things that can actually be actuated are candidates. The map's legend
+  // is a column of captions - "Unknown", "Merchant", "Rest" - with no
+  // activation, and the map's nodes are labelled "Unknown at column 6, row 2".
+  // Matching over everything let the caption win on an exact match while the
+  // node it named only matched as a substring, so a run walked the map trying
+  // to reach a caption it was already standing next to.
+  const candidates = dedupeElements(state.ui?.elements || [])
+    .filter(item => addressable(item, focused) && item.enabled === true && item.label && (item.activation || item.press));
   const exact = candidates.filter(item => normalizeLabel(item.label) === target);
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) return null;
