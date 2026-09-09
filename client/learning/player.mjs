@@ -590,6 +590,18 @@ async function run(task) {
           refine(result.error, 'No input reached the game and the scene is unchanged. Re-plan from this observation.', lane);
           continue;
         }
+        // A batch that stopped cleanly part way is not a failed input. Every
+        // action that ran did what it said, and the one that could not run was
+        // refused before it pressed anything - so the scene is exactly what the
+        // successful actions produced, and re-planning cannot compound
+        // anything. Live: Molten Fist and Pommel Strike both reported cost 0
+        // because a one-shot discount makes every eligible card free IF PLAYED
+        // NEXT; Molten Fist spent it, Pommel Strike was correctly declined, and
+        // a healthy turn paused for an operator over a card it never touched.
+        if (result.code !== 'stale_observation' && result.failedActionSentInput === false && result.completed.every(item => item.verified !== false)) {
+          refine(result.error, 'The actions before this one all landed; this one was refused before it pressed anything, so the screen is exactly what they produced. Re-read it and plan the rest of the turn from there.', lane);
+          continue;
+        }
         throw new Error(result.error);
       }
       stalePlans = 0;

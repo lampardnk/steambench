@@ -582,6 +582,10 @@ export class Executor {
     const steps = note ? plan.actions.slice(0, -1) : plan.actions;
     for (const action of steps) {
       const before = state;
+      // Whether THIS action reached the pad, which is a different question from
+      // whether the batch did. A later play refused before its own input leaves
+      // the scene exactly as the earlier plays made it.
+      const inputsBefore = this.inputs;
       try {
         if (action.type === 'elements' || action.type === 'path') {
           completed.push({ action, verified: true, ...(action.type === 'elements' ? { elements: elements(state) } : { path: navigationPath(state, action.from || state.ui.focused_element, action.target) }) });
@@ -746,7 +750,7 @@ export class Executor {
       } catch (error) {
         this.record({ type: 'action_failure', before, action, error: error.message });
         const after = await this.observe().catch(() => state);
-        return { completed, error: error.message, state: after };
+        return { completed, error: error.message, state: after, failedActionSentInput: this.inputs > inputsBefore };
       }
     }
     if (note) completed.push(await this.keepNote(note));
