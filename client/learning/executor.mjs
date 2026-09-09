@@ -54,6 +54,7 @@ export function selectionGate(state) {
  */
 const identified = (element) => Boolean(element?.label) || Boolean(element?.reference?.kind);
 
+<<<<<<< HEAD
 /**
  * Why a press did nothing, when the state already says so.
  *
@@ -68,6 +69,8 @@ function inertPress(state, buttons = []) {
   return `: the focused element (${focused.label || focused.reference?.kind || focused.id}) reports activation ${JSON.stringify(focused.activation ?? null)}, so \`a\` does nothing on it`;
 }
 
+=======
+>>>>>>> origin/main
 export function reachable(state) {
   const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
   const gates = ['can_confirm', 'can_proceed', 'can_cancel']
