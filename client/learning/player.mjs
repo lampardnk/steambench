@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles, SCRATCHPAD_NOTE, REFLECTION_HEADER } from './executor.mjs';
-import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, plannerGuidance, plannerResult, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { Actuator } from './actuator.mjs';
 import { briefing, combatContext, encounterKind, splitNotes, strategistContext } from './context.mjs';
@@ -513,7 +513,21 @@ async function run(task) {
       message((role === 'actuator' ? plan.summary : source.summary) || plan.summary, lane);
       const toolCallId = `learn-${sessionId}-${decision}`;
       fs.appendFileSync(path.join(directory, 'learning.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, agent: lane, kind: 'pre_action_hypothesis', note: plan.note, evidence: toolCallId, compatibility: build }) + '\n');
-      if (plan.actions[0].type === 'report_issue') throw new Error(`Agent requests help: ${plan.actions[0].issue}`);
+      if (plan.actions[0].type === 'report_issue') {
+        // A complaint about a screen that has already gone is not an incident.
+        // The planner is handed one observation and thinks for several seconds;
+        // when the game moves in that window the agent sees its JSON disagree
+        // with the screen and, quite correctly, refuses to act on either. It
+        // does not need an operator, it needs to look again - which the next
+        // pass of this loop does, because nothing was sent.
+        const live = await executor.quiesced().catch(() => null);
+        if (live && planIdentity(live) !== planIdentity(state)) {
+          refine('the screen changed while this decision was being made',
+            `What you were shown is gone: the game is now ${live.state_type}. Nothing was sent and nothing is wrong. Plan against the observation in this message.`, lane);
+          continue;
+        }
+        throw new Error(`Agent requests help: ${plan.actions[0].issue}`);
+      }
       emit({ type: 'tool_execution_start', agent: lane, toolCallId, toolName: 'sts2_execute', args: plan });
       const batchStarted = Date.now();
       const batchSensors = executionMetrics.sensors;

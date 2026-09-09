@@ -54,7 +54,7 @@ import { indexNotes } from './retrieval.mjs';
 const ESCAPES = ['b', 'x', 'left'];
 import fs from 'node:fs';
 import path from 'node:path';
-import { DIRECTIONS, isCardPlay, isCombat, noteProblem, planIdentity, progressId, ready, settleAnimation, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
+import { DIRECTIONS, isCardPlay, isCombat, leftMap, noteProblem, planIdentity, progressId, ready, settleAnimation, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
 
 export const MAX_NOTE = 16000;
 
@@ -156,7 +156,12 @@ export class Executor {
       if (ready(state)) return state;
       await this.sleep(250);
     }
-    throw new Error(unbuiltMenu(await this.observe())
+    const last = await this.observe();
+    // A map that never regains focus is still a map, and the screen in front of
+    // the agent is the best thing to plan against. Waiting for the room it is
+    // loading is worth ten seconds; refusing to look at it afterwards is not.
+    if (leftMap(last)) { this.record({ type: 'map_never_refocused' }); return last; }
+    throw new Error(unbuiltMenu(last)
       ? 'the game reports a menu with no controls after 10 seconds; the menu scene has not finished loading'
       : 'game did not reach an actionable state within 10 seconds');
   }
