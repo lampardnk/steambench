@@ -42,8 +42,8 @@ is one of the four being mistaken for another.
   else. When a screen looks finished but nothing happens, `y` is usually the
   press that was missing.
 - **`b` leaves, cancels, or closes what is open** - and leaving is itself a
-  choice, so `b` frequently raises a confirmation that `y` then answers.
-  Departing a shop is `b` then `y`. Both are reversible up to that `y`.
+  choice, so `b` frequently raises a confirmation that `y` then answers. Both
+  are reversible up to that `y`.
 
 So read a screen by asking which of the four it is waiting for, rather than by
 looking for a button named after what you want to do. The rules below are that
@@ -146,6 +146,14 @@ still needed.
   finishes the screen once you have taken what you want. `can_proceed: true` does
   not promise a Proceed button - it says `y` will leave. Its absence is not a
   fault.
+- **A shop room is left with `back`, not `b`.** `back` opens the map, and
+  taking the map is what ends the room: on this build the state went straight
+  from `shop` to `map` on a single `back` press. `b` on the shop's own
+  BackButton did nothing across five presses several minutes apart, even though
+  it reports `enabled: true` and `press: "b"`, and `shop.can_proceed` stays
+  false with Proceed disabled because a shop is not left that way. Use `b` for
+  what is OPEN ON TOP of the shop - a card inspection overlay - and `back` to
+  leave the room.
 - **Shops draw the artwork over the thing you buy.** The purchasable element is
   the PRICE TAG - `reference.kind: "entry"` - and the relic or potion picture
   beside it is `reference.kind: "model"`, which no element names as a neighbour
