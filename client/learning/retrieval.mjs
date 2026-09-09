@@ -194,7 +194,7 @@ const CONTROLS_NOTE = /(?:^|\/)controls\//;
 // read on 61 of 83 decisions because it mentions the map; the twenty-odd
 // unknown-room notes rode along the same way. These need their own subject,
 // not merely a word they share with the screen.
-const EVENT_NOTE = /(?:^|\/)act\d\/(?:unknown|ancient)\//;
+const EVENT_NOTE = /(?:^|\/)(?:act\d|meta_strategy)\/(?:unknown|ancient)\//;
 
 /**
  * The controls notes, whatever the screen is.

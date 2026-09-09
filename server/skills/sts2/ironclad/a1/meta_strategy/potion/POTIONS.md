@@ -1,10 +1,10 @@
 ---
-description: Act 1 potion strategy — verified 62-potion catalog, use-vs-discard-for-slot guidance, Ironclad potion priorities.
+description: Potion strategy, any act — verified 62-potion catalog, use-vs-discard-for-slot guidance, Ironclad potion priorities.
 character: ironclad
-act: 1
+act: any
 category: potion
 ascension: a1
-keys: [ironclad, act1, potion, fire potion, block potion, energy potion, strength potion, weak potion, vulnerable potion, swift potion, explosive ampoule, entropic brew, fairy in a bottle, fruit juice, essence of darkness, duplicator, fortifier, gambler's brew, liquid memories, liquid bronze, regen potion]
+keys: [ironclad, potion, fire potion, block potion, energy potion, strength potion, weak potion, vulnerable potion, swift potion, explosive ampoule, entropic brew, fairy in a bottle, fruit juice, essence of darkness, duplicator, fortifier, gambler's brew, liquid memories, liquid bronze, regen potion, all acts]
 sources: [slaythespire2.net, slaythespire.wiki.gg]
 ---
 
@@ -128,20 +128,24 @@ Potions are one-use; discard to free a slot for a better one.
 - Foul Potion: 12 dmg to ALL (players + enemies); throw at Merchant for 100 gold.
 - Glowwater Potion: Exhaust hand, draw 10. (High-risk, high-reward cycle.)
 
-## Discard-for-slot guidance (editable)
+## What a slot costs
 
-Potion slots are scarce (2–3). Discard a potion when:
-- Its best use has passed (e.g. Weak Potion after the multi-hit elite is dead).
-- A better potion is offered and slots are full.
-- The potion is character-inappropriate (Focus/Star/Orb potions for Ironclad).
-- You're entering a rest site or shop and need a slot for a purchase.
+Potion slots are 2-3 for most of a run, so holding a potion has a price: the
+next one offered is refused, or something is dropped to take it. The facts that
+bear on which:
 
-**Discard candidates for Ironclad** (low-value): Focus Potion, Star Potion,
-Poison Potion (low value vs Strength), Potion of Doom, Bone Brew, Heart of
-Iron, King's Courage, Potion of Capacity, Essence of Darkness, Pot of Ghouls,
-Cunning Potion.
+- A potion whose window has passed still occupies its slot - Weak Potion after
+  the multi-hit fight it was held for, for instance.
+- Focus, Star and Orb potions do nothing for Ironclad, which has no Orbs.
+  Poison Potion, Potion of Doom, Bone Brew, Heart of Iron, King's Courage,
+  Potion of Capacity, Essence of Darkness, Pot of Ghouls and Cunning Potion are
+  the others whose text does least with an Ironclad deck - read what each one
+  actually says against the deck you have rather than treating that as a
+  discard list.
+- A shop or a rest site can offer potions, so arriving with a full belt means
+  refusing whatever is there.
 
-## Matching a potion to a problem (editable)
+## Matching a potion to a problem
 
 Not a ranking — the same potion is decisive in one fight and dead in the next.
 Match what you are holding to the problem the fight actually poses.

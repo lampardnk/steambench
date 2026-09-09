@@ -89,12 +89,15 @@ Spirit Grafter (2), The Lantern Key (2), Zen Weaver (4).
 ## Any-act events that can appear in Act 2
 See the Act 1 unknown file for the full 18 any-act event list.
 
-## Ironclad Act 2 priorities (editable)
-- Act 2 hits harder; prioritize scaling (Demon Form, Inflame) and block
-  (Impervious, Shrug It Off). Multi-hit enemies (Knowledge Demon 8×3,
-  The Insatiable 8×2) make Weak extremely valuable.
-- Kaiser Crab: kill Rocket first (lower HP, Charge Up → Laser is lethal), then
-  focus Crusher. Block Laser (31/35) or use Fortifier/Ship in a Bottle.
-- Knowledge Demon: out-damage Ponder's 30 HP heal. Shackling Potion (-7
-  Strength) on Ponder turn is devastating.
-- The Insatiable: race it; Strength scales both Thrash and Lunging Bite.
+## Ironclad-relevant mechanics
+
+Facts a plan may turn on. What to do with them is the encounter's call.
+
+- Act 2 damage per hit is higher than Act 1's across the pool.
+- Knowledge Demon attacks 8x3 and The Insatiable 8x2, so both lose a large
+  share of their output to Weak, which scales with the number of hits.
+- Kaiser Crab is Crusher (209 HP, ascension 219) alongside Rocket (199 HP,
+  ascension 209). Rocket's Charge Up precedes its Laser, which hits for 31
+  (ascension 35).
+- Knowledge Demon's Ponder heals it 30 HP.
+- The Insatiable's Strength scales both Thrash and Lunging Bite.

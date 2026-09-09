@@ -1,5 +1,5 @@
 ---
-description: Act 1 unknown-event index — all 30 events that can appear, which pool each belongs to, and what gates it. Each event has its own note with exact outcomes; this file routes you to it.
+description: Act 1 unknown-event index — all 30 events that can appear here, which pool each belongs to, and what gates it; the 8 shared with other acts live under meta_strategy/unknown. Each event has its own note with exact outcomes; this file routes you to it.
 character: ironclad
 act: 1
 category: unknown
@@ -25,15 +25,30 @@ installed build can differ.
 
 ## Which events exist
 
-**Any act (4)** — [self-help-book](self-help-book.md) ·
-[slippery-bridge](slippery-bridge.md) ·
-[the-future-of-potions](the-future-of-potions.md) ·
-[this-or-that](this-or-that.md)
+Eight of the events that can appear here are not Act 1 events at all: they are
+shared with Acts 2 and 3, and their notes live under
+`meta_strategy/unknown/`. The rest are Act 1's own, and the biome splits them.
 
-**Act 1, either biome (5)** — [brain-leech](brain-leech.md) ·
-[room-full-of-cheese](room-full-of-cheese.md) · [tea-master](tea-master.md) ·
-[the-legends-were-true](the-legends-were-true.md) ·
-[the-sunken-statue](the-sunken-statue.md)
+**Shared with every act (18)** — [brain-leech](../../meta_strategy/unknown/brain-leech.md) ·
+[crystal-sphere](../../meta_strategy/unknown/crystal-sphere.md) ·
+[doll-room](../../meta_strategy/unknown/doll-room.md) ·
+[potion-courier](../../meta_strategy/unknown/potion-courier.md) ·
+[ranwid-the-elder](../../meta_strategy/unknown/ranwid-the-elder.md) ·
+[relic-trader](../../meta_strategy/unknown/relic-trader.md) ·
+[room-full-of-cheese](../../meta_strategy/unknown/room-full-of-cheese.md) ·
+[self-help-book](../../meta_strategy/unknown/self-help-book.md) ·
+[slippery-bridge](../../meta_strategy/unknown/slippery-bridge.md) ·
+[stone-of-all-time](../../meta_strategy/unknown/stone-of-all-time.md) ·
+[symbiote](../../meta_strategy/unknown/symbiote.md) ·
+[tea-master](../../meta_strategy/unknown/tea-master.md) ·
+[the-future-of-potions](../../meta_strategy/unknown/the-future-of-potions.md) ·
+[the-legends-were-true](../../meta_strategy/unknown/the-legends-were-true.md) ·
+[the-merchant](../../meta_strategy/unknown/the-merchant.md) ·
+[this-or-that](../../meta_strategy/unknown/this-or-that.md) ·
+[war-historian-repy](../../meta_strategy/unknown/war-historian-repy.md) ·
+[welcome-to-wongo-s](../../meta_strategy/unknown/welcome-to-wongo-s.md)
+
+**Act 1, either biome (1)** — [the-sunken-statue](the-sunken-statue.md)
 
 **Overgrowth only (12)** — [aroma-of-chaos](aroma-of-chaos.md) ·
 [byrdonis-nest](byrdonis-nest.md) · [dense-vegetation](dense-vegetation.md) ·
@@ -52,8 +67,11 @@ installed build can differ.
 [trash-heap](trash-heap.md)
 
 The biome is fixed for the run, so only 21 of the 30 are reachable in any given
-Act 1: the 9 shared plus that biome's 12 or 9. Identify the biome first — see
-`act1/ancient/NEOW.md`.
+Act 1: the 9 that are not biome-locked plus that biome's 12 or 9. Identify the
+biome first — see `act1/ancient/NEOW.md`.
+
+All 18 shared events now have notes under `meta_strategy/unknown/`, so any of
+them can appear here even though this act does not own them.
 
 ## What gates an event
 
@@ -87,7 +105,7 @@ else can roll. Holding 150 Gold past an Unknown floor is itself a decision.
 survives as a search term and it will never be pulled in automatically by the
 situation. Every filename in this folder appears in the `learned_notes` list on
 every decision — when the screen says This or That?, recall
-`act1/unknown/this-or-that.md` by path rather than waiting for it to arrive.
+`meta_strategy/unknown/this-or-that.md` by path rather than waiting for it to arrive.
 
 ## Reading these notes
 

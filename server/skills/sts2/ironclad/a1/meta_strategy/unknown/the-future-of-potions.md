@@ -1,10 +1,10 @@
 ---
 description: The Future of Potions? — Any act. Exact outcomes for every option, with the trade-offs stated and the choice left open.
 character: ironclad
-act: 1
+act: any
 category: unknown
 ascension: a1
-keys: [future of potions, event, unknown, act1, any act, potion, upgraded card]
+keys: [future of potions, event, unknown, any act, potion, upgraded card, all acts]
 sources: [slaythespire.wiki.gg]
 ---
 

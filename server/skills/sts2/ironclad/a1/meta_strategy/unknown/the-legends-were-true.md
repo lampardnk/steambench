@@ -1,10 +1,10 @@
 ---
 description: The Legends Were True — Act 1, both biomes. Exact outcomes for every option, with the trade-offs stated and the choice left open.
 character: ironclad
-act: 1
+act: any
 category: unknown
 ascension: a1
-keys: [legends were true, event, unknown, act1, overgrowth, underdocks, spoils map, quest, gold, potion]
+keys: [legends were true, event, unknown, overgrowth, underdocks, spoils map, quest, gold, potion, all acts]
 sources: [slaythespire.wiki.gg]
 ---
 

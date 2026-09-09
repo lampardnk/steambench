@@ -254,7 +254,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
-import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
+import { EncounterScratchpad } from '../client/learning/encounter.mjs';
+import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
@@ -914,4 +915,313 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.ok(!pressed.slice(pressed.indexOf('a')).includes('x'), `and x is never pressed after the popup opens: ${pressed.join(',')}`);
   // It steered the aim off the Tough Egg the game picked and onto the Ovicopter.
   assert.deepEqual(pressed, ['x', 'right', 'a', 'a', 'right', 'a'], `exact sequence: ${pressed.join(',')}`);
+}
+
+// A selection screen is resolved by the runtime, including the card it
+// pre-picked for you.
+//
+// These screens report NO selected list, so `a` that worked and `a` that undid
+// the last one look identical - runs have pressed it ten times and then
+// hammered a Confirm gone dark. can_confirm is the only readout. An upgrade or
+// exhaust prompt usually opens with a card ALREADY chosen and can_confirm
+// already true, and an `a` there deselects it; that is not knowable up front,
+// so it is caught by watching can_confirm fall and pressing again.
+{
+  const card = (index, name, x) => ({ id: `sel-${index}`, label: name, reference: { kind: 'card', instance_id: 500 + index },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [x, 400, 180, 260], neighbors: {} });
+  const elements = [card(0, 'Strike', 400), card(1, 'Strike', 600), card(2, 'Pommel Strike', 800)];
+  const cards = [{ index: 0, name: 'Strike' }, { index: 1, name: 'Strike' }, { index: 2, name: 'Pommel Strike' }];
+
+  // The screen opens with index 0 pre-picked, so can_confirm starts true.
+  let picked = new Set([0]);
+  let open = true;
+  const pressed = [];
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (button === 'a') { const at = 2; picked.has(at) ? picked.delete(at) : picked.add(at); }
+    if (button === 'y' && picked.size) open = false;
+  };
+  const read = () => ({ state_type: 'monster', run: { act: 1, floor: 5, ascension: 1 },
+    player: { hp: 50, max_hp: 80, hand: [] },
+    battle: { round: 2, turn: 'player', is_play_phase: true, enemies: [] },
+    ...(open ? { hand_select: { mode: 'simple_select', prompt: 'Choose a card to Exhaust.', cards, can_confirm: picked.size > 0 } } : {}),
+    ui: { scene_id: 'select', focused_element: 'sel-2', elements } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.navigateElement = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  // Ask for index 2. The first `a` toggles it ON (can_confirm stays true), then y.
+  const after = await executor.chooseCards({ type: 'choose', cards: [2] }, read());
+  assert.equal(after.hand_select, undefined, `the screen closes: pressed ${pressed.join(',')}`);
+  assert.equal(pressed.at(-1), 'y', `and it is confirmed with y: ${pressed.join(',')}`);
+  assert.ok(pressed.filter(button => button === 'a').length <= 2, `without hammering a: ${pressed.join(',')}`);
+}
+
+// A screen that restyles the highlighted item does not spend the route budget.
+//
+// Live, on floor 21 of room 5976c38f with 417 gold: the walk to a relic's price
+// tag was tracking its route exactly - card, card, card, relic row - and every
+// single press changed scene_id, because a shop redraws whatever is
+// highlighted. Each correct press was counted as the screen changing under the
+// route, and the run paused ONE press from the Bag of Preparation it wanted.
+// Ids, bounds and the neighbour chain are the ones the mod reported there.
+{
+  const cell = (id, x, y, label, neighbors) => ({ id, label, reference: { kind: 'entry' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [x, y, 195, 274], neighbors });
+  // Long enough that counting each correct press as a re-scene exhausts the
+  // budget, which is what happened live across one decision's attempts.
+  const ids = Array.from({ length: 16 }, (_, i) => `element-shop-${i}`);
+  const chain = ids.map((id, i) => cell(id, 400 + i * 60, 674, `${100 + i}`,
+    { ...(ids[i + 1] ? { right: ids[i + 1] } : {}), ...(ids[i - 1] ? { left: ids[i - 1] } : {}) }));
+  const wanted = ids.at(-1);
+  let at = 0, scene = 0;
+  const pressed = [];
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (button === 'right') at = Math.min(at + 1, chain.length - 1);
+    scene++; // every press restyles the highlight and changes scene_id
+  };
+  const read = () => ({ state_type: 'shop', run: { act: 1, floor: 21, ascension: 1 }, player: { hp: 75, gold: 417 },
+    ui: { scene_id: `shop-${scene}`, focused_element: chain[at].id, elements: chain } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const start = read();
+  const landed = await executor.navigateElement({ type: 'activate', target: wanted, scene: start.ui.scene_id }, start);
+  assert.equal(landed.ui.focused_element, wanted, `it reaches the price tag: ${pressed.length} presses`);
+  assert.equal(pressed.length, chain.length - 1, `one press per step, none wasted: ${pressed.length}`);
+  assert.ok(pressed.every(button => button === 'right'), `all in the same direction: ${[...new Set(pressed)].join(',')}`);
+}
+
+// A reloaded player must not read its kickoff as "start over".
+//
+// Live, at decision 296 of room 5976c38f: a mid-run player reload handed the
+// agent its original task - "Start a fresh run... Abandon any pre-existing run
+// first" - against Act 2 floor 21 with seven relics. It refused to act and
+// asked for an operator, which is the right call and also a pause on every
+// single reload. The runtime already knows better: freshRunVerified survives in
+// the checkpoint.
+{
+  const state = { state_type: 'shop', run: { act: 2, floor: 21, ascension: 1 },
+    player: { hp: 75, max_hp: 88, gold: 417, relics: [], potions: [] },
+    ui: { scene_id: 'shop', focused_element: null, elements: [] } };
+  const task = 'Start a fresh Slay the Spire 2 singleplayer run as Ironclad, Ascension 1. Abandon any pre-existing run first; never Continue.';
+  const base = { state, task, ladder: {}, objectiveCheck: null, retrieved: [], lastResult: null,
+    lastEncounter: null, instructions: [], strategy: null, accepted: [], notes: [], act1: null, counters: {} };
+
+  const mid = strategistContext({ ...base, freshRunVerified: true });
+  assert.match(mid.task_startup_note, /already verified/, 'a verified run is told the startup half is done');
+  assert.match(mid.task_startup_note, /never be repeated/, 'and never to repeat it');
+  const startup = strategistContext({ ...base, freshRunVerified: false });
+  assert.equal(startup.task_startup_note, undefined, 'but a run that has not started still gets the plain kickoff');
+}
+
+// A slot number is not a position in the potion row.
+//
+// Live, at the act 2 boss of room 5976c38f: slots 1 and 2 were held, the
+// elements list carried exactly TWO potion holders, and `x` put focus on a
+// third one the list never mentioned. Indexing the row by slot number fell
+// straight through and pressed `a` on the empty holder, which opens nothing.
+// Occupied holders do appear in slot order, and that mapping survives whether
+// or not the empty one is reported.
+{
+  const holder = (id, x) => ({ id, label: null, reference: { kind: 'potion' }, type: 'NPotionHolder',
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [x, 9, 60, 60], neighbors: {} });
+  const listed = [holder('element-678151864657', 565), holder('element-678520963431', 627)];
+  const potions = [
+    { slot: 1, name: 'Flex Potion', target_type: 'AnyPlayer', can_use_in_combat: true },
+    { slot: 2, name: 'Blood Potion', target_type: 'AnyPlayer', can_use_in_combat: true },
+  ];
+  // `x` lands on a holder that is NOT in the elements list, exactly as it did live.
+  const GHOST = 'element-677782765883';
+  let focus = null, where = 'hand', left = [...potions];
+  const pressed = [];
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (button === 'x') { focus = GHOST; where = 'strip'; return; }
+    if (where === 'strip' && button === 'right') focus = focus === GHOST ? listed[0].id : listed[1].id;
+    else if (where === 'strip' && button === 'left') focus = focus === listed[1].id ? listed[0].id : GHOST;
+    else if (where === 'strip' && button === 'a') where = 'popup';
+    else if (where === 'popup' && button === 'a') { left = left.filter(item => item.slot !== 1); where = 'hand'; }
+  };
+  const read = () => ({ state_type: 'boss', run: { act: 2, floor: 33, ascension: 1 },
+    player: { hp: 47, max_hp: 90, energy: 3, hand: [], potions: left },
+    battle: { round: 5, turn: 'player', is_play_phase: true, enemies: [{ entity_id: 'KAISER_CRAB_0', combat_id: 1, name: 'Kaiser Crab', hp: 200 }] },
+    ui: { scene_id: 'boss', elements: listed, focused_element: where === 'strip' ? focus : null, targeting: false, focused_creature: null,
+      focus_path: where === 'strip' ? '/PotionHolders/PotionHolder' : where === 'popup' ? '/PotionHolders/PotionHolder/PotionPopup/Container/UseButton' : '/CombatUi/Hand' } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const after = await executor.usePotion({ type: 'use_potion', slot: 1 }, read());
+  assert.equal(after.player.potions.length, 1, `the Flex Potion is drunk: pressed ${pressed.join(',')}`);
+  // One right off the unlisted holder onto the FIRST occupied one, which is slot 1.
+  assert.deepEqual(pressed, ['x', 'right', 'a', 'a'], `by identity, not by counting to slot 1: ${pressed.join(',')}`);
+}
+
+// The runtime buys; the model only says which item.
+//
+// Shops were the worst screen in the run log - one operator pause every six
+// observations against one in sixty-four for combat - and always the same three
+// traps. The purchasable control is the PRICE TAG, and the relic artwork drawn
+// over it is reference.kind "model" that no neighbour names, so no route to it
+// exists. Relics and potions are labelled by price ALONE, so only shop.items
+// knows what a tag is for. And prices collide: this shop, captured live on
+// floor 21 of room 5976c38f, sells two different 51-gold potions. Ids, labels,
+// bounds and the item list are all as the mod reported them.
+{
+  const entry = (id, label, x, y, w = 79) => ({ id, label, reference: { kind: 'entry' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [x, y, w, w], neighbors: {} });
+  const art = { id: 'art-vajra', label: 'NRelic-RELIC_VAJRA', reference: { kind: 'model' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [947, 622, 88, 88], neighbors: {} };
+  const elements = [
+    entry('card-thunderclap', '25 | 1 | Attack | Thunderclap | Deal 4 damage.', 437, 382, 195),
+    entry('relic-vajra', '155', 989, 674, 97),
+    entry('relic-bag', '149', 1139, 674),
+    entry('potion-flex', '51', 989, 818),
+    entry('potion-vuln', '52', 1139, 818),
+    entry('potion-dex', '51', 1289, 818),
+    art,
+  ];
+  const items = [
+    { index: 0, category: 'card', price: 25, card_name: 'Thunderclap', is_stocked: true, can_afford: true },
+    { index: 7, category: 'relic', price: 155, relic_name: 'Vajra', is_stocked: true, can_afford: true },
+    { index: 8, category: 'relic', price: 149, relic_name: 'Bag of Preparation', is_stocked: true, can_afford: true },
+    { index: 10, category: 'potion', price: 51, potion_name: 'Flex Potion', is_stocked: true, can_afford: true },
+    { index: 11, category: 'potion', price: 52, potion_name: 'Vulnerable Potion', is_stocked: true, can_afford: true },
+    { index: 12, category: 'potion', price: 51, potion_name: 'Dexterity Potion', is_stocked: true, can_afford: true },
+  ];
+
+  const bought = [];
+  const shop = (gold, sold) => ({ state_type: 'shop', run: { act: 2, floor: 21, ascension: 1 },
+    player: { hp: 75, max_hp: 90, gold },
+    shop: { items: items.map(i => ({ ...i, is_stocked: !sold.has(i.index) })), can_proceed: false },
+    ui: { scene_id: 'shop-1', focused_element: 'card-thunderclap', elements } });
+
+  for (const [index, expected, cost] of [[12, 'potion-dex', 51], [8, 'relic-bag', 149], [0, 'card-thunderclap', 25]]) {
+    const sold = new Set();
+    let gold = 417;
+    const executor = Object.create(Executor.prototype);
+    let landed = null;
+    executor.navigateElement = async (act) => { landed = act.target; return shop(gold, sold); };
+    executor.button = async () => { bought.push(landed); sold.add(index); gold -= cost; };
+    executor.observe = async () => shop(gold, sold);
+    executor.settled = async () => shop(gold, sold);
+    executor.record = () => {};
+    executor.sleep = async () => {};
+    const after = await executor.buyItem({ type: 'buy', item: index }, shop(417, new Set()));
+    assert.equal(landed, expected, `item ${index} routes to ${expected}, not ${landed}`);
+    assert.equal(after.player.gold, 417 - cost, `and the gold moves by ${cost}`);
+  }
+  // The artwork is never the thing bought, for any item.
+  assert.ok(!bought.includes('art-vajra'), `never the relic artwork: ${bought.join(',')}`);
+}
+
+// Leaving is not one button, and a shop is the exception that cost the most.
+//
+// Live, on floor 27 of room 5976c38f: five `b` presses over five minutes never
+// left a shop, while a single `back` did - the room's own BackButton reports
+// enabled true and press "b" the whole time and does nothing. A resolved rest
+// site is left by its Proceed control instead, and an overlay by `b`.
+{
+  const make = (state_type, extra, elements) => ({ state_type, run: { act: 2, floor: 27, ascension: 1 },
+    player: { hp: 44, max_hp: 90, gold: 5 }, ...extra,
+    ui: { scene_id: 'screen', focused_element: null, elements } });
+  const backButton = { id: 'back', label: 'BackButton', enabled: true, activation: 'a', press: 'b',
+    focus_mode: 'all', selectable: true, visible: true, bounds: [-40, 726, 200, 110], neighbors: {} };
+  const proceed = { id: 'proceed', label: 'Proceed', enabled: true, activation: 'a', press: 'y',
+    focus_mode: 'all', selectable: true, visible: true, bounds: [1983, 764, 269, 108], neighbors: {} };
+
+  for (const [label, before, expected] of [
+    // A shop: BackButton is enabled and bound to b, and b is still not the answer.
+    ['shop', make('shop', { shop: { items: [], can_proceed: false } }, [backButton]), 'back'],
+    ['resolved rest site', make('rest_site', { rest_site: { options: [], can_proceed: true } }, [proceed]), 'y'],
+    ['an overlay', make('card_select', { card_select: { cards: [], can_confirm: false } }, []), 'b'],
+  ]) {
+    const pressed = [];
+    let moved = false;
+    const executor = Object.create(Executor.prototype);
+    executor.button = async (b) => { pressed.push(b); moved = true; };
+    executor.settled = async () => (moved ? { ...before, state_type: 'map' } : before);
+    executor.observe = async () => (moved ? { ...before, state_type: 'map' } : before);
+    executor.record = () => {};
+    executor.sleep = async () => {};
+    const after = await executor.leaveScreen(before);
+    assert.equal(pressed[0], expected, `${label} leaves with ${expected}, not ${pressed[0]}`);
+    assert.equal(after.state_type, 'map', `${label} actually left`);
+  }
+}
+
+// The whole fight is handed over every turn, from the fields the mod actually
+// uses.
+//
+// Two things were silently missing. The mod publishes buffs and debuffs as
+// `status`, and the encounter scratchpad read `powers || buffs` - neither of
+// which the sensor has ever set - so player_powers and every enemy's powers
+// came out [] on every turn of every fight while the state carried Thorns 3,
+// Strength 1 and Surrounded 1. An empty list reads as "no powers", which is a
+// lie rather than a gap. And `ui` was stripped wholesale for combat, taking
+// with it the only published record of where the enemies are and what order
+// the hand is drawn in - a human reads both off the screen; this agent cannot.
+{
+  const state = {
+    state_type: 'boss', run: { act: 2, floor: 33, ascension: 1 },
+    player: {
+      hp: 61, max_hp: 90, block: 0, energy: 3, max_energy: 3, gold: 250, max_potion_slots: 3,
+      status: [{ id: 'THORNS_POWER', name: 'Thorns', amount: 3, type: 'Buff' },
+               { id: 'SURROUNDED_POWER', name: 'Surrounded', amount: 1, type: 'Debuff' }],
+      relics: [{ id: 'INK_BOTTLE', name: 'Ink Bottle', description: 'Every 10 cards, draw 1.', counter: 7 }],
+      potions: [{ slot: 1, name: 'Fire Potion', target_type: 'AnyEnemy', can_use_in_combat: true }],
+      hand: [{ instance_id: 274, index: 0, name: 'Defend', cost: '1', can_play: true },
+             { instance_id: 275, index: 1, name: 'Crimson Mantle', cost: '1', can_play: true }],
+      draw_pile: [{ instance_id: 300, id: 'STRIKE', name: 'Strike', type: 'Attack' }],
+      discard_pile: [], exhaust_pile: [],
+      draw_pile_count: 1, discard_pile_count: 0, exhaust_pile_count: 0,
+    },
+    battle: { round: 5, turn: 'player', is_play_phase: true, enemies: [
+      { entity_id: 'CRUSHER_0', combat_id: 1, name: 'Crusher', hp: 209, max_hp: 209, block: 4,
+        intents: [{ type: 'Attack', label: '18' }],
+        status: [{ id: 'BACK_ATTACK_LEFT_POWER', name: 'Back Attack', amount: 1, type: 'Buff' }] }] },
+    ui: { scene_id: 'boss', focused_card: 274, in_card_play: false, targeting: false,
+      targets: [{ combat_id: 2, hittable: true, x: 1632, y: 704 }, { combat_id: 1, hittable: true, x: 342, y: 722 }],
+      elements: [
+        // Drawn right-to-left of hand[] order, which is the trap.
+        { id: 'h1', label: 'Crimson Mantle', reference: { kind: 'card', instance_id: 275 }, bounds: [400, 700, 200, 300] },
+        { id: 'h0', label: 'Defend', reference: { kind: 'card', instance_id: 274 }, bounds: [700, 700, 200, 300] },
+      ] } };
+
+  const view = combatState(state);
+  // Buffs and debuffs survive, on both sides.
+  assert.deepEqual(view.player.status.map(p => p.name), ['Thorns', 'Surrounded']);
+  assert.deepEqual(view.battle.enemies[0].status.map(p => p.name), ['Back Attack']);
+  // Enemy order is screen order, not the order battle.enemies happens to list.
+  assert.deepEqual(view.layout.enemy_positions.map(t => t.combat_id), [1, 2], 'leftmost enemy first');
+  // Hand order is screen order, which disagrees with hand[].index here.
+  assert.deepEqual(view.layout.hand_left_to_right.map(c => c.instance_id), [275, 274],
+    'the hand is reported as drawn, not as indexed');
+  assert.notDeepEqual(view.layout.hand_left_to_right.map(c => c.instance_id),
+    state.player.hand.map(c => c.instance_id), 'and those two genuinely differ');
+
+  const pad = new EncounterScratchpad().observe(state);
+  assert.deepEqual(pad.player_powers.map(p => `${p.name} ${p.amount}`), ['Thorns 3', 'Surrounded 1']);
+  assert.deepEqual(pad.enemies[0].powers.map(p => p.name), ['Back Attack']);
+  assert.equal(pad.enemies[0].max_hp, 209);
+  assert.equal(pad.enemies[0].block, 4);
+  assert.equal(pad.relics[0].counter, 7, 'a relic counter advances with no log line, so its value is the record');
+  assert.equal(pad.potions[0].slot, 1);
+  assert.deepEqual(Object.keys(pad.piles).sort(), ['discard_pile', 'draw_pile', 'exhaust_pile', 'hand']);
+  assert.equal(pad.resources.energy, 3);
 }

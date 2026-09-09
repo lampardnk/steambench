@@ -337,9 +337,9 @@ export function energyCost(cost) {
  * and refuses `intent`, so an unresolved goal can never reach the pad.
  */
 export const ROLE_ACTIONS = {
-  strategist: new Set(['intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
-  combat: new Set(['play', 'use_potion', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
-  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'learn', 'wait', 'report_issue']),
+  strategist: new Set(['buy', 'rest', 'leave', 'choose', 'intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
+  combat: new Set(['play', 'use_potion', 'choose', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
+  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'choose', 'buy', 'rest', 'leave', 'learn', 'wait', 'report_issue']),
 };
 
 export function validatePlan(plan, state, { role = null } = {}) {
@@ -370,6 +370,34 @@ export function validatePlan(plan, state, { role = null } = {}) {
       if (action.target != null && typeof action.target !== 'string') throw new Error('invalid target');
       const card = state.player.hand.find(item => item.instance_id === action.card);
       if (card.target_type === 'AnyEnemy' && !state.battle.enemies.some(enemy => enemy.entity_id === action.target && enemy.hp > 0)) throw new Error('unknown enemy target');
+    } else if (action.type === 'rest') {
+      const options = state?.rest_site?.options;
+      if (!Array.isArray(options) || !options.length) throw new Error('rest needs a rest site with options; a site reporting none is already resolved and is left with leave');
+      const option = options.find(entry => entry.index === action.option);
+      if (!Number.isInteger(action.option) || !option) throw new Error(`no rest option ${action.option}; the site offers ${options.map(entry => `${entry.index} (${entry.name})`).join(', ')}`);
+      if (option.is_enabled === false) throw new Error(`${option.name} is not available here`);
+      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a rest option must be the last action in the plan; what it opens is only visible afterwards');
+    } else if (action.type === 'leave') {
+      if (actions.length !== 1) throw new Error('leave is standalone; the screen it acts on is gone afterwards');
+    } else if (action.type === 'buy') {
+      // Named by the index the shop itself publishes. Everything the runtime
+      // needs to find the control - category, price, name - is on that entry.
+      const items = state?.shop?.items;
+      if (!Array.isArray(items) || !items.length) throw new Error('buy needs an open shop');
+      const item = items.find(entry => entry.index === action.item);
+      if (!Number.isInteger(action.item) || !item) throw new Error(`no shop item ${action.item}; the shop offers ${items.map(entry => `${entry.index} (${entry.card_name || entry.relic_name || entry.potion_name || entry.category}, ${entry.price})`).join(', ')}`);
+      if (item.is_stocked === false) throw new Error(`shop item ${action.item} has already been bought`);
+      if (item.can_afford === false) throw new Error(`${item.card_name || item.relic_name || item.potion_name || item.category} costs ${item.price} and you have ${state.player?.gold}`);
+      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a purchase must be the last action in the plan; what it opens is only visible afterwards');
+    } else if (action.type === 'choose') {
+      const screen = state?.hand_select || state?.card_select;
+      if (!screen) throw new Error('choose needs an open card-selection screen');
+      if (!Array.isArray(action.cards) || !action.cards.length || action.cards.length > 12 || !action.cards.every(Number.isInteger)) throw new Error('choose.cards must be 1-12 card indices from the open screen');
+      if (new Set(action.cards).size !== action.cards.length) throw new Error('a card index may appear only once');
+      for (const index of action.cards) {
+        if (!(screen.cards || []).some(card => card.index === index)) throw new Error(`no card at index ${index}; the screen offers ${(screen.cards || []).map(card => `${card.index} (${card.name})`).join(', ')}`);
+      }
+      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a choose must be the last action in the plan; what it does is only visible afterwards');
     } else if (action.type === 'use_potion') {
       // Named the way the state names it: a slot, and for a thrown potion the
       // combat_id it goes at. The runtime owns the presses.
@@ -380,7 +408,12 @@ export function validatePlan(plan, state, { role = null } = {}) {
       const thrown = ['AnyEnemy', 'AnyAlly'].includes(potion.target_type);
       if (thrown && !state.battle.enemies.some(enemy => enemy.combat_id === action.target && enemy.hp > 0)) throw new Error(`${potion.name} is ${potion.target_type} and needs target set to a living enemy's combat_id; living enemies are ${state.battle.enemies.filter(enemy => enemy.hp > 0).map(enemy => `${enemy.combat_id} (${enemy.name})`).join(', ')}`);
       if (!thrown && action.target != null) throw new Error(`${potion.name} is ${potion.target_type} and takes no target`);
-      if (actions.length !== 1) throw new Error('one potion per plan; what it does is only visible afterwards');
+      // A potion is a scene barrier, not a solo act: what it does is only
+      // visible afterwards, so nothing can be planned PAST it - but plays
+      // before it are ordinary. Requiring it alone rejected three plans in a
+      // row that wanted a potion after two cards, which is the model's call to
+      // make, not the validator's.
+      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a potion must be the last action in the plan; what it does is only visible afterwards');
     } else if (['navigate', 'activate', 'elements', 'path'].includes(action.type)) {
       if (action.scene !== state.ui?.scene_id || typeof action.scene !== 'string') throw new Error('stale or missing scene ID');
       if (['navigate', 'activate', 'path'].includes(action.type) && typeof action.target !== 'string') throw new Error('target element ID required');

@@ -1,10 +1,10 @@
 ---
 description: This or That? — Any act. Exact outcomes for every option, with the trade-offs stated and the choice left open.
 character: ironclad
-act: 1
+act: any
 category: unknown
 ascension: a1
-keys: [this or that, event, unknown, act1, any act, gold, relic, curse, clumsy]
+keys: [this or that, event, unknown, any act, gold, relic, curse, clumsy, all acts]
 sources: [slaythespire.wiki.gg]
 ---
 

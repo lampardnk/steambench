@@ -24,7 +24,7 @@ characters — `recall` this path for the full pools, costs and probabilities.
 6. Plan a route, then re-decide it at every map screen.
 7. Make the route the run's first objective — only one runs at a time.
 
-## Decision framework (editable — rewrite this section as you learn)
+## Decision framework
 
 ### 1. Scout before choosing
 The mod exposes `map` at Neow with no UI navigation and no input:
@@ -76,7 +76,7 @@ run beside another goal. Open it first — scout, name the biome and the problem
 choose the line — then close it before any combat or bestiary objective. A relic
 chosen before the route is known is a guess.
 
-## Relic pros and cons (editable)
+## Relic pros and cons
 
 Effects and costs are in the pool tables below; this is only the trade-off.
 Nothing here is a ranking — read it against the problems you named.

@@ -261,22 +261,26 @@ move — at +3 Strength a turn it climbs quickly if the fight drags. The no-repe
 rule means a Rage turn is never followed by another, so the Strength arrives at
 a predictable maximum of every other turn.
 
-## Ironclad strategy notes (editable)
+## Ironclad-relevant mechanics
 
-- Burning Blood heals 6 HP post-combat — trade HP for speed on swarm fights.
-- Corpse Slugs and Rats: don't block, just kill. Your heal covers it.
-- Living Fog: Smoggy is the real threat. Lean on Attacks (Ironclad's
-  strength) and save your one Skill per turn for Shrug It Off.
-- Cultists encounter: kill Calcified first (lower HP, slower Ritual), then
-  focus Damp before Dark Strike snowballs (Ritual +5/turn).
-- Punch Construct: T1 block is a setup turn — don't waste attacks. Account
-  for Frail when blocking T3 Strong Punch.
-- Haunted Ship: Dazed clogs your draw — don't let the fight drag. Weak from
-  Haunt reduces your output; Inflame to overcome.
-- Sewer Clam: Pressurize turns are free damage windows. Kill fast — Jet
-  scales +4 per cycle.
-- Gremlin Merc: it steals 20 Gold per attack and splits into two minions on
-  death, one of which flees with the money. Block Gimme (14) on T1, kill the
-  Merc early to cap the theft, then kill the Fat Gremlin to get the gold back.
-- Fossil Stalker: block or it snowballs — every unblocked hit is +3 Strength.
-- Toadpole: Thorns punishes the number of hits, so prefer one big attack.
+Facts about this biome that a plan may turn on. What to do with them is the
+encounter's call, not this file's.
+
+- Burning Blood heals 6 HP after each combat, so HP spent here is partly
+  refunded and HP spent on the last fight before a rest is not.
+- Corpse Slugs and Rats deal small, single-instance damage that the Burning
+  Blood heal roughly covers over a fight.
+- Living Fog: Smoggy carries the damage. Ironclad's Skill supply is the limit
+  on how much of it can be blocked in a turn.
+- Cultists: Calcified has the lower HP and the slower Ritual; Damp's Dark
+  Strike compounds at Ritual +5 per turn.
+- Punch Construct's first turn is a block turn that deals nothing, and its T3
+  Strong Punch lands while Frail is active.
+- Haunted Ship: Dazed dilutes the draw pile for the rest of the fight, and
+  Haunt's Weak cuts your output while it lasts.
+- Sewer Clam: Pressurize turns deal no damage, and Jet scales +4 per cycle.
+- Gremlin Merc steals 20 Gold per attack, opens with Gimme for 14, and on
+  death splits into two minions - one flees with the money, the Fat Gremlin
+  carries it back if killed.
+- Fossil Stalker gains +3 Strength for every unblocked hit.
+- Toadpole's Thorns triggers per damage instance, not per point.

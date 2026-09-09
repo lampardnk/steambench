@@ -32,6 +32,27 @@ export const MODEL_PROFILES = Object.freeze({
     maxTokens: 65536,
     contextWindow: 1050000,
   },
+  gemini: {
+    key: 'gemini',
+    name: 'STS2-Pi-Gemini',
+    provider: 'experiential',
+    baseUrl: 'https://api.experientiallabs.ai/v1',
+    model: 'gemini-3.7-flash',
+    apiKeyEnv: 'EXPLABS_API_KEY',
+    // Measured against the live route, not assumed. reasoning_effort is
+    // honoured and the level matters: "Reply with exactly: OK" spent 105
+    // reasoning tokens at max against 78 at high. It is a reasoning model that
+    // bills thinking out of max_tokens, so a small cap returns
+    // finish_reason "length" with null content and no answer at all - the
+    // 32-token probe did exactly that.
+    reasoning: 'max',
+    // The route refuses anything larger: "exceeds this model route's maximum
+    // of 65536".
+    maxTokens: 65536,
+    // The route names this itself: "input token count exceeds the maximum
+    // number of tokens allowed 1048576". A 150k-token prompt was accepted.
+    contextWindow: 1048576,
+  },
   orcarouter: {
     key: 'orcarouter',
     name: 'STS2-Pi-OrcaRouter',
@@ -45,7 +66,7 @@ export const MODEL_PROFILES = Object.freeze({
   },
 });
 
-export const DEFAULT_MODEL = 'experiential';
+export const DEFAULT_MODEL = 'gemini';
 
 const selected = process.env.STEAMBENCH_MODEL || DEFAULT_MODEL;
 if (!MODEL_PROFILES[selected]) {
@@ -56,7 +77,7 @@ export const PROFILE = Object.freeze({
   image: 'steambench-learning:latest',
   // Bumped whenever the model changes: a checkpoint written by one model's run
   // is not a run this one can resume.
-  checkpointVersion: 'STS2-Pi-Learn-v0.3',
+  checkpointVersion: 'STS2-Pi-Learn-v0.4',
   plannerDeadlineMs: 120000,
   ...MODEL_PROFILES[selected],
 });

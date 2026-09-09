@@ -103,3 +103,34 @@ try {
 } finally {
   for (const [key, value] of Object.entries(original)) PiAgent.prototype[key] = value;
 }
+
+// A 5xx from the mod is a room still loading, not a run that failed.
+//
+// Live, at decision 558 of room 5976c38f: activating a map node into an act 3
+// event returned one 500 while the room was mid-load, and the run paused for an
+// operator. The mod answered 200 a second later. A read has no side effects, so
+// it is worth retrying; a 4xx is the mod saying no and must not be.
+{
+  const room = new Room(manager, { id: 'aaaa9999', name: 'Transient' });
+  room.roomIp = '127.0.0.1';
+  room.fwdPort = 1;
+  let calls = 0;
+  const answers = [
+    { status: 500, text: async () => 'room is loading', headers: { get: () => 'text/plain' } },
+    { status: 500, text: async () => 'room is loading', headers: { get: () => 'text/plain' } },
+    { status: 200, text: async () => '{"state_type":"event"}', headers: { get: () => 'application/json' } },
+  ];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => answers[Math.min(calls++, answers.length - 1)];
+  try {
+    const ok = await room._sts2Fetch('/api/v1/singleplayer', {});
+    assert.equal(ok.status, 200, 'it rides out a transient 5xx');
+    assert.equal(calls, 3, `retrying until the room answers: ${calls} calls`);
+
+    // A 4xx is a refusal and is returned at once, without retries.
+    calls = 0;
+    globalThis.fetch = async () => { calls++; return { status: 404, text: async () => 'no', headers: { get: () => 'text/plain' } }; };
+    await assert.rejects(() => room._sts2Fetch('/api/v1/nope', {}), /returned 404/);
+    assert.equal(calls, 1, 'a 4xx is not retried');
+  } finally { globalThis.fetch = realFetch; }
+}

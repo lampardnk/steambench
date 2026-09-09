@@ -20,6 +20,22 @@
             "supportsReasoningEffort": true,
             "maxTokensField": "max_tokens"
           }
+        },
+        {
+          "id": "gemini-3.7-flash",
+          "name": "Experiential Gemini 3.7 Flash",
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 65536,
+          "compat": {
+            "supportsStore": false,
+            "supportsReasoningEffort": true,
+            "maxTokensField": "max_tokens"
+          }
         }
       ]
     },

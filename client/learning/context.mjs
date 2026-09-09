@@ -48,6 +48,46 @@ export function strategistState(state, { mapUnchanged = false } = {}) {
  * pile and two sources for the same cards is how a plan ends up counting a card
  * twice.
  */
+/**
+ * Where things are, and what is half-done.
+ *
+ * The whole `ui` block used to be stripped for combat, on the grounds that a
+ * play agent has no business routing to elements. It does not - but the block
+ * also carries facts about the FIGHT that exist nowhere else, and dropping it
+ * took them all. A human sees them by looking at the screen; this agent cannot
+ * look, so they have to be handed over.
+ *
+ * - `targets` gives each enemy's combat_id and screen position, which is the
+ *   only way to know the left-to-right order. Attacks resolve on the leftmost
+ *   enemy by default, and Kaiser Crab's Surrounded and Back Attack are about
+ *   which side you are on.
+ * - The hand's screen order is NOT `hand[].index`: a hand that indexed
+ *   274, 275, 276, 264, 257 was drawn 274, 276, 264, 257, 275, so index 1 sat
+ *   rightmost of five. Position is what the pad walks, so it is what a plan
+ *   naming a card has to agree with.
+ * - A card can be half-played - lifted, awaiting a target - and the agent that
+ *   has to finish it needs to know.
+ */
+function combatLayout(state) {
+  const ui = state.ui || {};
+  const targets = (ui.targets || [])
+    .filter(t => t && Number.isFinite(t.x))
+    .sort((a, b) => a.x - b.x)
+    .map((t, position) => ({ combat_id: t.combat_id, position_left_to_right: position, x: t.x, y: t.y, hittable: t.hittable !== false }));
+  const hand = (ui.elements || [])
+    .filter(el => el.reference?.kind === 'card' && el.reference.instance_id != null && Array.isArray(el.bounds))
+    .sort((a, b) => a.bounds[0] - b.bounds[0])
+    .map((el, position) => ({ instance_id: el.reference.instance_id, name: el.label ?? null, position_left_to_right: position }));
+  return {
+    enemy_positions: targets,
+    hand_left_to_right: hand,
+    ...(ui.in_card_play ? { in_card_play: true, selected_card: ui.selected_card ?? null } : {}),
+    ...(ui.targeting ? { targeting: true, aimed_at_combat_id: ui.focused_creature ?? null } : {}),
+    focused_card: ui.focused_card ?? null,
+    note: 'Positions are screen order, which is what the pad walks and what an untargeted attack resolves against. hand_left_to_right is NOT hand[].index order.',
+  };
+}
+
 export function combatState(state) {
   const compact = without(compactState(state), OMIT_FOR_COMBAT);
   if (compact.player) {
@@ -57,6 +97,7 @@ export function combatState(state) {
     // plan that assumes it.
     for (const pile of ['draw_pile', 'discard_pile', 'exhaust_pile']) delete compact.player[pile];
   }
+  compact.layout = combatLayout(state);
   return compact;
 }
 
@@ -153,7 +194,14 @@ export function splitNotes(retrieved) {
 export function strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1, counters, freshRunVerified }) {
   const mapUnchanged = Boolean(strategy && lastResult?.after?.map_id && lastResult.after.map_id === mapId(state));
   return {
+    // The standing task is the kickoff, which opens by demanding a fresh run and
+    // the abandonment of any existing one. Once startup is verified that clause
+    // is not merely spent, it CONTRADICTS the screen - and a player reloaded
+    // mid-run reads it against Act 2 floor 21 and quite correctly refuses to
+    // act. Say plainly that the startup half is done and only the play half
+    // still stands.
     task: task.slice(0, 3000),
+    ...(freshRunVerified ? { task_startup_note: 'Startup is already verified and this run is in progress. The startup half of the task - abandon any pre-existing run, choose the character, Embark - is DONE and must never be repeated, including after a reload. Only the play-the-run half still stands.' } : {}),
     fresh_run_verified: freshRunVerified,
     observation_id: stateId(state),
     state: strategistState(state, { mapUnchanged }),

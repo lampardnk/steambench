@@ -363,7 +363,6 @@ export class Executor {
         await this.button(step.direction);
         state = await this.observe();
         if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
-        if (state.ui?.scene_id !== scene) break;
         // Standing on the target is the whole point of the route, so it ends
         // here whatever the graph expected. A reward screen names its rows
         // with auto-generated siblings (@Control@1848), so a step can land
@@ -372,6 +371,14 @@ export class Executor {
         // focus was already on the element the plan asked for.
         if (state.ui.focused_element === target.id) return state;
         if (state.ui.focused_element !== step.to) { avoid.add(`${step.from}|${step.direction}`); break; }
+        // Focus went exactly where the route said, so a changed scene_id is the
+        // screen redrawing under the cursor, not a stale route. A shop restyles
+        // the highlighted item on EVERY press: a four-press walk that was
+        // tracking its route perfectly spent the whole re-scene budget and the
+        // run paused one press from the relic it wanted. Adopt the new id and
+        // keep walking; only a press that lands somewhere unpredicted is a
+        // reason to stop and re-plan.
+        if (state.ui?.scene_id !== scene) scene = state.ui.scene_id;
       }
       if (state.ui.focused_element === target.id) return state;
       // Only directions with unchanged gameplay are recoverable, twice at most.
@@ -475,6 +482,116 @@ export class Executor {
   }
 
   /**
+   * Take one rest-site option, by the index the site publishes.
+   *
+   * `rest_site.options` gives the index, id, name and enabled state; the
+   * controls are labelled with those same names and carry
+   * `reference.kind: "option"`. One pause in twenty-three observations came
+   * from routing this by hand.
+   */
+  async restOption(action, before) {
+    const options = before.rest_site?.options || [];
+    const option = options.find(entry => entry.index === action.option);
+    if (!option) throw new Error(`no rest option ${action.option}; the site offers ${options.map(entry => `${entry.index} (${entry.name})`).join(', ') || 'none'}`);
+    if (option.is_enabled === false) throw new Error(`${option.name} is not available at this rest site`);
+    const controls = (before.ui?.elements || []).filter(el => el.enabled !== false && el.label);
+    const target = controls.find(el => el.reference?.kind === 'option' && el.label.trim() === option.name)
+      || controls.find(el => el.label.trim() === option.name);
+    if (!target) throw new Error(`the ${option.name} control is not on screen${reachable(before)}`);
+    const state = await this.navigateElement({ type: 'activate', target: target.id, scene: before.ui?.scene_id }, before);
+    await this.button(target.press || 'a');
+    const after = await this.settled();
+    if (stateId(after) === stateId(state)) throw new Error(`pressing ${target.press || 'a'} on ${option.name} changed nothing${reachable(after)}`);
+    this.record({ type: 'rest_taken', option: action.option, name: option.name });
+    return after;
+  }
+
+  /**
+   * Leave the screen, by whatever the screen actually uses.
+   *
+   * These do not agree, and the disagreement cost three rescues in one run. A
+   * SHOP room is left with `back` - the View Map button - and not with `b`:
+   * five `b` presses over five minutes never left one, while a single `back`
+   * did. A screen that reports `can_proceed` and shows a Proceed control is
+   * left by that control's own button. Everything else closes with `b`.
+   */
+  async leaveScreen(before) {
+    const gate = ['shop', 'rest_site', 'rewards', 'card_select', 'hand_select', 'event']
+      .map(key => before[key]).find(value => value && typeof value === 'object' && typeof value.can_proceed === 'boolean');
+    const proceed = (before.ui?.elements || []).find(el => el.enabled === true && /proceed/i.test(el.label || ''));
+    let button;
+    if (before.state_type === 'shop') button = 'back';
+    else if (gate?.can_proceed === true && proceed) button = proceed.press || 'a';
+    else button = 'b';
+    await this.button(button);
+    let after = await this.settled();
+    // Leaving frequently raises a confirmation, which `y` answers.
+    if (stateId(after) === stateId(before)) {
+      await this.button('y');
+      after = await this.settled();
+    }
+    if (stateId(after) === stateId(before)) throw new Error(`neither ${button} nor y left this ${before.state_type}${reachable(after)}`);
+    this.record({ type: 'left_screen', from: before.state_type, button });
+    return after;
+  }
+
+  /**
+   * Buy one thing from a shop, by the index the shop publishes.
+   *
+   * Shops were the worst screen in the run log - one operator pause every six
+   * observations, roughly ten times the combat rate - and always for the same
+   * three reasons. The purchasable control is the PRICE TAG; the relic artwork
+   * drawn over it is `reference.kind: "model"` and no neighbour names it, so no
+   * route to it exists. Relics and potions are labelled by price ALONE, so only
+   * `shop.items` knows what a tag is for, and prices collide (two 51s in one
+   * shop). Cards do carry their name, in a `price | cost | type | name` label.
+   *
+   * So: cards resolve by name, everything else by price, and a collision is
+   * broken by position - the items of a category sit left to right in the order
+   * `shop.items` lists them.
+   */
+  async buyItem(action, before) {
+    const items = before.shop?.items || [];
+    const item = items.find(entry => entry.index === action.item);
+    if (!item) throw new Error(`no shop item ${action.item}`);
+    const name = item.card_name || item.relic_name || item.potion_name || item.category;
+    const goldBefore = before.player?.gold;
+
+    const entries = (before.ui?.elements || [])
+      .filter(el => el.reference?.kind === 'entry' && el.enabled !== false && Array.isArray(el.bounds) && el.label)
+      .sort((a, b) => (Math.abs(a.bounds[1] - b.bounds[1]) > 40 ? a.bounds[1] - b.bounds[1] : a.bounds[0] - b.bounds[0]));
+    let target = null;
+    if (item.category === 'card' && item.card_name) {
+      const wanted = entries.filter(el => el.label.includes(`| ${item.card_name} |`) || el.label.includes(`| ${item.card_name}`));
+      if (wanted.length === 1) [target] = wanted;
+    }
+    if (!target) {
+      // Price-only tags. Where a price is shared, take the one at this item's
+      // rank among the same-priced items of its category.
+      const priced = entries.filter(el => el.label.trim() === String(item.price));
+      if (priced.length === 1) [target] = priced;
+      else if (priced.length > 1) {
+        const rank = items.filter(entry => entry.price === item.price && entry.category === item.category)
+          .findIndex(entry => entry.index === item.index);
+        target = priced[rank] || null;
+      }
+    }
+    if (!target) throw new Error(`could not find the control for ${name} at ${item.price} gold; the shop's price tags are ${entries.map(el => JSON.stringify(el.label.slice(0, 24))).join(', ')}`);
+
+    const state = await this.navigateElement({ type: 'activate', target: target.id, scene: before.ui?.scene_id }, before);
+    await this.button(target.press || 'a');
+    const after = await this.settled();
+    const goldAfter = after.player?.gold;
+    const stillStocked = (after.shop?.items || []).find(entry => entry.index === action.item)?.is_stocked;
+    if (stillStocked === true && Number.isInteger(goldBefore) && goldBefore === goldAfter) {
+      throw new Error(`pressing ${target.press || 'a'} on ${name} spent no gold and left it stocked${reachable(after)}`);
+    }
+    this.record({ type: 'purchase', item: action.item, name, price: item.price, goldBefore, goldAfter });
+    void state;
+    return after;
+  }
+
+  /**
    * Use a potion, all of it, with every press verified.
    *
    * This existed only as prose in the control manual, and a run spent about
@@ -491,27 +608,36 @@ export class Executor {
     const potion = (before.player?.potions || []).find(item => item.slot === action.slot);
     if (!potion) throw new Error(`no potion in slot ${action.slot}`);
     const thrown = ['AnyEnemy', 'AnyAlly'].includes(potion.target_type);
-    const holders = () => (this.lastState?.ui?.elements || []).filter(item => item.reference?.kind === 'potion' && Array.isArray(item.bounds));
+    // The OCCUPIED holders, left to right. An empty slot is sometimes reported
+    // as a holder with no activation and sometimes not reported at all, so a
+    // slot number is not a position in this row: at the act 2 boss, slots 1 and
+    // 2 were held and only two holders existed, while `x` put focus on a third
+    // the elements list never mentioned. Occupied holders do appear in slot
+    // order, which is the mapping that survives both shapes.
+    const occupied = value => (value?.ui?.elements || [])
+      .filter(item => item.reference?.kind === 'potion' && item.activation === 'a' && Array.isArray(item.bounds))
+      .sort((a, b) => a.bounds[0] - b.bounds[0]);
+    const rank = (before.player.potions || []).map(item => item.slot).sort((a, b) => a - b).indexOf(action.slot);
 
-    // Reach the strip by its shortcut, then walk it. `x` lands on the leftmost
-    // holder whether or not it holds anything, so the slot is a distance along
-    // the row rather than the thing the shortcut lands on.
     let state = before;
     if (!/PotionHolder|PotionPopup/.test(state.ui?.focus_path || '')) {
       await this.button('x');
       state = await this.observe();
     }
-    for (let step = 0; step < 8; step++) {
-      this.lastState = state;
-      const row = holders().sort((a, b) => a.bounds[0] - b.bounds[0]);
-      const at = row.findIndex(item => item.id === state.ui?.focused_element);
-      if (at < 0) break;
-      if (at === action.slot) break;
-      await this.button(at < action.slot ? 'right' : 'left');
-      const next = await this.observe();
-      if (next.ui?.focused_element === state.ui?.focused_element) throw new Error(`focus will not move along the potion strip towards slot ${action.slot}${reachable(next)}`);
-      state = next;
+    const wanted = occupied(state)[rank];
+    if (!wanted) throw new Error(`the screen reports ${occupied(state).length} occupied potion holders but ${(before.player.potions || []).length} potions${reachable(state)}`);
+    // Walk to it by identity rather than by counting: `x` can land on a holder
+    // the elements list does not carry at all.
+    for (const direction of ['right', 'left']) {
+      for (let step = 0; step < 8 && state.ui?.focused_element !== wanted.id; step++) {
+        await this.button(direction);
+        const next = await this.observe();
+        if (next.ui?.focused_element === state.ui?.focused_element) break;
+        state = next;
+      }
+      if (state.ui?.focused_element === wanted.id) break;
     }
+    if (state.ui?.focused_element !== wanted.id) throw new Error(`could not reach the holder for slot ${action.slot} (${potion.name}); focus stopped on ${state.ui?.focus_path}${reachable(state)}`);
 
     // Open the holder's popup, then take whichever control the popup is on.
     // Its options vary (Use/Discard, Use/Throw) and the cursor does not always
@@ -563,6 +689,65 @@ export class Executor {
     state = await this.settled();
     if ((state.player?.potions || []).some(item => item.slot === action.slot)) throw new Error(`${potion.name} still occupies slot ${action.slot} after the throw${reachable(state)}`);
     this.record({ type: 'potion_used', slot: action.slot, name: potion.name, thrown: true, target: action.target });
+    return state;
+  }
+
+  /**
+   * Resolve a card-selection screen: pick the named cards and confirm.
+   *
+   * A card or potion that opens one of these ("Choose a card to Exhaust",
+   * "Choose a card", an upgrade prompt) left the model hand-pressing `a` and
+   * `y` at a screen that reports NO selected list. `a` toggles, so a press that
+   * worked and one that undid the last one look identical, and runs have
+   * pressed `a` ten times and then hammered a Confirm that had gone dark.
+   * can_confirm is the only readout, so every press here is judged by it.
+   *
+   * The screen often opens with a card ALREADY selected for you, and an `a`
+   * would deselect it. That is not knowable up front - no selected list - so it
+   * is handled by watching can_confirm fall and pressing again.
+   */
+  async chooseCards(action, before) {
+    const screenOf = value => value?.hand_select || value?.card_select || null;
+    let state = before;
+    if (!screenOf(state)) throw new Error('no card-selection screen is open');
+    const wanted = action.cards;
+    // Cards are drawn in index order, reading rows top to bottom.
+    const holders = value => (value.ui?.elements || [])
+      .filter(item => item.reference?.kind === 'card' && Array.isArray(item.bounds))
+      .sort((a, b) => (Math.abs(a.bounds[1] - b.bounds[1]) > 40 ? a.bounds[1] - b.bounds[1] : a.bounds[0] - b.bounds[0]));
+
+    for (const index of wanted) {
+      const screen = screenOf(state);
+      if (!screen) throw new Error('the selection screen closed before every card was picked');
+      const card = (screen.cards || []).find(item => item.index === index);
+      if (!card) throw new Error(`no card at index ${index}; the screen offers ${(screen.cards || []).map(item => `${item.index} (${item.name})`).join(', ')}`);
+      const row = holders(state);
+      const target = row[index];
+      if (target && state.ui?.focused_element !== target.id) {
+        const walked = await this.navigateElement({ type: 'navigate', target: target.id, scene: state.ui?.scene_id }, state).catch(() => null);
+        if (walked) state = walked;
+      }
+      const beforePress = screenOf(state)?.can_confirm === true;
+      await this.button('a');
+      state = await this.observe();
+      if (!screenOf(state)) break; // a single-pick screen can resolve on the press
+      // can_confirm falling means that `a` DESELECTED something the screen had
+      // chosen for us. Press again: now the selection is the one we asked for.
+      if (beforePress && screenOf(state).can_confirm === false) {
+        await this.button('a');
+        state = await this.observe();
+      }
+    }
+    const screen = screenOf(state);
+    if (!screen) {
+      this.record({ type: 'cards_chosen', cards: wanted, confirmed: 'screen resolved on selection' });
+      return this.settled(state);
+    }
+    if (screen.can_confirm !== true) throw new Error(`the screen still reports can_confirm false after picking ${wanted.join(', ')}; it wants a different number of cards${reachable(state)}`);
+    await this.button('y');
+    state = await this.settled();
+    if (screenOf(state) && screenOf(state).can_confirm === true) throw new Error(`confirming with y left the selection screen open${reachable(state)}`);
+    this.record({ type: 'cards_chosen', cards: wanted, confirmed: 'y' });
     return state;
   }
 
@@ -794,6 +979,26 @@ export class Executor {
             this.record({ type: 'action', before, after: state, action, verified: true, barrier: true });
             break;
           }
+        } else if (action.type === 'rest') {
+          state = await this.restOption(action, before);
+          completed.push({ action, verified: true, barrier: 'rest: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
+        } else if (action.type === 'leave') {
+          state = await this.leaveScreen(before);
+          completed.push({ action, verified: true, barrier: 'leave: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
+        } else if (action.type === 'buy') {
+          state = await this.buyItem(action, before);
+          completed.push({ action, verified: true, bought: (before.shop?.items || []).find(entry => entry.index === action.item)?.card_name || null, barrier: 'purchase: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
+        } else if (action.type === 'choose') {
+          state = await this.chooseCards(action, before);
+          completed.push({ action, verified: true, barrier: 'selection: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
         } else if (action.type === 'use_potion') {
           state = await this.usePotion(action, before);
           completed.push({ action, verified: true, potion: (before.player?.potions || []).find(item => item.slot === action.slot)?.name || null, barrier: 'potion: replan from fresh state' });

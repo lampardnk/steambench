@@ -297,21 +297,24 @@ Parasite elite on its death.
 - They alternate, and start offset from each other: odd-numbered ones open on
   Nasty Bite, even-numbered ones on Wriggle.
 
-## Ironclad strategy notes (editable)
+## Ironclad-relevant mechanics
 
-- Burning Blood heals 6 HP post-combat — trading HP for speed is acceptable.
-- Prioritize attack cards in rewards. The pool is wide — Uppercut, Pommel
-  Strike, Twin Strike, Bludgeon, Cinder, Iron Wave, Hemokinesis, Rampage,
-  Unrelenting and Thunderclap are all live options, and which one is right
-  depends on the fight, not on this list. One block card is enough early.
-- Against Strength-scalers (Cubex Construct, Fuzzy Wurm Crawler, Snapping
-  Jaxfruit, Nibbit): kill speed matters more than block. Every turn they
-  survive, their damage increases.
-- Against debuffers (Flyconid, Slithering Strangler, Shrinker Beetle): kill
-  fast to stop debuff accumulation. Vulnerable/Frail/Constrict/Tangled all
-  make you more fragile, and Constrict compounds every other turn.
-- Fogmog's Eye With Teeth summon deals no damage and revives when killed — kill
-  Fogmog and ignore the summon entirely.
+Facts about this biome that a plan may turn on. What to do with them is the
+encounter's call, not this file's.
+
+- Burning Blood heals 6 HP after each combat, so HP spent here is partly
+  refunded and HP spent on the last fight before a rest is not.
+- The Ironclad attack pool in this act is wide - Uppercut, Pommel Strike, Twin
+  Strike, Bludgeon, Cinder, Iron Wave, Hemokinesis, Rampage, Unrelenting and
+  Thunderclap are all live - and which of them fits depends on the deck and the
+  fight, not on any ordering here.
+- Strength-scalers (Cubex Construct, Fuzzy Wurm Crawler, Snapping Jaxfruit,
+  Nibbit) gain damage every turn they survive, so their cost grows with the
+  length of the fight rather than with the number of hits taken.
+- Debuffers (Flyconid, Slithering Strangler, Shrinker Beetle) accumulate
+  Vulnerable, Frail, Constrict and Tangled; Constrict compounds every other
+  turn.
+- Fogmog's Eye With Teeth summon deals no damage and revives when killed.
 - Several Overgrowth fights are decided by the *number* of damage instances
   rather than their size: Inklets hold a Slippery stack each, and the Tracker
   Raider's eight 1-damage hits go to zero under Weak.
