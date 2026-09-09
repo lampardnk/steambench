@@ -482,6 +482,62 @@ export class Executor {
   }
 
   /**
+   * Buy one thing from a shop, by the index the shop publishes.
+   *
+   * Shops were the worst screen in the run log - one operator pause every six
+   * observations, roughly ten times the combat rate - and always for the same
+   * three reasons. The purchasable control is the PRICE TAG; the relic artwork
+   * drawn over it is `reference.kind: "model"` and no neighbour names it, so no
+   * route to it exists. Relics and potions are labelled by price ALONE, so only
+   * `shop.items` knows what a tag is for, and prices collide (two 51s in one
+   * shop). Cards do carry their name, in a `price | cost | type | name` label.
+   *
+   * So: cards resolve by name, everything else by price, and a collision is
+   * broken by position - the items of a category sit left to right in the order
+   * `shop.items` lists them.
+   */
+  async buyItem(action, before) {
+    const items = before.shop?.items || [];
+    const item = items.find(entry => entry.index === action.item);
+    if (!item) throw new Error(`no shop item ${action.item}`);
+    const name = item.card_name || item.relic_name || item.potion_name || item.category;
+    const goldBefore = before.player?.gold;
+
+    const entries = (before.ui?.elements || [])
+      .filter(el => el.reference?.kind === 'entry' && el.enabled !== false && Array.isArray(el.bounds) && el.label)
+      .sort((a, b) => (Math.abs(a.bounds[1] - b.bounds[1]) > 40 ? a.bounds[1] - b.bounds[1] : a.bounds[0] - b.bounds[0]));
+    let target = null;
+    if (item.category === 'card' && item.card_name) {
+      const wanted = entries.filter(el => el.label.includes(`| ${item.card_name} |`) || el.label.includes(`| ${item.card_name}`));
+      if (wanted.length === 1) [target] = wanted;
+    }
+    if (!target) {
+      // Price-only tags. Where a price is shared, take the one at this item's
+      // rank among the same-priced items of its category.
+      const priced = entries.filter(el => el.label.trim() === String(item.price));
+      if (priced.length === 1) [target] = priced;
+      else if (priced.length > 1) {
+        const rank = items.filter(entry => entry.price === item.price && entry.category === item.category)
+          .findIndex(entry => entry.index === item.index);
+        target = priced[rank] || null;
+      }
+    }
+    if (!target) throw new Error(`could not find the control for ${name} at ${item.price} gold; the shop's price tags are ${entries.map(el => JSON.stringify(el.label.slice(0, 24))).join(', ')}`);
+
+    const state = await this.navigateElement({ type: 'activate', target: target.id, scene: before.ui?.scene_id }, before);
+    await this.button(target.press || 'a');
+    const after = await this.settled();
+    const goldAfter = after.player?.gold;
+    const stillStocked = (after.shop?.items || []).find(entry => entry.index === action.item)?.is_stocked;
+    if (stillStocked === true && Number.isInteger(goldBefore) && goldBefore === goldAfter) {
+      throw new Error(`pressing ${target.press || 'a'} on ${name} spent no gold and left it stocked${reachable(after)}`);
+    }
+    this.record({ type: 'purchase', item: action.item, name, price: item.price, goldBefore, goldAfter });
+    void state;
+    return after;
+  }
+
+  /**
    * Use a potion, all of it, with every press verified.
    *
    * This existed only as prose in the control manual, and a run spent about
@@ -869,6 +925,11 @@ export class Executor {
             this.record({ type: 'action', before, after: state, action, verified: true, barrier: true });
             break;
           }
+        } else if (action.type === 'buy') {
+          state = await this.buyItem(action, before);
+          completed.push({ action, verified: true, bought: (before.shop?.items || []).find(entry => entry.index === action.item)?.card_name || null, barrier: 'purchase: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
         } else if (action.type === 'choose') {
           state = await this.chooseCards(action, before);
           completed.push({ action, verified: true, barrier: 'selection: replan from fresh state' });

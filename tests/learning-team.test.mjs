@@ -1068,3 +1068,63 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   // One right off the unlisted holder onto the FIRST occupied one, which is slot 1.
   assert.deepEqual(pressed, ['x', 'right', 'a', 'a'], `by identity, not by counting to slot 1: ${pressed.join(',')}`);
 }
+
+// The runtime buys; the model only says which item.
+//
+// Shops were the worst screen in the run log - one operator pause every six
+// observations against one in sixty-four for combat - and always the same three
+// traps. The purchasable control is the PRICE TAG, and the relic artwork drawn
+// over it is reference.kind "model" that no neighbour names, so no route to it
+// exists. Relics and potions are labelled by price ALONE, so only shop.items
+// knows what a tag is for. And prices collide: this shop, captured live on
+// floor 21 of room 5976c38f, sells two different 51-gold potions. Ids, labels,
+// bounds and the item list are all as the mod reported them.
+{
+  const entry = (id, label, x, y, w = 79) => ({ id, label, reference: { kind: 'entry' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [x, y, w, w], neighbors: {} });
+  const art = { id: 'art-vajra', label: 'NRelic-RELIC_VAJRA', reference: { kind: 'model' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [947, 622, 88, 88], neighbors: {} };
+  const elements = [
+    entry('card-thunderclap', '25 | 1 | Attack | Thunderclap | Deal 4 damage.', 437, 382, 195),
+    entry('relic-vajra', '155', 989, 674, 97),
+    entry('relic-bag', '149', 1139, 674),
+    entry('potion-flex', '51', 989, 818),
+    entry('potion-vuln', '52', 1139, 818),
+    entry('potion-dex', '51', 1289, 818),
+    art,
+  ];
+  const items = [
+    { index: 0, category: 'card', price: 25, card_name: 'Thunderclap', is_stocked: true, can_afford: true },
+    { index: 7, category: 'relic', price: 155, relic_name: 'Vajra', is_stocked: true, can_afford: true },
+    { index: 8, category: 'relic', price: 149, relic_name: 'Bag of Preparation', is_stocked: true, can_afford: true },
+    { index: 10, category: 'potion', price: 51, potion_name: 'Flex Potion', is_stocked: true, can_afford: true },
+    { index: 11, category: 'potion', price: 52, potion_name: 'Vulnerable Potion', is_stocked: true, can_afford: true },
+    { index: 12, category: 'potion', price: 51, potion_name: 'Dexterity Potion', is_stocked: true, can_afford: true },
+  ];
+
+  const bought = [];
+  const shop = (gold, sold) => ({ state_type: 'shop', run: { act: 2, floor: 21, ascension: 1 },
+    player: { hp: 75, max_hp: 90, gold },
+    shop: { items: items.map(i => ({ ...i, is_stocked: !sold.has(i.index) })), can_proceed: false },
+    ui: { scene_id: 'shop-1', focused_element: 'card-thunderclap', elements } });
+
+  for (const [index, expected, cost] of [[12, 'potion-dex', 51], [8, 'relic-bag', 149], [0, 'card-thunderclap', 25]]) {
+    const sold = new Set();
+    let gold = 417;
+    const executor = Object.create(Executor.prototype);
+    let landed = null;
+    executor.navigateElement = async (act) => { landed = act.target; return shop(gold, sold); };
+    executor.button = async () => { bought.push(landed); sold.add(index); gold -= cost; };
+    executor.observe = async () => shop(gold, sold);
+    executor.settled = async () => shop(gold, sold);
+    executor.record = () => {};
+    executor.sleep = async () => {};
+    const after = await executor.buyItem({ type: 'buy', item: index }, shop(417, new Set()));
+    assert.equal(landed, expected, `item ${index} routes to ${expected}, not ${landed}`);
+    assert.equal(after.player.gold, 417 - cost, `and the gold moves by ${cost}`);
+  }
+  // The artwork is never the thing bought, for any item.
+  assert.ok(!bought.includes('art-vajra'), `never the relic artwork: ${bought.join(',')}`);
+}

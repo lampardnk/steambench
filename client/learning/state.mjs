@@ -337,9 +337,9 @@ export function energyCost(cost) {
  * and refuses `intent`, so an unresolved goal can never reach the pad.
  */
 export const ROLE_ACTIONS = {
-  strategist: new Set(['choose', 'intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
+  strategist: new Set(['buy', 'choose', 'intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
   combat: new Set(['play', 'use_potion', 'choose', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
-  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'choose', 'learn', 'wait', 'report_issue']),
+  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'choose', 'buy', 'learn', 'wait', 'report_issue']),
 };
 
 export function validatePlan(plan, state, { role = null } = {}) {
@@ -370,6 +370,16 @@ export function validatePlan(plan, state, { role = null } = {}) {
       if (action.target != null && typeof action.target !== 'string') throw new Error('invalid target');
       const card = state.player.hand.find(item => item.instance_id === action.card);
       if (card.target_type === 'AnyEnemy' && !state.battle.enemies.some(enemy => enemy.entity_id === action.target && enemy.hp > 0)) throw new Error('unknown enemy target');
+    } else if (action.type === 'buy') {
+      // Named by the index the shop itself publishes. Everything the runtime
+      // needs to find the control - category, price, name - is on that entry.
+      const items = state?.shop?.items;
+      if (!Array.isArray(items) || !items.length) throw new Error('buy needs an open shop');
+      const item = items.find(entry => entry.index === action.item);
+      if (!Number.isInteger(action.item) || !item) throw new Error(`no shop item ${action.item}; the shop offers ${items.map(entry => `${entry.index} (${entry.card_name || entry.relic_name || entry.potion_name || entry.category}, ${entry.price})`).join(', ')}`);
+      if (item.is_stocked === false) throw new Error(`shop item ${action.item} has already been bought`);
+      if (item.can_afford === false) throw new Error(`${item.card_name || item.relic_name || item.potion_name || item.category} costs ${item.price} and you have ${state.player?.gold}`);
+      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a purchase must be the last action in the plan; what it opens is only visible afterwards');
     } else if (action.type === 'choose') {
       const screen = state?.hand_select || state?.card_select;
       if (!screen) throw new Error('choose needs an open card-selection screen');
