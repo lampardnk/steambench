@@ -363,7 +363,6 @@ export class Executor {
         await this.button(step.direction);
         state = await this.observe();
         if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
-        if (state.ui?.scene_id !== scene) break;
         // Standing on the target is the whole point of the route, so it ends
         // here whatever the graph expected. A reward screen names its rows
         // with auto-generated siblings (@Control@1848), so a step can land
@@ -372,6 +371,14 @@ export class Executor {
         // focus was already on the element the plan asked for.
         if (state.ui.focused_element === target.id) return state;
         if (state.ui.focused_element !== step.to) { avoid.add(`${step.from}|${step.direction}`); break; }
+        // Focus went exactly where the route said, so a changed scene_id is the
+        // screen redrawing under the cursor, not a stale route. A shop restyles
+        // the highlighted item on EVERY press: a four-press walk that was
+        // tracking its route perfectly spent the whole re-scene budget and the
+        // run paused one press from the relic it wanted. Adopt the new id and
+        // keep walking; only a press that lands somewhere unpredicted is a
+        // reason to stop and re-plan.
+        if (state.ui?.scene_id !== scene) scene = state.ui.scene_id;
       }
       if (state.ui.focused_element === target.id) return state;
       // Only directions with unchanged gameplay are recoverable, twice at most.

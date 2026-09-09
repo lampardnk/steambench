@@ -959,3 +959,43 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.equal(pressed.at(-1), 'y', `and it is confirmed with y: ${pressed.join(',')}`);
   assert.ok(pressed.filter(button => button === 'a').length <= 2, `without hammering a: ${pressed.join(',')}`);
 }
+
+// A screen that restyles the highlighted item does not spend the route budget.
+//
+// Live, on floor 21 of room 5976c38f with 417 gold: the walk to a relic's price
+// tag was tracking its route exactly - card, card, card, relic row - and every
+// single press changed scene_id, because a shop redraws whatever is
+// highlighted. Each correct press was counted as the screen changing under the
+// route, and the run paused ONE press from the Bag of Preparation it wanted.
+// Ids, bounds and the neighbour chain are the ones the mod reported there.
+{
+  const cell = (id, x, y, label, neighbors) => ({ id, label, reference: { kind: 'entry' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [x, y, 195, 274], neighbors });
+  // Long enough that counting each correct press as a re-scene exhausts the
+  // budget, which is what happened live across one decision's attempts.
+  const ids = Array.from({ length: 16 }, (_, i) => `element-shop-${i}`);
+  const chain = ids.map((id, i) => cell(id, 400 + i * 60, 674, `${100 + i}`,
+    { ...(ids[i + 1] ? { right: ids[i + 1] } : {}), ...(ids[i - 1] ? { left: ids[i - 1] } : {}) }));
+  const wanted = ids.at(-1);
+  let at = 0, scene = 0;
+  const pressed = [];
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (button === 'right') at = Math.min(at + 1, chain.length - 1);
+    scene++; // every press restyles the highlight and changes scene_id
+  };
+  const read = () => ({ state_type: 'shop', run: { act: 1, floor: 21, ascension: 1 }, player: { hp: 75, gold: 417 },
+    ui: { scene_id: `shop-${scene}`, focused_element: chain[at].id, elements: chain } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const start = read();
+  const landed = await executor.navigateElement({ type: 'activate', target: wanted, scene: start.ui.scene_id }, start);
+  assert.equal(landed.ui.focused_element, wanted, `it reaches the price tag: ${pressed.length} presses`);
+  assert.equal(pressed.length, chain.length - 1, `one press per step, none wasted: ${pressed.length}`);
+  assert.ok(pressed.every(button => button === 'right'), `all in the same direction: ${[...new Set(pressed)].join(',')}`);
+}
