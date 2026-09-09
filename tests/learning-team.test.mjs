@@ -1288,3 +1288,42 @@ test('a rest option is taken by name, not by the order either list happens to us
   const closed = { ...site, rest_site: { ...site.rest_site, options: site.rest_site.options.map(o => o.index === 1 ? { ...o, is_enabled: false } : o) } };
   assert.throws(() => validatePlan({ observation: stateId(closed), summary: 's', note: 'n', actions: [{ type: 'rest', option: 1 }] }, closed, { role: 'strategist' }), /Smith is not available/);
 });
+
+// The validator no longer forces a potion to the end of the plan, because doing
+// so made the model delete the potion instead of moving it. What keeps a plan
+// from acting on stale state is the executor stopping the batch after the
+// potion - so that stop is now load-bearing and has to be asserted.
+test('a potion is drunk where the turn asked for it, and stops the batch there', async () => {
+  const hand = [
+    { instance_id: 41, name: 'Strike', type: 'Attack', cost: '1', description: 'Deal 6 damage.', can_play: true, target_type: 'AnyEnemy' },
+    { instance_id: 42, name: 'Defend', type: 'Skill', cost: '1', description: 'Gain 5 Block.', can_play: true, target_type: 'Self' },
+  ];
+  let drunk = false;
+  const read = () => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 },
+    player: { hp: 57, max_hp: 80, energy: 3, max_energy: 3, block: 0, hand,
+      potions: drunk ? [] : [{ slot: 0, name: 'Strength Potion', target_type: 'AnyPlayer', can_use_in_combat: true }] },
+    battle: { round: 2, turn: 'player', is_play_phase: true, enemies: [{ entity_id: 'BYGONE_EFFIGY_0', combat_id: 1, name: 'Bygone Effigy', hp: 70, max_hp: 90 }] },
+    ui: { scene_id: 'combat', elements: [], focused_element: null } });
+
+  const executor = Object.create(Executor.prototype);
+  executor.inputs = 0;
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+  const played = [];
+  executor.play = async (action) => { played.push(action.card); return { state: read(), barrier: null, card: 'Strike' }; };
+  executor.usePotion = async () => { drunk = true; return read(); };
+
+  // Exactly the shape the elite turn wanted: drink, then act on the result.
+  const plan = { observation: stateId(read()), summary: 'Drink Strength Potion, then Strike twice.', note: 'n',
+    actions: [{ type: 'use_potion', slot: 0 }, { type: 'play', card: 41, target: 'BYGONE_EFFIGY_0' }, { type: 'play', card: 42 }] };
+  assert.doesNotThrow(() => validatePlan(plan, read(), { role: 'combat' }), 'the ordering itself is legal');
+
+  const result = await executor.execute(plan, read());
+  assert.equal(drunk, true, 'the potion is actually drunk');
+  assert.equal(result.completed.length, 1, 'and the batch stops there');
+  assert.equal(result.completed[0].action.type, 'use_potion');
+  assert.ok(result.completed[0].barrier, 'with a barrier telling the model to replan');
+  assert.deepEqual(played, [], 'nothing after it is played against state the potion has changed');
+});

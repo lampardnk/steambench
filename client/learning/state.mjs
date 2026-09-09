@@ -408,12 +408,21 @@ export function validatePlan(plan, state, { role = null } = {}) {
       const thrown = ['AnyEnemy', 'AnyAlly'].includes(potion.target_type);
       if (thrown && !state.battle.enemies.some(enemy => enemy.combat_id === action.target && enemy.hp > 0)) throw new Error(`${potion.name} is ${potion.target_type} and needs target set to a living enemy's combat_id; living enemies are ${state.battle.enemies.filter(enemy => enemy.hp > 0).map(enemy => `${enemy.combat_id} (${enemy.name})`).join(', ')}`);
       if (!thrown && action.target != null) throw new Error(`${potion.name} is ${potion.target_type} and takes no target`);
-      // A potion is a scene barrier, not a solo act: what it does is only
-      // visible afterwards, so nothing can be planned PAST it - but plays
-      // before it are ordinary. Requiring it alone rejected three plans in a
-      // row that wanted a potion after two cards, which is the model's call to
-      // make, not the validator's.
-      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a potion must be the last action in the plan; what it does is only visible afterwards');
+      // A potion is a scene barrier, not an ordering rule, and this is the
+      // second time the validator has been wrong about it. Requiring it LAST
+      // was worse than the "standalone" rule it replaced: drinking and then
+      // acting is the ordinary play - a Strength potion has to precede the
+      // attacks it buffs - so the model wrote the potion first, the plan was
+      // refused, and the cheapest way to satisfy the refusal was to DROP the
+      // potion and re-send without it. That fired eight times in one run and
+      // not one potion was drunk, through an elite fight the player was
+      // holding potions for.
+      //
+      // Nothing downstream needs the ordering: the executor already stops the
+      // batch after a potion and hands back a barrier, so actions planned past
+      // it are simply not executed and the model replans from what the potion
+      // actually did. Put it where the turn wants it.
+      if (actions.filter(item => item.type === 'use_potion').length > 1) throw new Error('one potion per plan; the runtime stops the batch after it, so a second could never be reached');
     } else if (['navigate', 'activate', 'elements', 'path'].includes(action.type)) {
       if (action.scene !== state.ui?.scene_id || typeof action.scene !== 'string') throw new Error('stale or missing scene ID');
       if (['navigate', 'activate', 'path'].includes(action.type) && typeof action.target !== 'string') throw new Error('target element ID required');
