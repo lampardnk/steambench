@@ -1128,3 +1128,38 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   // The artwork is never the thing bought, for any item.
   assert.ok(!bought.includes('art-vajra'), `never the relic artwork: ${bought.join(',')}`);
 }
+
+// Leaving is not one button, and a shop is the exception that cost the most.
+//
+// Live, on floor 27 of room 5976c38f: five `b` presses over five minutes never
+// left a shop, while a single `back` did - the room's own BackButton reports
+// enabled true and press "b" the whole time and does nothing. A resolved rest
+// site is left by its Proceed control instead, and an overlay by `b`.
+{
+  const make = (state_type, extra, elements) => ({ state_type, run: { act: 2, floor: 27, ascension: 1 },
+    player: { hp: 44, max_hp: 90, gold: 5 }, ...extra,
+    ui: { scene_id: 'screen', focused_element: null, elements } });
+  const backButton = { id: 'back', label: 'BackButton', enabled: true, activation: 'a', press: 'b',
+    focus_mode: 'all', selectable: true, visible: true, bounds: [-40, 726, 200, 110], neighbors: {} };
+  const proceed = { id: 'proceed', label: 'Proceed', enabled: true, activation: 'a', press: 'y',
+    focus_mode: 'all', selectable: true, visible: true, bounds: [1983, 764, 269, 108], neighbors: {} };
+
+  for (const [label, before, expected] of [
+    // A shop: BackButton is enabled and bound to b, and b is still not the answer.
+    ['shop', make('shop', { shop: { items: [], can_proceed: false } }, [backButton]), 'back'],
+    ['resolved rest site', make('rest_site', { rest_site: { options: [], can_proceed: true } }, [proceed]), 'y'],
+    ['an overlay', make('card_select', { card_select: { cards: [], can_confirm: false } }, []), 'b'],
+  ]) {
+    const pressed = [];
+    let moved = false;
+    const executor = Object.create(Executor.prototype);
+    executor.button = async (b) => { pressed.push(b); moved = true; };
+    executor.settled = async () => (moved ? { ...before, state_type: 'map' } : before);
+    executor.observe = async () => (moved ? { ...before, state_type: 'map' } : before);
+    executor.record = () => {};
+    executor.sleep = async () => {};
+    const after = await executor.leaveScreen(before);
+    assert.equal(pressed[0], expected, `${label} leaves with ${expected}, not ${pressed[0]}`);
+    assert.equal(after.state_type, 'map', `${label} actually left`);
+  }
+}

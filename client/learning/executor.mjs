@@ -482,6 +482,60 @@ export class Executor {
   }
 
   /**
+   * Take one rest-site option, by the index the site publishes.
+   *
+   * `rest_site.options` gives the index, id, name and enabled state; the
+   * controls are labelled with those same names and carry
+   * `reference.kind: "option"`. One pause in twenty-three observations came
+   * from routing this by hand.
+   */
+  async restOption(action, before) {
+    const options = before.rest_site?.options || [];
+    const option = options.find(entry => entry.index === action.option);
+    if (!option) throw new Error(`no rest option ${action.option}; the site offers ${options.map(entry => `${entry.index} (${entry.name})`).join(', ') || 'none'}`);
+    if (option.is_enabled === false) throw new Error(`${option.name} is not available at this rest site`);
+    const controls = (before.ui?.elements || []).filter(el => el.enabled !== false && el.label);
+    const target = controls.find(el => el.reference?.kind === 'option' && el.label.trim() === option.name)
+      || controls.find(el => el.label.trim() === option.name);
+    if (!target) throw new Error(`the ${option.name} control is not on screen${reachable(before)}`);
+    const state = await this.navigateElement({ type: 'activate', target: target.id, scene: before.ui?.scene_id }, before);
+    await this.button(target.press || 'a');
+    const after = await this.settled();
+    if (stateId(after) === stateId(state)) throw new Error(`pressing ${target.press || 'a'} on ${option.name} changed nothing${reachable(after)}`);
+    this.record({ type: 'rest_taken', option: action.option, name: option.name });
+    return after;
+  }
+
+  /**
+   * Leave the screen, by whatever the screen actually uses.
+   *
+   * These do not agree, and the disagreement cost three rescues in one run. A
+   * SHOP room is left with `back` - the View Map button - and not with `b`:
+   * five `b` presses over five minutes never left one, while a single `back`
+   * did. A screen that reports `can_proceed` and shows a Proceed control is
+   * left by that control's own button. Everything else closes with `b`.
+   */
+  async leaveScreen(before) {
+    const gate = ['shop', 'rest_site', 'rewards', 'card_select', 'hand_select', 'event']
+      .map(key => before[key]).find(value => value && typeof value === 'object' && typeof value.can_proceed === 'boolean');
+    const proceed = (before.ui?.elements || []).find(el => el.enabled === true && /proceed/i.test(el.label || ''));
+    let button;
+    if (before.state_type === 'shop') button = 'back';
+    else if (gate?.can_proceed === true && proceed) button = proceed.press || 'a';
+    else button = 'b';
+    await this.button(button);
+    let after = await this.settled();
+    // Leaving frequently raises a confirmation, which `y` answers.
+    if (stateId(after) === stateId(before)) {
+      await this.button('y');
+      after = await this.settled();
+    }
+    if (stateId(after) === stateId(before)) throw new Error(`neither ${button} nor y left this ${before.state_type}${reachable(after)}`);
+    this.record({ type: 'left_screen', from: before.state_type, button });
+    return after;
+  }
+
+  /**
    * Buy one thing from a shop, by the index the shop publishes.
    *
    * Shops were the worst screen in the run log - one operator pause every six
@@ -925,6 +979,16 @@ export class Executor {
             this.record({ type: 'action', before, after: state, action, verified: true, barrier: true });
             break;
           }
+        } else if (action.type === 'rest') {
+          state = await this.restOption(action, before);
+          completed.push({ action, verified: true, barrier: 'rest: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
+        } else if (action.type === 'leave') {
+          state = await this.leaveScreen(before);
+          completed.push({ action, verified: true, barrier: 'leave: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
         } else if (action.type === 'buy') {
           state = await this.buyItem(action, before);
           completed.push({ action, verified: true, bought: (before.shop?.items || []).find(entry => entry.index === action.item)?.card_name || null, barrier: 'purchase: replan from fresh state' });

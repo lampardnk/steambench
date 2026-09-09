@@ -29,14 +29,24 @@ Eight of the events that can appear here are not Act 1 events at all: they are
 shared with Acts 2 and 3, and their notes live under
 `meta_strategy/unknown/`. The rest are Act 1's own, and the biome splits them.
 
-**Shared with every act (8)** — [brain-leech](../../meta_strategy/unknown/brain-leech.md) ·
+**Shared with every act (18)** — [brain-leech](../../meta_strategy/unknown/brain-leech.md) ·
+[crystal-sphere](../../meta_strategy/unknown/crystal-sphere.md) ·
+[doll-room](../../meta_strategy/unknown/doll-room.md) ·
+[potion-courier](../../meta_strategy/unknown/potion-courier.md) ·
+[ranwid-the-elder](../../meta_strategy/unknown/ranwid-the-elder.md) ·
+[relic-trader](../../meta_strategy/unknown/relic-trader.md) ·
 [room-full-of-cheese](../../meta_strategy/unknown/room-full-of-cheese.md) ·
 [self-help-book](../../meta_strategy/unknown/self-help-book.md) ·
 [slippery-bridge](../../meta_strategy/unknown/slippery-bridge.md) ·
+[stone-of-all-time](../../meta_strategy/unknown/stone-of-all-time.md) ·
+[symbiote](../../meta_strategy/unknown/symbiote.md) ·
 [tea-master](../../meta_strategy/unknown/tea-master.md) ·
 [the-future-of-potions](../../meta_strategy/unknown/the-future-of-potions.md) ·
 [the-legends-were-true](../../meta_strategy/unknown/the-legends-were-true.md) ·
-[this-or-that](../../meta_strategy/unknown/this-or-that.md)
+[the-merchant](../../meta_strategy/unknown/the-merchant.md) ·
+[this-or-that](../../meta_strategy/unknown/this-or-that.md) ·
+[war-historian-repy](../../meta_strategy/unknown/war-historian-repy.md) ·
+[welcome-to-wongo-s](../../meta_strategy/unknown/welcome-to-wongo-s.md)
 
 **Act 1, either biome (1)** — [the-sunken-statue](the-sunken-statue.md)
 
@@ -60,10 +70,8 @@ The biome is fixed for the run, so only 21 of the 30 are reachable in any given
 Act 1: the 9 that are not biome-locked plus that biome's 12 or 9. Identify the
 biome first — see `act1/ancient/NEOW.md`.
 
-Ten further shared events exist that have no note yet: crystal-sphere,
-doll-room, potion-courier, ranwid-the-elder, relic-trader, stone-of-all-time,
-symbiote, the-merchant, war-historian-repy, welcome-to-wongo-s. Read the screen
-itself when one of those appears.
+All 18 shared events now have notes under `meta_strategy/unknown/`, so any of
+them can appear here even though this act does not own them.
 
 ## What gates an event
 

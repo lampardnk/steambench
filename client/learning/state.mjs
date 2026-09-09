@@ -337,9 +337,9 @@ export function energyCost(cost) {
  * and refuses `intent`, so an unresolved goal can never reach the pad.
  */
 export const ROLE_ACTIONS = {
-  strategist: new Set(['buy', 'choose', 'intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
+  strategist: new Set(['buy', 'rest', 'leave', 'choose', 'intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
   combat: new Set(['play', 'use_potion', 'choose', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
-  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'choose', 'buy', 'learn', 'wait', 'report_issue']),
+  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'choose', 'buy', 'rest', 'leave', 'learn', 'wait', 'report_issue']),
 };
 
 export function validatePlan(plan, state, { role = null } = {}) {
@@ -370,6 +370,15 @@ export function validatePlan(plan, state, { role = null } = {}) {
       if (action.target != null && typeof action.target !== 'string') throw new Error('invalid target');
       const card = state.player.hand.find(item => item.instance_id === action.card);
       if (card.target_type === 'AnyEnemy' && !state.battle.enemies.some(enemy => enemy.entity_id === action.target && enemy.hp > 0)) throw new Error('unknown enemy target');
+    } else if (action.type === 'rest') {
+      const options = state?.rest_site?.options;
+      if (!Array.isArray(options) || !options.length) throw new Error('rest needs a rest site with options; a site reporting none is already resolved and is left with leave');
+      const option = options.find(entry => entry.index === action.option);
+      if (!Number.isInteger(action.option) || !option) throw new Error(`no rest option ${action.option}; the site offers ${options.map(entry => `${entry.index} (${entry.name})`).join(', ')}`);
+      if (option.is_enabled === false) throw new Error(`${option.name} is not available here`);
+      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a rest option must be the last action in the plan; what it opens is only visible afterwards');
+    } else if (action.type === 'leave') {
+      if (actions.length !== 1) throw new Error('leave is standalone; the screen it acts on is gone afterwards');
     } else if (action.type === 'buy') {
       // Named by the index the shop itself publishes. Everything the runtime
       // needs to find the control - category, price, name - is on that entry.
