@@ -641,3 +641,29 @@ test('a screen still arriving is routed around, but gameplay advancing during a 
   const hazard = await advancing.run([{ type: 'activate', target: 'element-other', scene: 'scene-reward' }]);
   assert.match(hazard.error, /gameplay advanced during navigation/);
 });
+
+// A batch that stops cleanly part way is not a failed input.
+//
+// Live, on floor 25 of room 70f25b98: a one-shot "the next Attack you play
+// costs 0" makes EVERY eligible card report cost 0 and can_play true, because
+// each of them would be free IF PLAYED NEXT. Molten Fist spent the discount,
+// Pommel Strike reverted to full price against 0 energy, and the executor
+// correctly declined it BEFORE pressing anything. The turn still paused for an
+// operator over a card the pad never touched.
+test('a later play refused before its own input reports which action pressed nothing', async () => {
+  const state = initialCombat();
+  state.player.energy = 0;
+  const [first, second] = state.player.hand;
+  Object.assign(first, { name: 'Molten Fist', cost: 0 });
+  Object.assign(second, { name: 'Pommel Strike', cost: 0 });
+  // Playing the first spends the one-shot discount the second was counting on.
+  const f = fixture(state, { afterPlay: (live, played) => {
+    if (played !== first.instance_id) return;
+    const other = live.player.hand.find(card => card.instance_id === second.instance_id);
+    if (other) Object.assign(other, { cost: 1, can_play: false, unplayable_reason: 'EnergyCostTooHigh' });
+  } });
+  const result = await f.run([play(first.instance_id), play(second.instance_id)]);
+  assert.match(result.error, /EnergyCostTooHigh/);
+  assert.equal(result.completed.length, 1, 'the first card played');
+  assert.equal(result.failedActionSentInput, false, 'and the second pressed nothing, so the run can re-plan instead of pausing');
+});

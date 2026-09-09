@@ -199,6 +199,13 @@ still needed.
   you are out. `b` closes it, `x` returns to the potion bar, `left` walks out of
   the bar towards the relics. Any of them is reversible; check `focus_path`
   after, not the press.
+- **A one-shot discount makes EVERY eligible card report cost 0 at once.**
+  "The next Attack you play costs 0" is true of each attack in hand
+  individually - each would be free if it were the next one played - so several
+  cards show cost 0 and `can_play: true` when only one of them can actually be
+  free. `cost` and `can_play` describe a card played NEXT, not a set played
+  together. While such an effect is live, send one play per decision and
+  re-read; a batch will have its later cards refused.
 - **Zero energy.** Every card with a positive cost reports `can_play: false`.
   Costs are STRINGS ("2"), so compare as numbers, and a batch spends energy as it
   goes: sum the whole plan against the turn's energy.
