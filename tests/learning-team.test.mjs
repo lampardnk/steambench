@@ -749,3 +749,53 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.match(result.error, /activation null/, `it names the reason: ${result.error}`);
   assert.match(result.error, /PotionHolder/, `and which element: ${result.error}`);
 }
+
+// The hand is walked in the order it is drawn, not in hand[] index order.
+//
+// Live, on floor 19 of room 70f25b98: player.hand read Defend(274), Crimson
+// Mantle+(275), Defend(276), Howl(264), Strike(257), while the screen read left
+// to right 274, 276, 264, 257, 275 - index 1 was the RIGHTMOST of five.
+// Counting desired-focused in index space pressed `right` once for a card four
+// places away, and the run refused the selection rather than play the wrong
+// card. Every holder carries reference.instance_id, which ties the two
+// together. Ids, bounds and instance ids are the ones the mod reported there.
+{
+  const holder = (id, x, instance, label) => ({ id, label, reference: { kind: 'card', instance_id: instance },
+    type: 'NHandCardHolder', focus_mode: 'all', selectable: true, enabled: true, visible: true,
+    activation: 'a', ambiguous: false, bounds: [x, 671, 607, 760], neighbors: {} });
+  const screen = [
+    holder('element-10541946900067', 239, 274, 'Defend'),
+    holder('element-10627359712782', 534, 276, 'Defend'),
+    holder('element-10709081535686', 705, 264, 'Howl from Beyond'),
+    holder('element-10565569230034', 877, 257, 'Strike'),
+    holder('element-10726026527618', 1051, 275, 'Crimson Mantle+'),
+  ];
+  // hand[] order deliberately disagrees with the screen, exactly as it did live.
+  const hand = [
+    { index: 0, instance_id: 274, name: 'Defend' },
+    { index: 1, instance_id: 275, name: 'Crimson Mantle+' },
+    { index: 2, instance_id: 276, name: 'Defend' },
+    { index: 3, instance_id: 264, name: 'Howl from Beyond' },
+    { index: 4, instance_id: 257, name: 'Strike' },
+  ];
+  const order = [274, 276, 264, 257, 275];
+  const pressed = [];
+  let at = 0;
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    // The row wraps, which is what makes one `left` the short way round.
+    if (button === 'right') at = (at + 1) % order.length;
+    if (button === 'left') at = (at - 1 + order.length) % order.length;
+  };
+  executor.observe = async () => ({ state_type: 'monster', run: { act: 2, floor: 19, ascension: 1 },
+    player: { hp: 67, max_hp: 80, hand }, ui: { scene_id: 'fight', focused_card: order[at], elements: screen } });
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const before = { state_type: 'monster', run: { act: 2, floor: 19, ascension: 1 },
+    player: { hp: 67, max_hp: 80, hand }, ui: { scene_id: 'fight', focused_card: 274, elements: screen } };
+  const landed = await executor.navigateHand(275, before);
+  assert.equal(landed.ui.focused_card, 275, `it reaches the card it asked for: pressed ${pressed.join(',')}`);
+  assert.deepEqual(pressed, ['left'], `and takes the short way round a wrapping row: ${pressed.join(',')}`);
+}

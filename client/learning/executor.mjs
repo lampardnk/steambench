@@ -432,12 +432,35 @@ export class Executor {
     return null;
   }
 
+  /**
+   * Walk the hand to a card, the way the hand is actually drawn.
+   *
+   * `player.hand[].index` is not the on-screen order. On floor 19 of room
+   * 70f25b98 the hand read Defend(274), Crimson Mantle+(275), Defend(276),
+   * Howl(264), Strike(257) while the screen read, left to right, 274, 276,
+   * 264, 257, 275 - index 1 was the RIGHTMOST of five. Counting
+   * `desired - focused` in index space therefore pressed once where the card
+   * was four away, and the run stopped rather than select the wrong card.
+   *
+   * Every hand element carries `reference.instance_id`, so the card and the
+   * thing focus lands on can be tied together exactly. Order by where they are
+   * drawn and the distance is real; the row wraps, so going the short way round
+   * is also available.
+   */
   async navigateHand(cardId, before) {
-    const hand = [...before.player.hand].sort((a, b) => a.index - b.index);
+    const holders = (before.ui?.elements || [])
+      .filter(item => item.reference?.kind === 'card' && item.reference.instance_id != null && Array.isArray(item.bounds))
+      .sort((a, b) => a.bounds[0] - b.bounds[0]);
+    const hand = holders.length
+      ? holders.map(item => ({ instance_id: item.reference.instance_id }))
+      : [...before.player.hand].sort((a, b) => a.index - b.index);
     const focused = hand.findIndex(card => card.instance_id === before.ui.focused_card);
     const desired = hand.findIndex(card => card.instance_id === cardId);
     if (focused < 0 || desired < 0 || before.ui.in_card_play) throw new Error('cannot establish hand focus; inspect the screenshot');
-    const distance = desired - focused;
+    // The row wraps, so the shorter way round may be backwards.
+    const direct = desired - focused;
+    const around = direct > 0 ? direct - hand.length : direct + hand.length;
+    const distance = holders.length && Math.abs(around) < Math.abs(direct) ? around : direct;
     if (!distance) return before;
     if (Math.abs(distance) > 12) throw new Error('hand navigation exceeds 12 presses');
     for (let step = 0; step < Math.abs(distance); step++) await this.button(distance < 0 ? 'left' : 'right');
