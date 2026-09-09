@@ -667,3 +667,25 @@ test('a later play refused before its own input reports which action pressed not
   assert.equal(result.completed.length, 1, 'the first card played');
   assert.equal(result.failedActionSentInput, false, 'and the second pressed nothing, so the run can re-plan instead of pausing');
 });
+
+// A potion is a barrier, not a solo act.
+//
+// Live, at decision 108 of room 5976c38f: the combat agent planned two cards
+// and then a potion, and the validator rejected it three times for "one potion
+// per plan" until the refinement budget ran out. Nothing can be planned PAST a
+// potion, because what it does is only visible afterwards - but the cards
+// before it are the model's call, not the validator's.
+test('cards may precede a potion or a choose; nothing may follow one', () => {
+  const state = initialCombat();
+  state.player.energy = 3;
+  state.player.potions = [{ slot: 0, name: 'Fysh Oil', target_type: 'AnyPlayer', can_use_in_combat: true }];
+  const potion = { type: 'use_potion', slot: 0 };
+  const first = state.player.hand[0];
+
+  validatePlan(planFor(state, [play(first.instance_id), potion]), state, { role: 'combat' });
+  validatePlan(planFor(state, [potion]), state, { role: 'combat' });
+  assert.throws(
+    () => validatePlan(planFor(state, [potion, play(first.instance_id)]), state, { role: 'combat' }),
+    /must be the last action/,
+  );
+});

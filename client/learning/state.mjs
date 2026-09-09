@@ -378,7 +378,7 @@ export function validatePlan(plan, state, { role = null } = {}) {
       for (const index of action.cards) {
         if (!(screen.cards || []).some(card => card.index === index)) throw new Error(`no card at index ${index}; the screen offers ${(screen.cards || []).map(card => `${card.index} (${card.name})`).join(', ')}`);
       }
-      if (actions.length !== 1) throw new Error('one choose per plan; what it does is only visible afterwards');
+      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a choose must be the last action in the plan; what it does is only visible afterwards');
     } else if (action.type === 'use_potion') {
       // Named the way the state names it: a slot, and for a thrown potion the
       // combat_id it goes at. The runtime owns the presses.
@@ -389,7 +389,12 @@ export function validatePlan(plan, state, { role = null } = {}) {
       const thrown = ['AnyEnemy', 'AnyAlly'].includes(potion.target_type);
       if (thrown && !state.battle.enemies.some(enemy => enemy.combat_id === action.target && enemy.hp > 0)) throw new Error(`${potion.name} is ${potion.target_type} and needs target set to a living enemy's combat_id; living enemies are ${state.battle.enemies.filter(enemy => enemy.hp > 0).map(enemy => `${enemy.combat_id} (${enemy.name})`).join(', ')}`);
       if (!thrown && action.target != null) throw new Error(`${potion.name} is ${potion.target_type} and takes no target`);
-      if (actions.length !== 1) throw new Error('one potion per plan; what it does is only visible afterwards');
+      // A potion is a scene barrier, not a solo act: what it does is only
+      // visible afterwards, so nothing can be planned PAST it - but plays
+      // before it are ordinary. Requiring it alone rejected three plans in a
+      // row that wanted a potion after two cards, which is the model's call to
+      // make, not the validator's.
+      if (actions.indexOf(action) !== actions.length - 1) throw new Error('a potion must be the last action in the plan; what it does is only visible afterwards');
     } else if (['navigate', 'activate', 'elements', 'path'].includes(action.type)) {
       if (action.scene !== state.ui?.scene_id || typeof action.scene !== 'string') throw new Error('stale or missing scene ID');
       if (['navigate', 'activate', 'path'].includes(action.type) && typeof action.target !== 'string') throw new Error('target element ID required');
