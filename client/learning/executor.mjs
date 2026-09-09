@@ -498,27 +498,36 @@ export class Executor {
     const potion = (before.player?.potions || []).find(item => item.slot === action.slot);
     if (!potion) throw new Error(`no potion in slot ${action.slot}`);
     const thrown = ['AnyEnemy', 'AnyAlly'].includes(potion.target_type);
-    const holders = () => (this.lastState?.ui?.elements || []).filter(item => item.reference?.kind === 'potion' && Array.isArray(item.bounds));
+    // The OCCUPIED holders, left to right. An empty slot is sometimes reported
+    // as a holder with no activation and sometimes not reported at all, so a
+    // slot number is not a position in this row: at the act 2 boss, slots 1 and
+    // 2 were held and only two holders existed, while `x` put focus on a third
+    // the elements list never mentioned. Occupied holders do appear in slot
+    // order, which is the mapping that survives both shapes.
+    const occupied = value => (value?.ui?.elements || [])
+      .filter(item => item.reference?.kind === 'potion' && item.activation === 'a' && Array.isArray(item.bounds))
+      .sort((a, b) => a.bounds[0] - b.bounds[0]);
+    const rank = (before.player.potions || []).map(item => item.slot).sort((a, b) => a - b).indexOf(action.slot);
 
-    // Reach the strip by its shortcut, then walk it. `x` lands on the leftmost
-    // holder whether or not it holds anything, so the slot is a distance along
-    // the row rather than the thing the shortcut lands on.
     let state = before;
     if (!/PotionHolder|PotionPopup/.test(state.ui?.focus_path || '')) {
       await this.button('x');
       state = await this.observe();
     }
-    for (let step = 0; step < 8; step++) {
-      this.lastState = state;
-      const row = holders().sort((a, b) => a.bounds[0] - b.bounds[0]);
-      const at = row.findIndex(item => item.id === state.ui?.focused_element);
-      if (at < 0) break;
-      if (at === action.slot) break;
-      await this.button(at < action.slot ? 'right' : 'left');
-      const next = await this.observe();
-      if (next.ui?.focused_element === state.ui?.focused_element) throw new Error(`focus will not move along the potion strip towards slot ${action.slot}${reachable(next)}`);
-      state = next;
+    const wanted = occupied(state)[rank];
+    if (!wanted) throw new Error(`the screen reports ${occupied(state).length} occupied potion holders but ${(before.player.potions || []).length} potions${reachable(state)}`);
+    // Walk to it by identity rather than by counting: `x` can land on a holder
+    // the elements list does not carry at all.
+    for (const direction of ['right', 'left']) {
+      for (let step = 0; step < 8 && state.ui?.focused_element !== wanted.id; step++) {
+        await this.button(direction);
+        const next = await this.observe();
+        if (next.ui?.focused_element === state.ui?.focused_element) break;
+        state = next;
+      }
+      if (state.ui?.focused_element === wanted.id) break;
     }
+    if (state.ui?.focused_element !== wanted.id) throw new Error(`could not reach the holder for slot ${action.slot} (${potion.name}); focus stopped on ${state.ui?.focus_path}${reachable(state)}`);
 
     // Open the holder's popup, then take whichever control the popup is on.
     // Its options vary (Use/Discard, Use/Throw) and the cursor does not always

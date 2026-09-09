@@ -1022,3 +1022,49 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   const startup = strategistContext({ ...base, freshRunVerified: false });
   assert.equal(startup.task_startup_note, undefined, 'but a run that has not started still gets the plain kickoff');
 }
+
+// A slot number is not a position in the potion row.
+//
+// Live, at the act 2 boss of room 5976c38f: slots 1 and 2 were held, the
+// elements list carried exactly TWO potion holders, and `x` put focus on a
+// third one the list never mentioned. Indexing the row by slot number fell
+// straight through and pressed `a` on the empty holder, which opens nothing.
+// Occupied holders do appear in slot order, and that mapping survives whether
+// or not the empty one is reported.
+{
+  const holder = (id, x) => ({ id, label: null, reference: { kind: 'potion' }, type: 'NPotionHolder',
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    bounds: [x, 9, 60, 60], neighbors: {} });
+  const listed = [holder('element-678151864657', 565), holder('element-678520963431', 627)];
+  const potions = [
+    { slot: 1, name: 'Flex Potion', target_type: 'AnyPlayer', can_use_in_combat: true },
+    { slot: 2, name: 'Blood Potion', target_type: 'AnyPlayer', can_use_in_combat: true },
+  ];
+  // `x` lands on a holder that is NOT in the elements list, exactly as it did live.
+  const GHOST = 'element-677782765883';
+  let focus = null, where = 'hand', left = [...potions];
+  const pressed = [];
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (button === 'x') { focus = GHOST; where = 'strip'; return; }
+    if (where === 'strip' && button === 'right') focus = focus === GHOST ? listed[0].id : listed[1].id;
+    else if (where === 'strip' && button === 'left') focus = focus === listed[1].id ? listed[0].id : GHOST;
+    else if (where === 'strip' && button === 'a') where = 'popup';
+    else if (where === 'popup' && button === 'a') { left = left.filter(item => item.slot !== 1); where = 'hand'; }
+  };
+  const read = () => ({ state_type: 'boss', run: { act: 2, floor: 33, ascension: 1 },
+    player: { hp: 47, max_hp: 90, energy: 3, hand: [], potions: left },
+    battle: { round: 5, turn: 'player', is_play_phase: true, enemies: [{ entity_id: 'KAISER_CRAB_0', combat_id: 1, name: 'Kaiser Crab', hp: 200 }] },
+    ui: { scene_id: 'boss', elements: listed, focused_element: where === 'strip' ? focus : null, targeting: false, focused_creature: null,
+      focus_path: where === 'strip' ? '/PotionHolders/PotionHolder' : where === 'popup' ? '/PotionHolders/PotionHolder/PotionPopup/Container/UseButton' : '/CombatUi/Hand' } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const after = await executor.usePotion({ type: 'use_potion', slot: 1 }, read());
+  assert.equal(after.player.potions.length, 1, `the Flex Potion is drunk: pressed ${pressed.join(',')}`);
+  // One right off the unlisted holder onto the FIRST occupied one, which is slot 1.
+  assert.deepEqual(pressed, ['x', 'right', 'a', 'a'], `by identity, not by counting to slot 1: ${pressed.join(',')}`);
+}
