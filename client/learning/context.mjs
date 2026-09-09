@@ -256,6 +256,28 @@ export function briefing({ state, kind, strategy, objective, task }) {
 }
 
 /** Which encounter this is, or null when there is no fight. */
+/**
+ * Screens that mean the encounter is genuinely behind you.
+ *
+ * A fight used to end the moment the screen stopped LOOKING like combat, and a
+ * Colorless Potion is enough to do that: it opens a card-choice screen carrying
+ * no hand, so isCombat went false mid-elite, encounterKind returned null, and
+ * the runtime closed the fight with the "not at 0 HP, so won" fallback. Bygone
+ * Effigy was alive at 33 HP and the player at 46/80; the report said "won, 11
+ * HP" and the potion was spent for nothing.
+ *
+ * An overlay a card or potion opened - card_select, hand_select, a grid - is
+ * still the fight. The encounter is over when the game has left it.
+ */
+const AFTER_ENCOUNTER = new Set(['rewards', 'card_reward', 'combat_reward', 'game_over', 'map', 'rest_site', 'shop', 'event', 'unknown', 'boss_reward', 'chest', 'menu']);
+
+export function encounterOver(state, fight) {
+  if (!fight) return false;
+  // The floor moved: whatever happened, this fight is not it any more.
+  if (Number.isInteger(state?.run?.floor) && state.run.floor !== fight.floor) return true;
+  return AFTER_ENCOUNTER.has(String(state?.state_type || '').toLowerCase());
+}
+
 export function encounterKind(state) {
   if (!isCombat(state)) return null;
   const type = String(state.state_type || '').toLowerCase();

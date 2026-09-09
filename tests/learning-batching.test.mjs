@@ -675,17 +675,28 @@ test('a later play refused before its own input reports which action pressed not
 // per plan" until the refinement budget ran out. Nothing can be planned PAST a
 // potion, because what it does is only visible afterwards - but the cards
 // before it are the model's call, not the validator's.
-test('cards may precede a potion or a choose; nothing may follow one', () => {
+// A potion goes wherever the turn wants it. Requiring it LAST looked harmless
+// and was not: drinking and then acting is the ordinary play, so the model put
+// the potion first, the plan was refused, and it satisfied the refusal by
+// deleting the potion and re-sending. That happened eight times in one run -
+// through an elite fight - and not one potion was drunk. The executor already
+// stops the batch after a potion, so the ordering was never load-bearing.
+test('a potion goes anywhere in the turn, and the runtime stops after it', () => {
   const state = initialCombat();
   state.player.energy = 3;
   state.player.potions = [{ slot: 0, name: 'Fysh Oil', target_type: 'AnyPlayer', can_use_in_combat: true }];
   const potion = { type: 'use_potion', slot: 0 };
-  const first = state.player.hand[0];
+  const [first, second] = state.player.hand;
 
   validatePlan(planFor(state, [play(first.instance_id), potion]), state, { role: 'combat' });
   validatePlan(planFor(state, [potion]), state, { role: 'combat' });
+  // The ordering the old rule refused, which is the one a buffing potion needs.
+  validatePlan(planFor(state, [potion, play(first.instance_id)]), state, { role: 'combat' });
+  validatePlan(planFor(state, [potion, play(first.instance_id), play(second.instance_id)]), state, { role: 'combat' });
+
+  // A second potion could never be reached, so it is refused rather than dropped silently.
   assert.throws(
-    () => validatePlan(planFor(state, [potion, play(first.instance_id)]), state, { role: 'combat' }),
-    /must be the last action/,
+    () => validatePlan(planFor(state, [potion, { type: 'use_potion', slot: 0 }]), state, { role: 'combat' }),
+    /one potion per plan/,
   );
 });

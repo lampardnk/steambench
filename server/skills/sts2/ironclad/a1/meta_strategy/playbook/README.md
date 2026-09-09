@@ -25,7 +25,14 @@ fight in front of you — the intents, the hand, the HP — not of this list.
   deals to you.
 - **Block** is spent against the damage actually intended this turn, which the
   enemy intents state.
-- **Draw and cycling** convert leftover energy into options.
+- **Draw and cycling** are worth exactly what the cards they reach are worth,
+  and nothing on their own. Before playing one, work it out: what the draw
+  pile actually holds, what a reshuffle returns from the discard pile, how
+  much of that is playable with the energy left after paying for the draw
+  card itself, and whether thinning toward a specific card matters in a
+  fight this short. A draw that reaches nothing affordable spent energy for
+  nothing; where that is the case, a similar card without the draw clause,
+  or an unrelated card, is the stronger play.
 
 {strategic inference} No ordering of these holds across fights. Read the intents.
 

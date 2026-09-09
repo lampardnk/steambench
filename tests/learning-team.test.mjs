@@ -255,7 +255,7 @@ import fs from 'node:fs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { EncounterScratchpad } from '../client/learning/encounter.mjs';
-import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
+import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, encounterOver, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
@@ -1287,4 +1287,69 @@ test('a rest option is taken by name, not by the order either list happens to us
   assert.throws(() => validatePlan({ observation: stateId(spent), summary: 's', note: 'n', actions: [{ type: 'rest', option: 0 }] }, spent, { role: 'strategist' }), /already resolved and is left with leave/);
   const closed = { ...site, rest_site: { ...site.rest_site, options: site.rest_site.options.map(o => o.index === 1 ? { ...o, is_enabled: false } : o) } };
   assert.throws(() => validatePlan({ observation: stateId(closed), summary: 's', note: 'n', actions: [{ type: 'rest', option: 1 }] }, closed, { role: 'strategist' }), /Smith is not available/);
+});
+
+// The validator no longer forces a potion to the end of the plan, because doing
+// so made the model delete the potion instead of moving it. What keeps a plan
+// from acting on stale state is the executor stopping the batch after the
+// potion - so that stop is now load-bearing and has to be asserted.
+test('a potion is drunk where the turn asked for it, and stops the batch there', async () => {
+  const hand = [
+    { instance_id: 41, name: 'Strike', type: 'Attack', cost: '1', description: 'Deal 6 damage.', can_play: true, target_type: 'AnyEnemy' },
+    { instance_id: 42, name: 'Defend', type: 'Skill', cost: '1', description: 'Gain 5 Block.', can_play: true, target_type: 'Self' },
+  ];
+  let drunk = false;
+  const read = () => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 },
+    player: { hp: 57, max_hp: 80, energy: 3, max_energy: 3, block: 0, hand,
+      potions: drunk ? [] : [{ slot: 0, name: 'Strength Potion', target_type: 'AnyPlayer', can_use_in_combat: true }] },
+    battle: { round: 2, turn: 'player', is_play_phase: true, enemies: [{ entity_id: 'BYGONE_EFFIGY_0', combat_id: 1, name: 'Bygone Effigy', hp: 70, max_hp: 90 }] },
+    ui: { scene_id: 'combat', elements: [], focused_element: null } });
+
+  const executor = Object.create(Executor.prototype);
+  executor.inputs = 0;
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+  const played = [];
+  executor.play = async (action) => { played.push(action.card); return { state: read(), barrier: null, card: 'Strike' }; };
+  executor.usePotion = async () => { drunk = true; return read(); };
+
+  // Exactly the shape the elite turn wanted: drink, then act on the result.
+  const plan = { observation: stateId(read()), summary: 'Drink Strength Potion, then Strike twice.', note: 'n',
+    actions: [{ type: 'use_potion', slot: 0 }, { type: 'play', card: 41, target: 'BYGONE_EFFIGY_0' }, { type: 'play', card: 42 }] };
+  assert.doesNotThrow(() => validatePlan(plan, read(), { role: 'combat' }), 'the ordering itself is legal');
+
+  const result = await executor.execute(plan, read());
+  assert.equal(drunk, true, 'the potion is actually drunk');
+  assert.equal(result.completed.length, 1, 'and the batch stops there');
+  assert.equal(result.completed[0].action.type, 'use_potion');
+  assert.ok(result.completed[0].barrier, 'with a barrier telling the model to replan');
+  assert.deepEqual(played, [], 'nothing after it is played against state the potion has changed');
+});
+
+// An elite was declared won while the enemy was alive, because a potion opened
+// a card-choice screen. That screen carries no hand, so isCombat went false,
+// encounterKind returned null, and the fight closed on the "not at 0 HP, so
+// won" fallback: Bygone Effigy at 33 HP, the player at 46/80, the report
+// reading "won, 11 HP" and the potion spent for nothing. A fight ends when the
+// game leaves it, not when something is drawn on top of it.
+test('an overlay over a fight is still the fight', () => {
+  const fight = { floor: 7, kind: 'elite' };
+  const at = (state_type, extra = {}) => ({ state_type, run: { act: 1, floor: 7 }, player: { hp: 46, max_hp: 80 }, ...extra });
+
+  // Exactly the screen that closed the elite: a card choice with no hand, so
+  // isCombat is false, and on the same floor.
+  const colorless = at('card_select', { card_select: { cards: [{ index: 0, name: 'Bandage Up' }] }, player: { hp: 46, max_hp: 80 } });
+  assert.equal(encounterKind(colorless), null, 'it does not look like combat, which is what misled the old check');
+  assert.equal(encounterOver(colorless, fight), false, 'and it is still the fight');
+
+  assert.equal(encounterOver(at('hand_select'), fight), false, 'so is a hand-select an exhaust card opened');
+  assert.equal(encounterOver(at('elite'), fight), false);
+
+  // What actually ends it.
+  assert.equal(encounterOver(at('rewards'), fight), true, 'the reward screen is after the fight');
+  assert.equal(encounterOver(at('game_over'), fight), true);
+  assert.equal(encounterOver({ ...at('elite'), run: { act: 1, floor: 8 } }, fight), true, 'and so is being on another floor');
+  assert.equal(encounterOver(at('elite'), null), false, 'with no fight open there is nothing to close');
 });
