@@ -213,6 +213,14 @@ still needed.
   `DiscardButton`, `ThrowButton` - and that is the only thing worth reading.
   Press `a` when it names the one you want, and `b` backs out having spent
   nothing.
+- **A potion that needs a target is not spent by Use or Throw - that only ARMS
+  it.** When `target_type` is `AnyEnemy` or `AnyAlly`, pressing `a` on
+  Use/Throw puts the game into targeting; then LEFT and RIGHT move the aim
+  between creatures and a second `a` throws it at the one you are on. Read
+  `ui.targeting` and `ui.focused_creature` to see where the aim actually is
+  rather than assuming it started on the enemy you wanted, and `b` cancels
+  without spending the potion. A `target_type` of `AnyPlayer` or `Self` has no
+  such step and resolves on the first `a`.
 - **That dropdown holds focus, and `down` cannot leave it.** While
   `ui.focus_path` contains `PotionPopup` you are inside a two-item menu and
   directional presses do nothing at all - walking the rows will not start until
