@@ -83,7 +83,10 @@ still needed.
   `hand_select` with a `mode` and a prompt beginning "Confirm", often with one
   card already selected and `can_confirm` already true - there, `y` alone
   finishes it and any `a` first will deselect what was chosen for you. Read
-  `can_confirm` after every press, not the highlight.
+  `can_confirm` after every press, not the highlight. The candidate list is
+  built from what is eligible right now, so a card missing from it is usually
+  ineligible rather than absent: an upgrade prompt does not offer a card that is
+  already upgraded.
 - **Selection is often not reported at all.** `selected_cards` is frequently
   null even when a card is chosen, so a pick can look exactly like a press that
   did nothing. `can_confirm` is the only reliable evidence: on "choose N" it
