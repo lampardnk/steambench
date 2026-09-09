@@ -102,6 +102,15 @@ still needed.
 - **Rest sites.** Read `rest_site.options` and their enabled state; services vary
   by run. Empty `options` with `can_proceed` true is a resolved site: `y`
   proceeds.
+- **Choosing a card to enchant or to smith ends with NO FOCUS, on purpose.**
+  Once the card is chosen, the foreground shows it beside what it becomes, and
+  the only controls are `b` to go back and `y` to confirm. `ui.focused_element`
+  and `ui.focus_path` are both null and no directional press will change that -
+  the screen is not waiting for one. `card_select.can_confirm` is already true,
+  which is the tell. The large card elements are the before-and-after preview,
+  not choices: never try to activate one, and never route to a card by name
+  here. This holds for the rest-site smith and for any event that asks which
+  card to enchant; events that enchant at random show no such screen at all.
 - **Combat focus is one vertical cycle, and `down` walks it.** Top to bottom:
   potion slots, relics, the allies-and-enemies field, the hand - then it wraps.
   Left and right move within a row. The hand is focused when a turn begins.
