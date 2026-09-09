@@ -153,7 +153,14 @@ export function splitNotes(retrieved) {
 export function strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1, counters, freshRunVerified }) {
   const mapUnchanged = Boolean(strategy && lastResult?.after?.map_id && lastResult.after.map_id === mapId(state));
   return {
+    // The standing task is the kickoff, which opens by demanding a fresh run and
+    // the abandonment of any existing one. Once startup is verified that clause
+    // is not merely spent, it CONTRADICTS the screen - and a player reloaded
+    // mid-run reads it against Act 2 floor 21 and quite correctly refuses to
+    // act. Say plainly that the startup half is done and only the play half
+    // still stands.
     task: task.slice(0, 3000),
+    ...(freshRunVerified ? { task_startup_note: 'Startup is already verified and this run is in progress. The startup half of the task - abandon any pre-existing run, choose the character, Embark - is DONE and must never be repeated, including after a reload. Only the play-the-run half still stands.' } : {}),
     fresh_run_verified: freshRunVerified,
     observation_id: stateId(state),
     state: strategistState(state, { mapUnchanged }),

@@ -254,7 +254,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
-import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
+import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
@@ -998,4 +998,27 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.equal(landed.ui.focused_element, wanted, `it reaches the price tag: ${pressed.length} presses`);
   assert.equal(pressed.length, chain.length - 1, `one press per step, none wasted: ${pressed.length}`);
   assert.ok(pressed.every(button => button === 'right'), `all in the same direction: ${[...new Set(pressed)].join(',')}`);
+}
+
+// A reloaded player must not read its kickoff as "start over".
+//
+// Live, at decision 296 of room 5976c38f: a mid-run player reload handed the
+// agent its original task - "Start a fresh run... Abandon any pre-existing run
+// first" - against Act 2 floor 21 with seven relics. It refused to act and
+// asked for an operator, which is the right call and also a pause on every
+// single reload. The runtime already knows better: freshRunVerified survives in
+// the checkpoint.
+{
+  const state = { state_type: 'shop', run: { act: 2, floor: 21, ascension: 1 },
+    player: { hp: 75, max_hp: 88, gold: 417, relics: [], potions: [] },
+    ui: { scene_id: 'shop', focused_element: null, elements: [] } };
+  const task = 'Start a fresh Slay the Spire 2 singleplayer run as Ironclad, Ascension 1. Abandon any pre-existing run first; never Continue.';
+  const base = { state, task, ladder: {}, objectiveCheck: null, retrieved: [], lastResult: null,
+    lastEncounter: null, instructions: [], strategy: null, accepted: [], notes: [], act1: null, counters: {} };
+
+  const mid = strategistContext({ ...base, freshRunVerified: true });
+  assert.match(mid.task_startup_note, /already verified/, 'a verified run is told the startup half is done');
+  assert.match(mid.task_startup_note, /never be repeated/, 'and never to repeat it');
+  const startup = strategistContext({ ...base, freshRunVerified: false });
+  assert.equal(startup.task_startup_note, undefined, 'but a run that has not started still gets the plain kickoff');
 }
