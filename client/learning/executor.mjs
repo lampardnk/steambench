@@ -39,6 +39,21 @@ export function selectionGate(state) {
 }
 
 /** The bound buttons a stuck screen still offers, named in the error. */
+/**
+ * What the mod says this element is, when it has no readable label.
+ *
+ * The label check exists so a press never lands on something the run cannot
+ * identify. But a potion holder is never labelled - the mod says so, and
+ * CONTROLS.md documents it - and it is reported `ambiguous` because the label
+ * it shares with its neighbours is null. That combination refused every potion
+ * in combat: at the act 1 boss on floor 17 the run reached the right holder
+ * with `x`, was refused, and paused twice on the same decision. The mod does
+ * name these: `reference.kind` is "potion". An element the mod has typed is
+ * identified, and the target was addressed by exact id, so the label adds
+ * nothing the id has not already settled.
+ */
+const identified = (element) => Boolean(element?.label) || Boolean(element?.reference?.kind);
+
 export function reachable(state) {
   const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
   const gates = ['can_confirm', 'can_proceed', 'can_cancel']
@@ -547,7 +562,7 @@ export class Executor {
             const fresh = await this.observe();
             const target = pressableElement(fresh, action.target);
             if (fresh.ui?.scene_id !== action.scene || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
-            if (!target.label || target.ambiguous || target.press !== bound) throw new Error('activation semantics are unknown; inspect screenshot and report issue');
+            if (!identified(target) || (target.ambiguous && !target.reference?.kind) || target.press !== bound) throw new Error(`activation semantics are unknown; inspect screenshot and report issue${reachable(fresh)}`);
             await this.button(bound);
             state = await this.settled();
             if (stateId(state) === stateId(fresh) && !unreportedSelection(state, action.target)) throw new Error(`pressing ${bound} on ${action.target} changed nothing${reachable(state)}`);
@@ -560,7 +575,7 @@ export class Executor {
             // Re-read at the last possible moment; never retry an activation.
             const fresh = await this.observe();
             const target = targetElement(fresh, action.target);
-            if (!target.label || target.ambiguous || target.activation !== 'a') throw new Error('activation semantics are unknown; inspect screenshot and report issue');
+            if (!identified(target) || (target.ambiguous && !target.reference?.kind) || target.activation !== 'a') throw new Error(`activation semantics are unknown; inspect screenshot and report issue${reachable(fresh)}`);
             // Against the scene navigation actually finished on, not the one the
             // plan was written against: a screen that settled while routing is
             // already handled there, and the real precondition is that the

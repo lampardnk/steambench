@@ -171,7 +171,10 @@ still needed.
   a fault. The holders never name their potions - one element per slot, labels
   are Godot node names. `activation: "a"` marks a holder that HOLDS a potion, no
   activation marks an empty one, and `player.potions` names what you have with
-  each `slot`; the occupied holders sit in that order left to right. Walk the row
+  each `slot`; the occupied holders sit in that order left to right. They also
+  report `reference.kind: "potion"`, which is how the runtime identifies one
+  despite the missing label, and their `up` neighbour is themselves - the row
+  is only left and right plus `down`. Walk the row
   with `left` and `right`.
 - **`a` on a holder does not drink the potion.** It opens that potion's popup,
   which names it and offers Use and Discard - so the popup is how you confirm

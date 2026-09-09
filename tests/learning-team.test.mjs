@@ -691,3 +691,34 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.ok(!pressed.includes('back') && !pressed.includes('start'), `and it presses neither the map nor pause: ${pressed.join(',')}`);
   assert.equal(pressed.filter(button => button === 'x').length, 1, 'the shortcut is spent after one press');
 }
+
+// A potion holder is identified by the mod, not by a label it never has.
+//
+// Live, at the act 1 boss on floor 17 of room 70f25b98: the run reached the
+// right holder with `x`, and the activation guard refused it for having no
+// label - which potion holders never do - and for being `ambiguous`, which is
+// what a null label shared with its neighbours reports. It paused twice on the
+// same decision. The mod does name them: reference.kind is "potion". Ids and
+// bounds are the ones the mod reported there.
+{
+  const holder = (id, x, extra = {}) => ({ id, label: null, reference: { kind: 'potion', model_id: null }, type: 'NPotionHolder',
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a', ambiguous: true, bounds: [x, 9, 60, 60], neighbors: {}, ...extra });
+  const screen = [holder('element-715279843665', 565), holder('element-715648942439', 627)];
+  const pressed = [];
+  let opened = false;
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => { pressed.push(button); if (button === 'a') opened = true; };
+  const read = () => ({ state_type: 'monster', run: { act: 1, floor: 17, ascension: 1 }, player: { hp: 31, max_hp: 80 },
+    ui: { scene_id: opened ? 'popup' : '4b98c512c2ee7e68', focused_element: 'element-715648942439', elements: screen } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+  executor.inputs = 0;
+
+  const start = read();
+  const result = await executor.execute({ observation: stateId(start), summary: 'open the potion', note: 'n',
+    actions: [{ type: 'activate', target: 'element-715648942439', scene: '4b98c512c2ee7e68' }] }, start);
+  assert.equal(result.error, undefined, `an unlabelled holder the mod typed is activatable: ${result.error}`);
+  assert.deepEqual(pressed, ['a'], `and it takes one press: ${pressed.join(',')}`);
+}
