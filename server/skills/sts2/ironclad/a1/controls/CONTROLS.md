@@ -69,17 +69,21 @@ still needed.
   up exactly. Its focus PATH is an auto-generated `@Control@362`, which names
   nothing; the label does. The type names down the right-hand side at x=1582
   are the legend, and carry no activation: they are captions, not nodes.
-- **`can_confirm: true` means the choice is already made. Press `y`.** This is
-  the single most expensive thing to get wrong here. `hand_select` and
-  `card_select` name a candidate set, and `a` NEVER finishes one of these
-  screens - it only moves which candidate is chosen. A card played from hand
+- **A selection screen is three steps: d-pad, then `a`, then `y`.** Move the
+  highlight to the card you want with the d-pad; `a` SELECTS the highlighted one
+  and `y` confirms. `a` never finishes the screen, and it TOGGLES - pressing it
+  twice on the same card selects and then deselects it, which is how a run spent
+  ten presses cycling and ended with nothing chosen. Press it once, then read.
+- **`can_confirm` is the state of the selection, and it is the only readout.**
+  True means a valid choice is held and `y` will take it; false means nothing is
+  selected yet, whatever the highlight looks like. The Confirm control mirrors
+  it: SelectModeConfirmButton is `enabled: false` while `can_confirm` is false,
+  so activating it does nothing and reports nothing. A card played from hand
   that asks you to pick another card (an upgrade, a discard, an exhaust) opens
-  `hand_select` with a `mode` and a prompt that usually begins "Confirm", with
-  one card already targeted and `can_confirm` true from the start: pressing `a`
-  there just cycles to a different card, forever. The finishing control is a
-  separate element bound to `y` - SelectModeConfirmButton in combat - and it is
-  the enabled one; End Turn shares `y` and is disabled while a selection is
-  open. Read `can_confirm` and the prompt, not the highlight.
+  `hand_select` with a `mode` and a prompt beginning "Confirm", often with one
+  card already selected and `can_confirm` already true - there, `y` alone
+  finishes it and any `a` first will deselect what was chosen for you. Read
+  `can_confirm` after every press, not the highlight.
 - **Selection is often not reported at all.** `selected_cards` is frequently
   null even when a card is chosen, so a pick can look exactly like a press that
   did nothing. `can_confirm` is the only reliable evidence: on "choose N" it

@@ -20,7 +20,9 @@ function unreportedSelection(state, target) {
 export function reachable(state) {
   const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
   const gates = ['can_confirm', 'can_proceed', 'can_cancel']
-    .flatMap(key => Object.entries(state || {}).filter(([, value]) => value && typeof value === 'object' && value[key] === true).map(([name]) => `${name}.${key}`));
+    .flatMap(key => Object.entries(state || {})
+      .filter(([, value]) => value && typeof value === 'object' && typeof value[key] === 'boolean')
+      .map(([name, value]) => `${name}.${key}=${value[key]}`));
   const parts = [bound.length ? `bound buttons: ${bound.slice(0, 8).join(', ')}` : '', gates.length ? `screen reports ${gates.join(', ')}` : ''].filter(Boolean);
   return parts.length ? `; ${parts.join('; ')}` : '';
 }
@@ -478,7 +480,11 @@ export class Executor {
           // from wherever focus happens to be. Some are reachable no other way:
           // a card reward's Skip sits outside a card row whose up and down
           // neighbours point back at itself, so there is no route to walk.
-          const bound = action.type === 'activate' ? pressableElement(state, action.target).press : null;
+          let bound = null;
+          if (action.type === 'activate') {
+            try { bound = pressableElement(state, action.target).press; }
+            catch (error) { throw /disabled/.test(error.message) ? new Error(`${error.message}${reachable(state)}`) : error; }
+          }
           if (bound) {
             const fresh = await this.observe();
             const target = pressableElement(fresh, action.target);
