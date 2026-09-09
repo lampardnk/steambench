@@ -244,7 +244,22 @@ export function unbuiltMenu(state) {
 
 export function ready(state) {
   if (unbuiltMenu(state)) return false;
+  if (leftMap(state)) return false;
   return !isCombat(state) || /select|overlay|reward/.test(state.state_type) || (state.battle.is_play_phase === true && state.battle.turn === 'player');
+}
+
+/**
+ * A map nobody is standing on is a map that has already been left.
+ *
+ * Choosing a node commits immediately, but the map stays drawn - unchanged, so
+ * two reads match and it looks settled - while the next room loads. Every one
+ * of the eight node presses in room ba94db7f was followed by a decision spent
+ * on that leftover map, and one of them planned a route on it while the game
+ * was already showing an event, which paused the run. The tell is focus: the
+ * live map always has a node focused, and the leftover map has none.
+ */
+export function leftMap(state) {
+  return state?.state_type === 'map' && !state?.ui?.focused_element && !state?.ui?.focus_path;
 }
 
 // A path that names one moment of one run - a floor number, a specific round -
