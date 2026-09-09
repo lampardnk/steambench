@@ -213,20 +213,34 @@ still needed.
   `DiscardButton`, `ThrowButton` - and that is the only thing worth reading.
   Press `a` when it names the one you want, and `b` backs out having spent
   nothing.
-- **A potion that needs a target is not spent by Use or Throw - that only ARMS
-  it.** When `target_type` is `AnyEnemy` or `AnyAlly`, pressing `a` on
-  Use/Throw puts the game into targeting; then LEFT and RIGHT move the aim
-  between creatures and a second `a` throws it at the one you are on. Read
-  `ui.targeting` and `ui.focused_creature` to see where the aim actually is
-  rather than assuming it started on the enemy you wanted, and `b` cancels
-  without spending the potion. A `target_type` of `AnyPlayer` or `Self` has no
-  such step and resolves on the first `a`.
+- **A DRINK potion finishes on `x, a, a`. A THROW potion does not.** That
+  three-press sequence works whenever the only target is you, so it is easy to
+  learn it as "the way to use a potion" and then repeat it forever on one that
+  needs a target. `player.potions[].target_type` says which you are holding:
+  `AnyPlayer` or `Self` drinks and resolves on the second `a`; `AnyEnemy` or
+  `AnyAlly` must be thrown, and there the second `a` only ARMS it. Targeting
+  then opens, LEFT and RIGHT move the aim between creatures, and a THIRD `a`
+  throws it at the one you are on. Read `ui.targeting` and
+  `ui.focused_creature` to see where the aim actually is rather than assuming
+  it started on the enemy you wanted; `b` cancels without spending anything.
+- **`x` restarts the potion panel, so never press it mid-sequence.** It
+  re-focuses the leftmost holder from scratch, discarding an open popup or a
+  live targeting state. A run threw about forty presses away as
+  `x, a, a, x, a, a, x, ...`: each `a, a` armed a throw potion and each
+  following `x` cancelled it, which looks exactly like the sequence not
+  working. One press per decision, and read `focus_path` and `targeting`
+  between them.
 - **That dropdown holds focus, and `down` cannot leave it.** While
   `ui.focus_path` contains `PotionPopup` you are inside a two-item menu and
   directional presses do nothing at all - walking the rows will not start until
   you are out. `b` closes it, `x` returns to the potion bar, `left` walks out of
   the bar towards the relics. Any of them is reversible; check `focus_path`
-  after, not the press.
+  after, not the press. **None of that applies once a throw is armed:** with
+  `ui.targeting` true the focus path ends in `Hitbox` and `focused_card` is
+  null because the AIM is sitting on a creature, which is exactly right and not
+  lost focus. Pressing `x` there to "get back to the bar" cancels the throw,
+  and doing it every time is an endless loop. Check `ui.targeting` before
+  deciding you have fallen out of the panel.
 - **A one-shot discount makes EVERY eligible card report cost 0 at once.**
   "The next Attack you play costs 0" is true of each attack in hand
   individually - each would be free if it were the next one played - so several
