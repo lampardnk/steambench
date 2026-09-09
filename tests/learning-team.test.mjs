@@ -51,6 +51,39 @@
   assert.doesNotThrow(() => validatePlan(plan, at(398), { role: 'actuator' }), 'and the plan survives the drift');
 }
 
+// Getting back to the hand means backing out of what is trapping focus.
+//
+// Live: focus sat inside the potion popup on its Discard button, and four
+// `down` presses moved nothing, because `down` cannot leave something modal.
+// The run was told a full pass had failed while one `b` was the whole answer.
+{
+  const script = [
+    { path: '/TopBar/PotionHolders/PotionHolder/PotionPopup/Container/DiscardButton', card: null },
+    { path: '/TopBar/PotionHolders/PotionHolder/PotionPopup/Container/DiscardButton', card: null },
+    { path: '/CombatRoom/AllyContainer/Creature/Hitbox', card: null },
+    { path: '/CombatRoom/Hand/Card', card: 63 },
+  ];
+  const pressed = [];
+  let at = 0;
+  const executor = Object.create(Executor.prototype);
+  // `down` is inert inside the popup; `b` closes it; then `down` walks.
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (at === 0 && button === 'b') at = 2;
+    else if (at >= 2 && button === 'down') at = Math.min(at + 1, script.length - 1);
+  };
+  executor.observe = async () => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 },
+    player: { hp: 50, max_hp: 80, focused_card: script[at].card },
+    ui: { scene_id: 'combat-1', focus_path: script[at].path, focused_card: script[at].card, elements: [] } });
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const landed = await executor.focusHand({ ui: { focus_path: script[0].path } });
+  assert.ok(landed, 'it gets back to the hand');
+  assert.equal(landed.ui.focused_card, 63);
+  assert.ok(pressed.includes('b'), `it backs out of the popup: ${pressed.join(',')}`);
+}
+
 // A screen that redraws under the cursor does not spend the recovery budget.
 //
 // Live, on the potion strip: every `right` moves focus to the next holder,
@@ -81,6 +114,29 @@
   const landed = await executor.navigateElement({ type: 'activate', target: 'slot3', scene: 'strip-0' }, start);
   assert.equal(landed.ui.focused_element, 'slot3', 'three presses along a redrawing strip still arrive');
   assert.equal(walked.length, 3, `and it takes exactly three: ${walked.join(',')}`);
+}
+
+// An activation that changes nothing names the way out.
+//
+// Live, on a combat card-select: the screen already reported can_confirm, so
+// pressing `a` on the card did nothing at all, and "unknown activation
+// outcome; explicit resume required" told the run nothing it could act on. The
+// screen was one `y` from finished.
+{
+  const screen = {
+    state_type: 'card_select',
+    card_select: { prompt: 'Choose up to 2 cards to put into your Hand.', cards: [{ name: 'Bash' }], can_confirm: true, can_cancel: false },
+    ui: { scene_id: 'select-1', focused_element: 'bash', elements: [
+      { id: 'bash', label: 'Bash', focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds: [0, 0, 10, 10] },
+      { id: 'confirm', label: 'Confirm', press: 'y', activation: 'a', focus_mode: 'none', enabled: true, visible: true, bounds: [0, 0, 10, 10] },
+      { id: 'endturn', label: 'End Turn 1', press: 'y', activation: 'a', focus_mode: 'none', enabled: false, visible: true, bounds: [0, 0, 10, 10] },
+    ] },
+  };
+  const said = reachable(screen);
+  assert.match(said, /Confirm \(y\)/, 'it names the control that finishes the screen');
+  assert.match(said, /card_select\.can_confirm/, 'and that the screen says it is ready');
+  assert.doesNotMatch(said, /End Turn/, 'a disabled control is not offered as a way out');
+  assert.equal(reachable({ ui: { elements: [] } }), '', 'and it stays silent when there is genuinely nothing');
 }
 
 // A route ends where it was aimed, whatever the graph predicted on the way.
@@ -125,7 +181,7 @@ import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/le
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
-import { Executor } from '../client/learning/executor.mjs';
+import { Executor, reachable } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
 import { API_KEY_ENVS, DEFAULT_MODEL, MODEL_PROFILES, PROFILE } from '../server/lib/learning-profile.mjs';
 
