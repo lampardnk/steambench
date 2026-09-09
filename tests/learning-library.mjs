@@ -106,6 +106,33 @@ assert.equal(fs.readFileSync(path.join(first.dir, 'SKILL.md'), 'utf8'), '# repla
 // A path the template does not provide is left alone.
 assert.match(fs.readFileSync(path.join(first.dir, 'scratchpad.md'), 'utf8'), /Empower then Strategic/);
 
+// ...unless the template used to provide it. Moving a note is two edits the
+// sync has to see as one: `act1/unknown/tea-master.md` became
+// `meta_strategy/unknown/tea-master.md`, and because nothing ever deleted, the
+// library served both - the stale copy still carrying the play verdicts the
+// move had stripped out. A path the template has dropped is dropped here.
+fs.mkdirSync(path.join(template, 'act1', 'unknown'), { recursive: true });
+fs.writeFileSync(path.join(template, 'act1', 'unknown', 'tea-master.md'), 'take the tea (editable)\n');
+fs.writeFileSync(path.join(template, 'act1', 'unknown', 'floor-3.md'), 'a diary note\n');
+await library.ensureSkill(cfg, 'sts2', template);
+assert.ok(fs.existsSync(path.join(first.dir, 'act1', 'unknown', 'tea-master.md')), 'shipped, so present');
+
+fs.rmSync(path.join(template, 'act1'), { recursive: true });
+fs.mkdirSync(path.join(template, 'meta_strategy', 'unknown'), { recursive: true });
+fs.writeFileSync(path.join(template, 'meta_strategy', 'unknown', 'tea-master.md'), 'the tea costs 40 gold\n');
+const moved = await library.ensureSkill(cfg, 'sts2', template);
+assert.deepEqual(moved.dropped, ['act1/unknown/tea-master.md'], 'only the dropped note, and the diary note is exempt');
+assert.ok(!fs.existsSync(path.join(first.dir, 'act1', 'unknown', 'tea-master.md')), 'the pre-move copy is gone');
+assert.ok(fs.existsSync(path.join(first.dir, 'meta_strategy', 'unknown', 'tea-master.md')), 'and the new path is served');
+assert.ok(fs.existsSync(path.join(first.dir, 'act1', 'unknown', 'floor-3.md')), 'a diary note the template stopped shipping is not a curation decision');
+// What the sync must never prune: the room's staged proposals and the marker
+// files migration writes, neither of which the template ever ships.
+assert.match(fs.readFileSync(path.join(first.dir, 'scratchpad.md'), 'utf8'), /Empower then Strategic/);
+fs.writeFileSync(path.join(first.dir, '.strategy-version'), '3\n');
+const kept = await library.ensureSkill(cfg, 'sts2', template);
+assert.deepEqual(kept.dropped, [], 'a dotfile is not a template path');
+assert.ok(fs.existsSync(path.join(first.dir, '.strategy-version')));
+
 // Nothing new to say means no empty commit.
 assert.equal(await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomTwo, roomId: 'bbbb2222', player: 'p', message: 'no change' }), null);
 
@@ -244,7 +271,7 @@ assert.deepEqual(learnedFiles(roomTwo), [
   'ironclad/a1/controls/rewards.md',
 ]);
 
-console.log(JSON.stringify({ result: 'passed', verified: ['seed', 'inherit', 'commit-back', 'run state excluded', 'the template is authoritative for what it ships', 'git-style history', 'path escapes', 'a learn action only ever stages a proposal', 'the library is human-curated: a room can neither add, edit nor resurrect a note', 'recall/research', 'a note may close a plan', 'a bad note never ends a run', 'note areas', 'seed-specific notes refused', 'front matter required', 'single reference site pinned to beta'], gameInputs: 0 }));
+console.log(JSON.stringify({ result: 'passed', verified: ['seed', 'inherit', 'commit-back', 'run state excluded', 'the template is authoritative for what it ships', 'a note the template has moved leaves no copy behind', 'git-style history', 'path escapes', 'a learn action only ever stages a proposal', 'the library is human-curated: a room can neither add, edit nor resurrect a note', 'recall/research', 'a note may close a plan', 'a bad note never ends a run', 'note areas', 'seed-specific notes refused', 'front matter required', 'single reference site pinned to beta'], gameInputs: 0 }));
 
 
 // --- a legacy <skill>-astra library is renamed, not stranded ---------------

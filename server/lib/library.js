@@ -68,8 +68,43 @@ function copyKnowledge(from, to, { overwrite = true } = {}) {
   return copied;
 }
 
+
 /**
- * Create the repository if it is missing and seed a skill from the image
+ * A path the template has dropped is dropped here too.
+ *
+ * The sync only ever added and overwrote, so a note the template stopped
+ * shipping stayed in the library forever. Moving `act1/unknown/tea-master.md`
+ * to `meta_strategy/` therefore left the pre-move copy behind and retrieval
+ * served both, the stale one carrying the very verdicts the move removed. The
+ * template is the authority for what the library serves, which has to include
+ * what it no longer serves.
+ *
+ * Exempt: the room's staged proposals, migration markers and other dotfiles,
+ * per-run diary notes, and the legacy `learned`/`controls`/`wiki` trees that
+ * `copyKnowledge` deliberately never writes - pruning those would delete notes
+ * the template was never asked to provide.
+ */
+const PRESERVED = new Set([STAGED_NOTES]);
+function preserved(file) {
+  const [top] = file.split(path.sep);
+  return PRESERVED.has(file) || top.startsWith('.') || ['learned', 'controls', 'wiki'].includes(top) || DIARY_PATH.test(file);
+}
+
+/** Drop directories the prune emptied, deepest first, never the repository. */
+function pruneEmptyDirs(root) {
+  const walk = (relative) => {
+    const base = path.join(root, relative);
+    for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+      if (!entry.isDirectory() || RUN_STATE.has(entry.name)) continue;
+      const next = path.join(relative, entry.name);
+      walk(next);
+      if (!fs.readdirSync(path.join(root, next)).length) fs.rmdirSync(path.join(root, next));
+    }
+  };
+  if (fs.existsSync(root)) walk('');
+}
+
+/** Create the repository if it is missing and seed a skill from the image
  * template, which is the authority for every path it provides.
  *
  * Template files used to be only ever *added*, so that a newer image could not
@@ -97,10 +132,14 @@ export async function ensureSkill(cfg, skill, templateDir) {
   const before = new Set(listNotes(target));
   const copied = fs.existsSync(templateDir) ? copyKnowledge(templateDir, target) : [];
   const added = copied.filter(file => !before.has(file));
+  const shipped = new Set(copied);
+  const dropped = [...before].filter(file => !shipped.has(file) && !preserved(file));
+  for (const file of dropped) fs.rmSync(path.join(target, file), { force: true });
+  if (dropped.length) pruneEmptyDirs(target);
   const message = seeded ? `Seed ${skill} from the image template`
-    : `Sync ${skill} with the image template (${added.length} added, ${copied.length - added.length} refreshed)`;
+    : `Sync ${skill} with the image template (${added.length} added, ${copied.length - added.length} refreshed, ${dropped.length} dropped)`;
   const commit = await commit_(root, message, { skill });
-  return { dir: target, seeded, added, commit };
+  return { dir: target, seeded, added, dropped, commit };
 }
 
 /**
