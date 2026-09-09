@@ -91,6 +91,42 @@ export function towards(from, to) {
   return dx >= 0 ? 'right' : 'left';
 }
 
+// Buttons that put focus somewhere fixed instead of acting on what is already
+// focused: the panel shortcuts. `a` activates and `y` confirms, so neither can
+// be used to travel, and `start` leaves the run for the pause menu.
+const PANEL_BUTTONS = ['x', 'back', 'lb', 'rb', 'lt', 'rt'];
+
+const gapX = (a = [], b = []) => {
+  const [ax = 0, , aw = 0] = a;
+  const [bx = 0, , bw = 0] = b;
+  return Math.max(0, Math.max(ax, bx) - Math.min(ax + aw, bx + bw));
+};
+
+/**
+ * The bound button that lands focus in the target's own row.
+ *
+ * Some rows are not joined to the rest of the screen by the d-pad at all. From
+ * the combat creature row `up` moves nothing and `right` only toggles between
+ * the two creatures, so a potion holder three rows above is unreachable by
+ * walking, however carefully it is walked - and it is one `x` away. A panel
+ * shortcut sits inside the row it opens, so the entrance to a row is the panel
+ * button nearest the target along that row. That is also what keeps `back`
+ * (the map, same top row, far right) from being mistaken for the potion
+ * shortcut sitting against the holders.
+ */
+export function panelEntrance(state, target, spent = new Set()) {
+  const [, ty, , th = 0] = target?.bounds || [];
+  if (!Number.isFinite(ty)) return null;
+  const found = (state?.ui?.elements || [])
+    .filter(item => item.id !== target.id && item.enabled !== false && PANEL_BUTTONS.includes(item.press) && !spent.has(item.press))
+    .filter(item => {
+      const [, y, , h = 0] = item.bounds || [];
+      return Number.isFinite(y) && y < ty + th && y + h > ty;
+    })
+    .sort((a, b) => gapX(a.bounds, target.bounds) - gapX(b.bounds, target.bounds));
+  return found.length ? found[0].press : null;
+}
+
 /** The other axis, for when a press along the first one changes nothing. */
 export function across(direction) {
   return { left: 'down', right: 'down', up: 'right', down: 'right' }[direction] || 'down';

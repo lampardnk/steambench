@@ -640,3 +640,54 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.match(prompt, /ONE KIND OF ACTION PER PLAN/);
   assert.match(prompt, /no verified focus path/i);
 });
+
+// A row the d-pad does not reach is entered with its panel shortcut.
+//
+// Live, at decision 68 of room ba94db7f: combat focus sat on the ally hitbox
+// and the plan wanted the occupied potion holder three rows above. `up` moved
+// nothing and `right` only toggled between the two creatures, so the walk
+// ping-ponged for twelve presses and the run paused. The holder carries no
+// bound button of its own - the shortcut sitting beside it does, and one `x`
+// lands on the strip. Bounds and ids are the ones the mod reported there.
+{
+  const el = (id, label, bounds, extra = {}) => ({ id, label, focus_mode: 'all', selectable: true, enabled: true, visible: true, bounds, neighbors: {}, ...extra });
+  const ally = el('element-1680355639913', 'Hitbox', [359, 462, 242, 278], { neighbors: { right: 'element-1683291653444', left: 'element-1683291653444' } });
+  const foe = el('element-1683291653444', 'Hitbox', [1185, 574, 212, 166], { neighbors: { right: 'element-1680355639913', left: 'element-1680355639913' } });
+  const screen = [
+    ally,
+    foe,
+    // Decoys on the same top row, both further from the holder than `x` is.
+    el('element-633843234674', 'Map', [1664, 0, 80, 80], { press: 'back' }),
+    el('element-634162001797', '13', [1744, 0, 80, 80], { press: 'lb' }),
+    el('element-634514323354', 'PauseButton', [1824, 0, 80, 80], { press: 'start' }),
+    el('element-632819824440', 'PotionShortcutButton', [435, 15, 96, 48], { press: 'x' }),
+    el('leftmost', null, [443, 9, 60, 60], { neighbors: { right: 'element-681658302785' } }),
+    el('element-681658302785', 'PotionHolder', [503, 9, 60, 60], { neighbors: { left: 'leftmost' } }),
+  ];
+  const pressed = [];
+  let focus = ally.id;
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (button === 'x') focus = 'leftmost';
+    else if (button === 'left' || button === 'right') {
+      // The creature row is a closed pair; the potion strip walks properly.
+      if (focus === ally.id) focus = foe.id;
+      else if (focus === foe.id) focus = ally.id;
+      else if (button === 'right' && focus === 'leftmost') focus = 'element-681658302785';
+      else if (button === 'left' && focus === 'element-681658302785') focus = 'leftmost';
+    }
+    // up and down move nothing at all from either row.
+  };
+  const read = () => ({ state_type: 'monster', run: { act: 1, floor: 5, ascension: 1 }, player: { hp: 43, max_hp: 80 },
+    ui: { scene_id: 'b1106cc448d9bef4', focused_element: focus, elements: screen } });
+  executor.observe = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const landed = await executor.navigateElement({ type: 'activate', target: 'element-681658302785', scene: 'b1106cc448d9bef4' }, read());
+  assert.equal(landed.ui.focused_element, 'element-681658302785', `it reaches the holder: pressed ${pressed.join(',')}`);
+  assert.ok(pressed.includes('x'), `via the potion shortcut, not the map: ${pressed.join(',')}`);
+  assert.ok(!pressed.includes('back') && !pressed.includes('start'), `and it presses neither the map nor pause: ${pressed.join(',')}`);
+  assert.equal(pressed.filter(button => button === 'x').length, 1, 'the shortcut is spent after one press');
+}
