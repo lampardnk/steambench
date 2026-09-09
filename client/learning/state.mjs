@@ -444,5 +444,10 @@ export function validatePlan(plan, state, { role = null } = {}) {
 }
 
 export function uncertainCard(card) {
-  return /draw|random|choose|select|discover|create|generate|(?:add|put|return|move).*hand|top card|replay|(?:gain|lose) .*energy/i.test(card.description || '');
+  // ...and a card that changes what a LATER card costs. Unrelenting reads
+  // "Deal 15 damage. The next Attack you play costs 0", so Unrelenting, Strike,
+  // Strike costs 2+0+1 = 3 and not the 4 its printed costs add up to. The
+  // budget refused that turn three times over and spent the run's whole
+  // refinement budget arguing with arithmetic the model had got right.
+  return /draw|random|choose|select|discover|create|generate|(?:add|put|return|move).*hand|top card|replay|(?:gain|lose) .*energy|costs? (?:\d+ less|0|nothing)|free to play/i.test(card.description || '');
 }
