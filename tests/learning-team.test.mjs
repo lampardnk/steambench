@@ -255,7 +255,7 @@ import fs from 'node:fs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { EncounterScratchpad } from '../client/learning/encounter.mjs';
-import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
+import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, encounterOver, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
@@ -1326,4 +1326,30 @@ test('a potion is drunk where the turn asked for it, and stops the batch there',
   assert.equal(result.completed[0].action.type, 'use_potion');
   assert.ok(result.completed[0].barrier, 'with a barrier telling the model to replan');
   assert.deepEqual(played, [], 'nothing after it is played against state the potion has changed');
+});
+
+// An elite was declared won while the enemy was alive, because a potion opened
+// a card-choice screen. That screen carries no hand, so isCombat went false,
+// encounterKind returned null, and the fight closed on the "not at 0 HP, so
+// won" fallback: Bygone Effigy at 33 HP, the player at 46/80, the report
+// reading "won, 11 HP" and the potion spent for nothing. A fight ends when the
+// game leaves it, not when something is drawn on top of it.
+test('an overlay over a fight is still the fight', () => {
+  const fight = { floor: 7, kind: 'elite' };
+  const at = (state_type, extra = {}) => ({ state_type, run: { act: 1, floor: 7 }, player: { hp: 46, max_hp: 80 }, ...extra });
+
+  // Exactly the screen that closed the elite: a card choice with no hand, so
+  // isCombat is false, and on the same floor.
+  const colorless = at('card_select', { card_select: { cards: [{ index: 0, name: 'Bandage Up' }] }, player: { hp: 46, max_hp: 80 } });
+  assert.equal(encounterKind(colorless), null, 'it does not look like combat, which is what misled the old check');
+  assert.equal(encounterOver(colorless, fight), false, 'and it is still the fight');
+
+  assert.equal(encounterOver(at('hand_select'), fight), false, 'so is a hand-select an exhaust card opened');
+  assert.equal(encounterOver(at('elite'), fight), false);
+
+  // What actually ends it.
+  assert.equal(encounterOver(at('rewards'), fight), true, 'the reward screen is after the fight');
+  assert.equal(encounterOver(at('game_over'), fight), true);
+  assert.equal(encounterOver({ ...at('elite'), run: { act: 1, floor: 8 } }, fight), true, 'and so is being on another floor');
+  assert.equal(encounterOver(at('elite'), null), false, 'with no fight open there is nothing to close');
 });

@@ -10,7 +10,7 @@ import { Executor, learnedFiles, SCRATCHPAD_NOTE, REFLECTION_HEADER } from './ex
 import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { Actuator } from './actuator.mjs';
-import { briefing, combatContext, encounterKind, splitNotes, strategistContext } from './context.mjs';
+import { briefing, combatContext, encounterKind, encounterOver, splitNotes, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
 import { Curriculum } from './curriculum.mjs';
 import { controlManual, indexNotes, retrieve } from './retrieval.mjs';
@@ -317,9 +317,16 @@ async function run(task) {
     };
     const answer = await planner.ask({ role: 'handoff', agent: fight.lane, prompt: 'handoff.txt', context, deadlineMs: 45000 });
     const text = (value, limit) => (typeof value === 'string' && value.trim() ? value.trim().slice(0, limit) : null);
+    // The outcome and the HP are measurements, and the runtime took them. Both
+    // used to be overridable by the closing report, and the report said "won,
+    // 11 HP" over a live elite - the enemy at 33 HP, the player at 46/80, 11
+    // matching nothing on screen. The encounter agent describes the fight; it
+    // does not get to state its result. A disagreement belongs in `struggled`,
+    // where it is read rather than believed.
     return {
-      outcome: ['won', 'lost', 'left'].includes(answer?.outcome) ? answer.outcome : fallback,
-      hp_cost: Number.isInteger(answer?.hp_cost) ? answer.hp_cost : Number.isInteger(fight.enteredHp) && Number.isInteger(exitHp) ? fight.enteredHp - exitHp : null,
+      outcome: fallback,
+      hp_cost: Number.isInteger(fight.enteredHp) && Number.isInteger(exitHp) ? fight.enteredHp - exitHp : null,
+      ...(answer?.outcome && answer.outcome !== fallback ? { disputed_outcome: String(answer.outcome).slice(0, 20) } : {}),
       worked: text(answer?.worked, 300),
       struggled: text(answer?.struggled, 300),
       deck_need: text(answer?.deck_need, 300),
@@ -402,7 +409,10 @@ async function run(task) {
       // a play prompt spends the whole context on button pressing. Everything
       // else - map, rewards, shops, events, rest sites - is the strategist's.
       const kind = encounterKind(state);
-      if (fight && (!kind || fight.floor !== (state.run?.floor ?? null))) await closeFight(state, state.player?.hp === 0 ? 'lost' : 'won');
+      // Not "this screen is not combat" - that closed an elite because a
+      // potion put a card-choice overlay in front of it. The encounter ends
+      // when the game has left it.
+      if (fight && encounterOver(state, fight)) await closeFight(state, state.player?.hp === 0 ? 'lost' : 'won');
       if (kind && !fight) openFight(state, kind);
       // A menu is actuation and nothing else: there is no card, enemy or route
       // to weigh on a title screen, and running one through a play prompt spends
