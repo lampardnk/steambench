@@ -29,7 +29,25 @@ action endpoint.
 | `lt` / `rt` | draw pile / discard pile |
 | `start` | pause and settings. Never change settings, never quit. |
 
-## How to read any screen
+## The grammar of every screen
+
+**d-pad moves. `a` selects. `y` confirms or proceeds. `b` leaves.** Every screen
+in this game is that same sentence, and almost every way a run gets stuck here
+is one of the four being mistaken for another.
+
+- **`a` acts on the highlighted thing and never advances the screen.** On a
+  selection it TOGGLES, so a second `a` undoes the first.
+- **`y` is the only thing that advances.** It confirms a selection, proceeds
+  past a screen, ends a turn, and answers a confirmation raised by something
+  else. When a screen looks finished but nothing happens, `y` is usually the
+  press that was missing.
+- **`b` leaves, cancels, or closes what is open** - and leaving is itself a
+  choice, so `b` frequently raises a confirmation that `y` then answers.
+  Departing a shop is `b` then `y`. Both are reversible up to that `y`.
+
+So read a screen by asking which of the four it is waiting for, rather than by
+looking for a button named after what you want to do. The rules below are that
+sentence applied to particular screens, not separate rules to memorise.
 
 **These screens are rows, stacked top to bottom. The pad walks them.** The thing
 you want is above, below or beside where you are, and the press is towards it.
@@ -50,9 +68,14 @@ selection confirm and End Turn both report `press: y` in combat; View Upgrades
 and Confirm both do in the card zoom. Close the inner thing with `b` first, then
 press what you meant.
 
-**When a screen is unreadable, fuzz out of it.** A `b`, or a few directional
-presses, returns almost anything to somewhere recognisable, and both are
-reversible. Do that and re-observe before reporting an issue.
+**When a screen is unreadable, fuzz out of it - but fuzzing means VARYING.** A
+`b`, or a few directional presses, returns almost anything to somewhere
+recognisable. Keep track of what you have already pressed on this screen and do
+not press it again: a button that changed nothing will change nothing on a
+second attempt, and repeating a combination is how a run spends ten decisions
+standing still. One press, then a fresh read. When `b`, a direction and the
+panel toggle have each been tried once and the screen has not moved, it is not
+going to - report that instead of pressing a fourth time.
 
 **A directional press that changes nothing** means focus was already at that
 edge. One exploratory press is always safe; re-read before assuming a move is
@@ -69,31 +92,21 @@ still needed.
   up exactly. Its focus PATH is an auto-generated `@Control@362`, which names
   nothing; the label does. The type names down the right-hand side at x=1582
   are the legend, and carry no activation: they are captions, not nodes.
-- **A selection screen is three steps: d-pad, then `a`, then `y`.** Move the
-  highlight to the card you want with the d-pad; `a` SELECTS the highlighted one
-  and `y` confirms. `a` never finishes the screen, and it TOGGLES - pressing it
-  twice on the same card selects and then deselects it, which is how a run spent
-  ten presses cycling and ended with nothing chosen. Press it once, then read.
-- **`can_confirm` is the state of the selection, and it is the only readout.**
-  True means a valid choice is held and `y` will take it; false means nothing is
-  selected yet, whatever the highlight looks like. The Confirm control mirrors
-  it: SelectModeConfirmButton is `enabled: false` while `can_confirm` is false,
-  so activating it does nothing and reports nothing. A card played from hand
-  that asks you to pick another card (an upgrade, a discard, an exhaust) opens
-  `hand_select` with a `mode` and a prompt beginning "Confirm", often with one
-  card already selected and `can_confirm` already true - there, `y` alone
-  finishes it and any `a` first will deselect what was chosen for you. Read
-  `can_confirm` after every press, not the highlight. The candidate list is
-  built from what is eligible right now, so a card missing from it is usually
-  ineligible rather than absent: an upgrade prompt does not offer a card that is
-  already upgraded.
-- **Selection is often not reported at all.** `selected_cards` is frequently
-  null even when a card is chosen, so a pick can look exactly like a press that
-  did nothing. `can_confirm` is the only reliable evidence: on "choose N" it
-  stays false until N are picked, and on a single-target prompt it is true
-  immediately. "Up to N" is satisfied by fewer than N, including none. Where
-  `hand_select.cards` does shrink, that is selection working - it omits what is
-  already in `selected_cards`.
+- **Selection screens: `can_confirm` is the only readout.** These report no
+  selected list, so a press that worked looks exactly like one that did nothing.
+  True means a valid choice is held and `y` takes it; false means nothing is
+  selected, whatever the highlight shows. The Confirm control mirrors it and
+  goes `enabled: false` while it is false, so a dark Confirm means nothing is
+  chosen rather than a broken screen. Read it after every press.
+- **A card played from hand that asks you to pick another card** - an upgrade, a
+  discard, an exhaust - opens `hand_select` with a `mode` and a prompt beginning
+  "Confirm", usually with one card ALREADY selected and `can_confirm` already
+  true. There `y` alone finishes it, and an `a` first will deselect what was
+  chosen for you. The candidate list is what is eligible right now, so a card
+  missing from it is ineligible rather than absent: an upgrade prompt does not
+  offer a card that is already upgraded.
+- **"Up to N" is satisfied by fewer than N, including none**, and on "choose N"
+  `can_confirm` stays false until N are picked.
 - **Pack, bundle and card-selection.** LEFT/RIGHT moves between choices, `a`
   opens a preview, `b` cancels it.
 - **The bundle preview IS the confirm step.** `a` on a bundle opens its cards

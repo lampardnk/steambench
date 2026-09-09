@@ -347,6 +347,9 @@ export class Executor {
    */
   async focusHand(before) {
     let path = before.ui?.focus_path ?? null;
+    // An escape that moved nothing will not move anything the second time, so
+    // it is spent. Without this the ladder walks b, x, left, b, x, left...
+    const spent = new Set();
     for (let step = 0; step < 10; step++) {
       await this.button('down');
       let state = await this.observe();
@@ -356,11 +359,12 @@ export class Executor {
       // ways out, in the order that costs least: close whatever opened, toggle
       // the panel that opened it, then walk sideways out of the row.
       let escaped = false;
-      for (const button of ESCAPES) {
+      for (const button of ESCAPES.filter(item => !spent.has(item))) {
         await this.button(button);
         state = await this.observe();
         if (state.ui?.focused_card != null) return state;
         if ((state.ui?.focus_path ?? null) !== path) { path = state.ui?.focus_path ?? null; escaped = true; break; }
+        spent.add(button);
       }
       if (!escaped) return null;
     }
