@@ -708,11 +708,19 @@ export class Room extends EventEmitter {
       }
     });
     agent.start();
-    await sleep(4000);
+    // Ask as soon as it answers rather than waiting a flat four seconds for it.
+    // The player is usually up in well under a second, and the fixed wait was
+    // four seconds of every restart plus twelve seconds of every test run.
+    let response = null;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      if (this.destroyed) { await agent.stop(); return; }
+      response = await agent.send({ type: 'get_state' }).catch(() => null);
+      if (response?.success) break;
+      await sleep(100);
+    }
     if (this.destroyed) { await agent.stop(); return; }
     try {
-      const response = await agent.send({ type: 'get_state' });
-      if (!response.success || response.data?.player !== this.cfg.learningProfile.checkpointVersion || response.data.model !== this.cfg.learningProfile.model || response.data.thinkingLevel !== this.cfg.learningProfile.reasoning) throw new Error('learning player model/configuration handshake failed');
+      if (!response?.success || response.data?.player !== this.cfg.learningProfile.checkpointVersion || response.data.model !== this.cfg.learningProfile.model || response.data.thinkingLevel !== this.cfg.learningProfile.reasoning) throw new Error('learning player model/configuration handshake failed');
       if (resume && !response.data.checkpointRestored) throw new Error('learning player did not restore its checkpoint; refusing to resume');
     } catch (error) {
       this.setStage('error', `learning player startup failed; game preserved: ${error.message}`);

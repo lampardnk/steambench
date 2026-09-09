@@ -16,9 +16,22 @@ export type Commit = {
 type FileList = { skill: string; files: { path: string; bytes: number }[] }
 type FileText = { skill: string; path: string; text: string }
 type HistoryPage = { commits?: Commit[]; objectives?: Objective[]; total?: number; nextOffset: number | null }
+/** One UI problem an agent could not get past, and the answer that unstuck it. */
+export type Rescue = {
+  id: string
+  at: number
+  via: string | null
+  answer: string | null
+  problem: string | null
+  decision: number | null
+  agent: string | null
+  screen: string | null
+  floor: number | null
+}
+type RescuePage = { incidents: Rescue[]; total: number; nextOffset: number | null }
 
 const STATUS_LABEL: Record<string, string> = { A: 'added', M: 'changed', D: 'removed', R: 'renamed' }
-const VIEWS = { objectives: 'objectives', commits: 'history', files: 'current notes' } as const
+const VIEWS = { objectives: 'objectives', rescues: 'ui rescues', commits: 'history', files: 'current notes' } as const
 const FOCUS = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 type View = keyof typeof VIEWS
 
@@ -43,6 +56,9 @@ export function Learning({ settings, curriculum, refreshKey, roomId }: { setting
       </div>
       <div hidden={view !== 'objectives'}>
         {view === 'objectives' && <Objectives settings={settings} curriculum={curriculum} roomId={roomId} refreshKey={refresh} />}
+      </div>
+      <div hidden={view !== 'rescues'}>
+        {view === 'rescues' && <Rescues settings={settings} roomId={roomId} refreshKey={refresh} />}
       </div>
       <div hidden={view !== 'commits'}>
         {view === 'commits' && <History settings={settings} endpoint="/api/library" kind="commits" title="Commit history" refreshKey={refresh} />}
@@ -74,6 +90,70 @@ function Objectives({ settings, curriculum, roomId, refreshKey }: { settings: Se
           rooms handed each new run a frontier from seeds that no longer exist. */}
       {roomId && <History key={roomId} settings={settings} endpoint={`/api/rooms/${encodeURIComponent(roomId)}/objectives`} kind="objectives" title="Objective history" refreshKey={refreshKey} />}
     </div>
+  )
+}
+
+/**
+ * Every UI problem this room stopped on, and what got it moving again.
+ *
+ * These are the run's real failures: an agent that could not resolve a screen
+ * on its own and needed an operator. Read together they are the work list for
+ * the control manual - each one either belongs in CONTROLS.md or is a bug.
+ */
+function Rescues({ settings, roomId, refreshKey }: { settings: Settings; roomId?: string; refreshKey: string }) {
+  const [page, setPage] = useState<RescuePage | null>(null)
+  const [busy, setBusy] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!roomId) { setBusy(false); return }
+    let current = true
+    setBusy(true)
+    setError('')
+    api<RescuePage>(settings, `/api/rooms/${encodeURIComponent(roomId)}/incidents?limit=50`)
+      .then((result) => { if (current) setPage(result) })
+      .catch((err) => { if (current) setError((err as Error).message) })
+      .finally(() => { if (current) setBusy(false) })
+    return () => { current = false }
+  }, [settings, roomId, refreshKey])
+
+  if (!roomId) return <p className="p-2 text-xs text-muted-foreground">Open a room to see the UI problems it hit.</p>
+  const items = page?.incidents || []
+  return (
+    <section className="min-w-0 rounded-md border border-border bg-card" aria-label="UI rescues">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border p-2 text-xs">
+        <span className="font-medium">{page?.total ?? 0} rescue{page?.total === 1 ? '' : 's'} this run</span>
+        <span className="text-muted-foreground">Each one is a screen the agents could not resolve alone.</span>
+      </div>
+      <div aria-busy={busy} className="max-h-[32rem] overflow-auto p-2">
+        {error ? <div role="alert" className="p-2 text-xs text-destructive">{error}</div>
+          : busy ? <p role="status" className="p-2 text-xs text-muted-foreground">Loading rescues…</p>
+            : items.length ? <ol className="space-y-1">{items.map((item) => <RescueRow key={item.id} rescue={item} />)}</ol>
+              : <p className="p-2 text-xs text-muted-foreground">No rescues. The agents resolved every screen on their own.</p>}
+      </div>
+    </section>
+  )
+}
+
+function RescueRow({ rescue }: { rescue: Rescue }) {
+  const where = [rescue.screen, rescue.floor != null ? `floor ${rescue.floor}` : null, rescue.decision != null ? `decision ${rescue.decision}` : null].filter(Boolean).join(' · ')
+  return (
+    <li>
+      <details className="rounded-md border border-l-2 border-warning/40 bg-warning/5">
+        <summary className={`cursor-pointer rounded px-3 py-2 ${FOCUS}`}>
+          <span className="break-words">{rescue.problem || 'Unrecorded problem'}</span>
+          {where && <span className="ml-2 whitespace-nowrap text-xs text-muted-foreground">{where}</span>}
+        </summary>
+        <div className="space-y-2 border-t border-border px-3 py-2 text-xs">
+          {rescue.agent && <p><span className="text-muted-foreground">The agent was trying to: </span>{rescue.agent}</p>}
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">what unstuck it</div>
+            <p className="mt-0.5 whitespace-pre-wrap break-words">{rescue.answer || 'Resumed without an explanation.'}</p>
+          </div>
+          <p className="text-muted-foreground">{new Date(rescue.at).toLocaleString()}{rescue.via ? ` · ${rescue.via}` : ''}</p>
+        </div>
+      </details>
+    </li>
   )
 }
 

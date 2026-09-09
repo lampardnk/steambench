@@ -19,8 +19,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const STAGED_NOTES = 'scratchpad.md';
-export const MAX_RETRIEVED = 5;
-export const RETRIEVAL_BUDGET = 32000;
+const MAX_RETRIEVED = 5;
+const RETRIEVAL_BUDGET = 32000;
 // A note arrives the same size whether it was retrieved for the situation or
 // recalled by name, so this matches executor's MAX_NOTE. The number comes from
 // the corpus rather than a round guess: the act rosters a biome decision has to

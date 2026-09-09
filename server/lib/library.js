@@ -245,6 +245,40 @@ export async function historyPage(cfg, params = {}) {
   return { commits: commits.slice(0, limit), limit, offset, nextOffset: hasMore ? offset + limit : null };
 }
 
+/**
+ * The UI problems a run hit and what got it moving again.
+ *
+ * Every operator rescue is already on disk - the incident holds what the agent
+ * could not do, the resolution holds the answer it was given - but they sat in
+ * two files nobody reads. Paired and listed, they are the work list for the
+ * control manual: anything here is something the agents could not resolve on
+ * their own, and each one either belongs in CONTROLS.md or is a runtime bug.
+ */
+export function incidentPage(dir, params = {}) {
+  const { limit, offset } = pagination(params);
+  let resolutions = [];
+  try {
+    resolutions = fs.readFileSync(path.join(dir, 'incident-resolutions.jsonl'), 'utf8')
+      .split('\n').filter(Boolean).map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
+  } catch { }
+  const items = resolutions.map(entry => {
+    let incident = null;
+    try { incident = JSON.parse(fs.readFileSync(path.join(dir, 'incidents', entry.issueId, 'incident.json'), 'utf8')); } catch { }
+    return {
+      id: entry.issueId,
+      at: entry.at,
+      via: entry.via || null,
+      answer: entry.message || null,
+      problem: incident?.error || null,
+      decision: incident?.decision ?? null,
+      agent: incident?.plan?.summary || null,
+      screen: incident?.after?.state_type || incident?.before?.state_type || null,
+      floor: incident?.after?.run?.floor ?? incident?.before?.run?.floor ?? null,
+    };
+  }).sort((a, b) => (b.at || 0) - (a.at || 0));
+  return { incidents: items.slice(offset, offset + limit), total: items.length, limit, offset, nextOffset: offset + limit < items.length ? offset + limit : null };
+}
+
 export function objectivePage(file, params = {}) {
   const { limit, offset } = pagination(params);
   let ledger = { objectives: [] };
