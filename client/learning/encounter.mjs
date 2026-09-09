@@ -11,7 +11,38 @@ const extractPowers = entity => (entity?.status || entity?.powers || entity?.buf
 // Reconstructed from current observations after every reload. Never inherits old combat state.
 export class EncounterScratchpad {
   constructor() { this.reset(); }
-  reset() { this.key = null; this.value = null; }
+  reset() { this.key = null; this.value = null; this.turn = null; }
+
+  /**
+   * How many Attacks have already been played this turn.
+   *
+   * Stomp reads "Deal 12 damage to ALL enemies. Costs 1 less for each Attack
+   * played this turn", and the hand reports its cost RIGHT NOW - so the agent
+   * can see what Stomp costs but not what it would cost after the Strikes it
+   * is about to plan. The game keeps that tally and the mod does not publish
+   * it, so the runtime counts it: cards played this turn are the ones that
+   * have joined the discard or exhaust piles since the round began.
+   *
+   * A mid-turn reshuffle empties the discard back into the draw pile and
+   * destroys the baseline. That is reported as null, not as a smaller number -
+   * a wrong count here is worse than an absent one, because it would be
+   * spent on arithmetic.
+   */
+  countPlayed(state) {
+    const seen = [...(state.player?.discard_pile || []), ...(state.player?.exhaust_pile || [])];
+    const ids = new Set(seen.map(item => item.instance_id).filter(id => id != null));
+    const round = state.battle?.round ?? null;
+    if (!this.turn || this.turn.round !== round) {
+      this.turn = { round, baseline: ids, valid: true };
+      return { attacks: 0, cards: 0 };
+    }
+    // Anything the baseline held that is no longer there means the piles were
+    // rebuilt underneath us; the delta stops meaning anything.
+    if (this.turn.valid) this.turn.valid = [...this.turn.baseline].every(id => ids.has(id));
+    if (!this.turn.valid) return { attacks: null, cards: null };
+    const fresh = seen.filter(item => item.instance_id != null && !this.turn.baseline.has(item.instance_id));
+    return { attacks: fresh.filter(item => item.type === 'Attack').length, cards: fresh.length };
+  }
   observe(state, verifiedEffects = []) {
     if (!state.battle || !state.player?.hand) { this.reset(); return null; }
     const enemyIds = (state.battle.enemies || []).map(e => e.combat_id ?? e.entity_id ?? e.name).join(',');
@@ -24,6 +55,7 @@ export class EncounterScratchpad {
     this.value = {
       encounter: key,
       round: state.battle.round,
+      ...(() => { const played = this.countPlayed(state); return { attacks_played_this_turn: played.attacks, cards_played_this_turn: played.cards }; })(),
       piles: Object.fromEntries(['hand', 'draw_pile', 'discard_pile', 'exhaust_pile'].map(name => [name, { count: state.player[`${name}_count`] ?? state.player[name]?.length ?? null, cards: (state.player[name] || []).map(card), order_known: name !== 'draw_pile' }])),
       player_powers: extractPowers(state.player),
       // Everything a turn is spent out of, and everything that spends itself
@@ -39,7 +71,7 @@ export class EncounterScratchpad {
       enemies: (state.battle.enemies || []).map(e => ({ combat_id: e.combat_id ?? e.entity_id, name: e.name, hp: e.hp, max_hp: e.max_hp ?? null, block: e.block ?? null, intents: e.intents, powers: extractPowers(e) })),
       verified_recent_effects: recentEffects,
       unresolved_hypotheses: encounterChanged ? [] : (previous?.unresolved_hypotheses || []),
-      authority: 'Fresh piles, powers and intents replace all earlier memory. Draw pile membership is not draw order.',
+      authority: 'Fresh piles, powers and intents replace all earlier memory. Draw pile membership is not draw order. attacks_played_this_turn is what a cost-reducing card has already counted; null means a reshuffle made it unknowable, so read the live cost instead.',
     };
     return this.context();
   }
