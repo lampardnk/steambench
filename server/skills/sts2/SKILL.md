@@ -27,7 +27,7 @@ Two roots sit outside the Ironclad A1 tree because they are not character-specif
 
 1. Before Neow, scout reachable routes, likely fights, elites and boss demands. Consult the guide and allowed wiki if a material question remains. Choose the bundle that answers those problems; transforms and appropriate targets depend on the current deck and seed.
 2. During combat, use fresh hand/draw/discard/exhaust membership and powers. An exhausted card is unavailable unless a live mechanic explicitly recovers it. Recalculate when observations invalidate a hypothesis.
-3. Batch only deterministic actions whose intermediate effects are locally verified. A lone valuable draw or setup card is valid; draw, randomness, new selections or changed targets require fresh planning.
+3. Batch only deterministic actions whose intermediate effects are locally verified. A lone draw or setup card is valid; draw, randomness, new selections or changed targets require fresh planning.
 4. Aim to clear Ironclad A1 Act 1 within 60 minutes. Use the runtime timer, concise hypotheses and text focus queries. The target never overrides safety or makes victory guaranteed.
 5. Retain a note only if useful in an unseen seed: trigger, observed rule, decision criteria, counterexamples and source uncertainty. Encounter intent graphs and recurring tactical/route problems belong here; particular offers, floor sequences and roll outcomes belong only in scratchpad.
 
