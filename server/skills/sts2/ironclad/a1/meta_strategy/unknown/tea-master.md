@@ -1,10 +1,10 @@
 ---
 description: Tea Master — Act 1, both biomes (also Act 2 Hive). Exact outcomes for every option, with the trade-offs stated and the choice left open.
 character: ironclad
-act: 1
+act: any
 category: unknown
 ascension: a1
-keys: [tea master, event, unknown, act1, overgrowth, underdocks, gold, strength, dazed, upgrade]
+keys: [tea master, event, unknown, overgrowth, underdocks, gold, strength, dazed, upgrade, all acts]
 sources: [slaythespire.wiki.gg]
 ---
 

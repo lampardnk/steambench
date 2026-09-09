@@ -1,10 +1,10 @@
 ---
 description: Slippery Bridge — Any act. Exact outcomes for every option, with the trade-offs stated and the choice left open.
 character: ironclad
-act: 1
+act: any
 category: unknown
 ascension: a1
-keys: [slippery bridge, event, unknown, act1, any act, card removal, hp loss]
+keys: [slippery bridge, event, unknown, any act, card removal, hp loss, all acts]
 sources: [slaythespire.wiki.gg]
 ---
 

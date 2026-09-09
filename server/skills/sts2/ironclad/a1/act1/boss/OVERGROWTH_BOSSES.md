@@ -250,26 +250,25 @@ How many turns that costs depends entirely on how many instances per turn you
 can land, which is the argument for multi-hit over a single heavy card. [Rotation and damage from
 slaythespire2.net; Slippery from wiki.gg]
 
-## Ironclad boss prep checklist (editable)
+## What these bosses ask of a deck
 
-- By Act 1 boss you want: one Strength source (Inflame/Demon Form), one big
-  block (Impervious, Blood Wall, Expect a Fight), one heavy attack (Bludgeon,
-  Break, Mangle, Cinder, Hemokinesis). Heavy Blade and Carnage are Slay the
-  Spire 1 cards and do not exist here.
-- Ceremonial Beast: race to 150 (minimize Phase 1 Plows), then play around
-  Ringing (1 card/turn). Inflame before Phase 2.
-- The Kin: kill Followers first, block Priest's orbs (account for Frail
-  reducing ALL block), out-scale Dark Ritual.
-- Vantom: strip Slippery 9 with multi-hit or chip damage before spending a
-  heavy attack (every hit deals 1 until it is empty), block Dismember (26–27/30),
-  and deal with the Wounds.
-- Use potions in boss fights — don't hoard. Strength + Fire = 20+ extra dmg.
+Constraints, not a shopping list. What the deck should carry is the run's
+decision, made against what it has actually been offered.
 
-### Do not overfit the deck to the Act 1 boss
+- Heavy Blade and Carnage are Slay the Spire 1 cards and do not exist here.
+- Ironclad's Strength sources are Inflame and Demon Form; its large blocks are
+  Impervious, Blood Wall and Expect a Fight; its heavy single attacks are
+  Bludgeon, Break, Mangle, Cinder and Hemokinesis.
+- Ceremonial Beast: Phase 1 is Plows; Phase 2 begins at 150 HP and Ringing
+  restricts you to one card per turn.
+- The Kin: the Priest's orbs are blocked damage and Frail reduces ALL block,
+  including against them; Dark Ritual scales while the Followers live.
+- A Strength potion and a Fire potion together add 20+ damage in a single turn.
 
-Knowing the boss is for weighting close calls, not for building the whole deck
-around one fight. A deck tuned only to beat one Act 1 boss arrives in Act 2 and
-Act 3 unbalanced, and those acts are longer and harsher than the fight it was
-built for. High damage with good scaling, or consistent reliable block, stays a
-correct pick even when it is not the boss-specific answer — take it over a
-narrow counter-card unless the counter is what the run is actually short of.
+### The boss is one fight of the run
+
+Knowing the boss weights close calls; it does not settle what the deck should
+be. Act 2 and Act 3 are longer and harsher than the Act 1 boss, so a card that
+is generally strong and a card that counters this one boss are being traded
+against different parts of the run - which of them the run is actually short of
+is the thing to judge.

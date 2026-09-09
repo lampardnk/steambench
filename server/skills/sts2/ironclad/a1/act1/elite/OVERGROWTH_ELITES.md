@@ -133,19 +133,19 @@ damage at all.
 [Rotation and damage from slaythespire2.net; Infested, Infection's destination
 and the death-timing rule from wiki.gg]
 
-## Ironclad elite prep checklist (editable)
+## What these elites ask of a deck
 
-- Need ~25+ damage per turn by first elite.
-- Bring at least one Strength source (Inflame, Demon Form, Rupture, Brand,
-  Fight Me!, Setup Strike for a single turn) for
-  consistent output across all three elites.
-- Weak reduces multi-hit attacks (Peck 3×3, Lash 4×4) substantially — 25% off
-  each of the hits.
-- Enough Block for the big single hits (Swoop 17, Slashes 23) — Impervious,
-  Blood Wall, Shrug It Off, Evil Eye, Expect a Fight all reach it.
-- These three elites want three different things: Bygone Effigy rewards a wide
-  cheap hand, Byrdonis rewards speed, and Phrog Parasite rewards damage to all
-  enemies. A deck tuned for one is not tuned for the others.
-- Don't hoard potions: use Strength/Fire/Block potions in elite fights.
-- Vulnerable (from Bash) is always good — it makes your attacks deal +50% to
-  the target. It does NOT make the target's attacks hit you harder.
+Constraints, not requirements. Which of them your deck answers, and whether it
+is worth answering, is the run's decision.
+
+- Weak cuts each hit of a multi-hit attack by 25%, so it takes proportionally
+  more off Peck (3x3) and Lash (4x4) than off a single large hit.
+- The big single hits are Swoop 17 and Slashes 23; Impervious, Blood Wall,
+  Shrug It Off, Evil Eye and Expect a Fight all reach those numbers.
+- Ironclad's Strength sources are Inflame, Demon Form, Rupture, Brand, Fight
+  Me! and Setup Strike, the last for one turn only.
+- These three elites reward different shapes: Bygone Effigy a wide cheap hand,
+  Byrdonis speed, Phrog Parasite damage to all enemies. A deck tuned for one
+  is not tuned for the others.
+- Vulnerable on an enemy makes YOUR attacks deal 50% more to it. It does not
+  make its attacks hit you harder.

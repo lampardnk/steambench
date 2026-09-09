@@ -1,10 +1,10 @@
 ---
 description: Brain Leech — Act 1, both biomes (also Act 2 Hive). Exact outcomes for every option, with the trade-offs stated and the choice left open.
 character: ironclad
-act: 1
+act: any
 category: unknown
 ascension: a1
-keys: [brain leech, event, unknown, act1, overgrowth, underdocks, card reward, colorless]
+keys: [brain leech, event, unknown, overgrowth, underdocks, card reward, colorless, all acts]
 sources: [slaythespire.wiki.gg]
 ---
 

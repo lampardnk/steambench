@@ -1,10 +1,10 @@
 ---
 description: Self-Help Book — Any act. Exact outcomes for every option, with the trade-offs stated and the choice left open.
 character: ironclad
-act: 1
+act: any
 category: unknown
 ascension: a1
-keys: [self-help book, event, unknown, act1, any act, enchant, sharp, nimble, swift]
+keys: [self-help book, event, unknown, any act, enchant, sharp, nimble, swift, all acts]
 sources: [slaythespire.wiki.gg]
 ---
 

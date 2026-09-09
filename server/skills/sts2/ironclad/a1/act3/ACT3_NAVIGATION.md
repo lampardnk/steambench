@@ -91,16 +91,17 @@ The Trial (2).
 ## Any-act events that can appear in Act 3
 See the Act 1 unknown file for the full 18 any-act event list.
 
-## Ironclad Act 3 priorities (editable)
-- Act 3 enemies are the hardest: 200+ HP normals, multi-hit, self-scaling
-  bosses. Demon Form or equivalent scaling is mandatory; Impervious for burst
-  block; Exhaust synergies (Feel No Pain, Dark Embrace) for long fights.
-- Aeonglass: Ebb blocks 33 — bring block-piercing or save burst for Eye Lasers.
-  Demon Form out-scales the Strength stacking. Don't waste hits on Ebb turns.
-- Queen: You Are Mine (Weak+99/Frail+99/Vuln+99) makes block nearly useless
-  and your attacks weak. Kill the Amalgam to start the attack phase, then
-  race before Enrage stacks. Shackling Potion (-7 Str) can save a turn.
-- Test Subject: Big Pounce (45) is lethal — block or die. Painful Stabs fills
-  discard with Wounds; Exhaust cards you don't need. Multi-Claw phase (post-1st
-  revive) is manageable; the 2+ revive phase is the danger zone.
-- A10 Double Boss: two different Act 3 bosses — plan for both mechanics.
+## Ironclad-relevant mechanics
+
+Facts a plan may turn on. What to do with them is the encounter's call.
+
+- Act 3 normals reach 200+ HP, hit multiple times per turn, and several scale
+  themselves; fights here run longer than in earlier acts.
+- Aeonglass: Ebb gains it 33 block on the turn it is used, and its cycle is
+  Ebb, Eye Lasers, Increasing Intensity, repeating.
+- Queen: You Are Mine applies Weak, Frail and Vulnerable at 99 stacks. The
+  attack phase begins once the Amalgam dies, and Enrage stacks from there.
+- Test Subject: Big Pounce deals 45. Painful Stabs adds Wounds to the discard
+  pile. It revives, and its move set differs after the first revive and again
+  from the second.
+- On A10 the act presents two different Act 3 bosses in one run.

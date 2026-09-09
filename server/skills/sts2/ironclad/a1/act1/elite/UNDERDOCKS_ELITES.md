@@ -128,7 +128,7 @@ worth most on Thrash turns because it hits three times.
 [Rotation, damage and Vigor from slaythespire2.net; the Shriek threshold and
 Terror from wiki.gg]
 
-## What each fight asks for (editable)
+## What each fight asks for
 
 Not a ranking, and not a card list — these three punish different deck shapes,
 and a deck built for one is not built for the others.
@@ -139,6 +139,7 @@ and a deck built for one is not built for the others.
 | Skulking Colony | 75 | Hardened Shell: max 20 HP lost per turn | exactly-enough damage plus Block; surviving 4+ turns, not bursting |
 | Terror Eel | 140 | Shriek 70 → permanent Vulnerable | removing HP before the threshold, and Block banked for after it |
 
-- Don't hoard potions: an elite is what they are for.
+- A potion kept for later is a potion that did nothing here; a potion spent
+  here is not available later. Both halves are real.
 - Vulnerable applied to the enemy makes *your* attacks deal +50% to it. It does
   not make its attacks hit you harder.

@@ -1,10 +1,10 @@
 ---
 description: Room Full of Cheese — Act 1, both biomes (also Act 2 Hive). Exact outcomes for every option, with the trade-offs stated and the choice left open.
 character: ironclad
-act: 1
+act: any
 category: unknown
 ascension: a1
-keys: [room full of cheese, event, unknown, act1, overgrowth, underdocks, common cards, chosen cheese, max hp]
+keys: [room full of cheese, event, unknown, overgrowth, underdocks, common cards, chosen cheese, max hp, all acts]
 sources: [slaythespire.wiki.gg]
 ---
 
