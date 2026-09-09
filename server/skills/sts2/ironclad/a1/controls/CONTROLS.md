@@ -69,23 +69,26 @@ still needed.
   up exactly. Its focus PATH is an auto-generated `@Control@362`, which names
   nothing; the label does. The type names down the right-hand side at x=1582
   are the legend, and carry no activation: they are captions, not nodes.
-- **Selection screens confirm separately, and `can_confirm` says when.**
-  `hand_select` and `card_select` name a candidate set; `a` on a candidate
-  selects it and NEVER finishes the screen. A separate Confirm bound to `y` does.
-  When `can_confirm` is already true the screen is satisfied and `y` is the whole
-  remaining move - pressing `a` again does nothing at all. "Up to N" is satisfied
-  by fewer than N, including none. A shrinking candidate list is selection
-  working: `hand_select.cards` omits what is already in `selected_cards`.
+- **`can_confirm: true` means the choice is already made. Press `y`.** This is
+  the single most expensive thing to get wrong here. `hand_select` and
+  `card_select` name a candidate set, and `a` NEVER finishes one of these
+  screens - it only moves which candidate is chosen. A card played from hand
+  that asks you to pick another card (an upgrade, a discard, an exhaust) opens
+  `hand_select` with a `mode` and a prompt that usually begins "Confirm", with
+  one card already targeted and `can_confirm` true from the start: pressing `a`
+  there just cycles to a different card, forever. The finishing control is a
+  separate element bound to `y` - SelectModeConfirmButton in combat - and it is
+  the enabled one; End Turn shares `y` and is disabled while a selection is
+  open. Read `can_confirm` and the prompt, not the highlight.
+- **Selection is often not reported at all.** `selected_cards` is frequently
+  null even when a card is chosen, so a pick can look exactly like a press that
+  did nothing. `can_confirm` is the only reliable evidence: on "choose N" it
+  stays false until N are picked, and on a single-target prompt it is true
+  immediately. "Up to N" is satisfied by fewer than N, including none. Where
+  `hand_select.cards` does shrink, that is selection working - it omits what is
+  already in `selected_cards`.
 - **Pack, bundle and card-selection.** LEFT/RIGHT moves between choices, `a`
   opens a preview, `b` cancels it.
-- **"Choose N cards" means pick N, then confirm with `y`.** On a
-  `card_select.screen_type: "simple_select"` - a Common-card reward, an event
-  offering several - `a` on a card selects it and the sensor reports NOTHING in
-  return: there is no selected list and no per-card flag, so the first pick
-  looks exactly like a press that did nothing. It was not. The only signal is
-  `can_confirm`, which stays false until enough cards are picked and then turns
-  true. So pick, pick again, and read can_confirm rather than looking for the
-  selection; when it is true, `y` takes them.
 - **The bundle preview IS the confirm step.** `a` on a bundle opens its cards
   side by side, with back on `b` and a CHECKMARK ON `y`. `y` there takes the
   bundle. Confirm, Cancel and View Upgrades exist only inside a preview, never on
