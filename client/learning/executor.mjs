@@ -474,6 +474,98 @@ export class Executor {
     throw new Error('hand navigation did not reach intended card; refusing selection');
   }
 
+  /**
+   * Use a potion, all of it, with every press verified.
+   *
+   * This existed only as prose in the control manual, and a run spent about
+   * fifty presses in one combat turn failing to follow it: `x, a, a` finishes a
+   * DRINK potion, whose only target is the player, so it is easily learned as
+   * "how to use a potion" and then repeated forever on one that must be THROWN.
+   * A thrown potion is only ARMED by that second `a`; the aim then sits on a
+   * creature and needs steering. Cards have had `play` doing this for them the
+   * whole time. Potions had nothing, so the model rediscovered the sequence
+   * from scratch every turn and got it wrong every turn.
+   */
+  async usePotion(action, before) {
+    if (!ready(before) || !isCombat(before)) throw new Error('not an actionable combat');
+    const potion = (before.player?.potions || []).find(item => item.slot === action.slot);
+    if (!potion) throw new Error(`no potion in slot ${action.slot}`);
+    const thrown = ['AnyEnemy', 'AnyAlly'].includes(potion.target_type);
+    const holders = () => (this.lastState?.ui?.elements || []).filter(item => item.reference?.kind === 'potion' && Array.isArray(item.bounds));
+
+    // Reach the strip by its shortcut, then walk it. `x` lands on the leftmost
+    // holder whether or not it holds anything, so the slot is a distance along
+    // the row rather than the thing the shortcut lands on.
+    let state = before;
+    if (!/PotionHolder|PotionPopup/.test(state.ui?.focus_path || '')) {
+      await this.button('x');
+      state = await this.observe();
+    }
+    for (let step = 0; step < 8; step++) {
+      this.lastState = state;
+      const row = holders().sort((a, b) => a.bounds[0] - b.bounds[0]);
+      const at = row.findIndex(item => item.id === state.ui?.focused_element);
+      if (at < 0) break;
+      if (at === action.slot) break;
+      await this.button(at < action.slot ? 'right' : 'left');
+      const next = await this.observe();
+      if (next.ui?.focused_element === state.ui?.focused_element) throw new Error(`focus will not move along the potion strip towards slot ${action.slot}${reachable(next)}`);
+      state = next;
+    }
+
+    // Open the holder's popup, then take whichever control the popup is on.
+    // Its options vary (Use/Discard, Use/Throw) and the cursor does not always
+    // start on the same one, so the focus path is the only reliable readout.
+    await this.button('a');
+    state = await this.observe();
+    if (!/PotionPopup/.test(state.ui?.focus_path || '')) throw new Error(`pressing a on the slot ${action.slot} holder did not open its popup${reachable(state)}`);
+    for (let step = 0; step < 4 && !/UseButton|ThrowButton/.test(state.ui?.focus_path || ''); step++) {
+      await this.button('up');
+      state = await this.observe();
+    }
+    if (!/UseButton|ThrowButton/.test(state.ui?.focus_path || '')) throw new Error(`the ${potion.name} popup is open but its Use control was not reached; focus is ${state.ui?.focus_path}`);
+    await this.button('a');
+    state = await this.settled();
+    if (progressId(state) !== progressId(before) && !thrown) {
+      this.record({ type: 'potion_used', slot: action.slot, name: potion.name, thrown: false });
+      return state;
+    }
+
+    // A drink is already finished. A throw is only ARMED: the aim now sits on
+    // some creature and has to be walked onto the one that was asked for.
+    if (!thrown) {
+      if ((before.player.potions || []).length === (state.player?.potions || []).length) throw new Error(`${potion.name} did not resolve; focus is ${state.ui?.focus_path}${reachable(state)}`);
+      this.record({ type: 'potion_used', slot: action.slot, name: potion.name, thrown: false });
+      return state;
+    }
+    if (!state.ui?.targeting) throw new Error(`${potion.name} is ${potion.target_type} but the game did not enter targeting; focus is ${state.ui?.focus_path}${reachable(state)}`);
+    const seen = new Set();
+    for (let step = 0; step < 8 && state.ui.focused_creature !== action.target; step++) {
+      if (seen.has(state.ui.focused_creature)) break;
+      seen.add(state.ui.focused_creature);
+      await this.button('right');
+      state = await this.observe();
+      if (!state.ui?.targeting) throw new Error('targeting was cancelled while aiming; the potion was not spent');
+    }
+    if (state.ui.focused_creature !== action.target) {
+      // Try the other way before giving up: the aim may have started past it.
+      for (let step = 0; step < 8 && state.ui.focused_creature !== action.target; step++) {
+        await this.button('left');
+        state = await this.observe();
+        if (!state.ui?.targeting) throw new Error('targeting was cancelled while aiming; the potion was not spent');
+      }
+    }
+    if (state.ui.focused_creature !== action.target) {
+      await this.button('b');
+      throw new Error(`could not aim ${potion.name} at combat_id ${action.target}; the aim stopped on ${state.ui?.focused_creature}. Cancelled without spending it.`);
+    }
+    await this.button('a');
+    state = await this.settled();
+    if ((state.player?.potions || []).some(item => item.slot === action.slot)) throw new Error(`${potion.name} still occupies slot ${action.slot} after the throw${reachable(state)}`);
+    this.record({ type: 'potion_used', slot: action.slot, name: potion.name, thrown: true, target: action.target });
+    return state;
+  }
+
   async play(action, before, targetCombatId) {
     if (!ready(before) || !isCombat(before)) throw new Error('not an actionable combat');
     const card = before.player.hand.find(item => item.instance_id === action.card);
@@ -702,6 +794,11 @@ export class Executor {
             this.record({ type: 'action', before, after: state, action, verified: true, barrier: true });
             break;
           }
+        } else if (action.type === 'use_potion') {
+          state = await this.usePotion(action, before);
+          completed.push({ action, verified: true, potion: (before.player?.potions || []).find(item => item.slot === action.slot)?.name || null, barrier: 'potion: replan from fresh state' });
+          this.record({ type: 'action', before, after: state, action, verified: true });
+          break;
         } else if (action.type === 'scout') {
           const request = { op: 'pad-stick', stick: action.stick || 'left', x: 0, y: action.direction === 'up' ? -1 : 1, hold_ms: action.hold_ms };
           this.signal?.throwIfAborted();

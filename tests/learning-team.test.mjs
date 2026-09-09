@@ -858,3 +858,60 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   const plainPlan = { ...plan([335, 331, 332]), observation: stateId(plain) };
   assert.throws(() => validatePlan(plainPlan, plain, { role: 'combat' }), /spends 6 energy and the turn has 3/);
 }
+
+// The runtime throws the potion; the model only says which and at what.
+//
+// Live, on floor 29 of room 70f25b98: about fifty presses in one combat turn
+// cycling x, a, a. `x, a, a` finishes a DRINK potion, whose only target is the
+// player, so it gets learned as "how to use a potion" and then repeated on a
+// thrown one forever. A thrown potion is only ARMED by that second `a`; the
+// aim lands on some creature and has to be steered. The state proved the run
+// got as far as ui.targeting true with focused_creature 10 and then pressed
+// `x`, which cancels. Cards have had `play` doing all of this for them.
+{
+  const holder = (id, x, slot) => ({ id, label: slot === 0 ? 'PotionHolder' : null, reference: { kind: 'potion' },
+    type: 'NPotionHolder', focus_mode: 'all', selectable: true, enabled: true, visible: true,
+    activation: 'a', bounds: [503 + slot * 62, 9, 60, 60], neighbors: {} });
+  const holders = [holder('h0', 503, 0), holder('h1', 565, 1)];
+  const enemies = [
+    { entity_id: 'TOUGH_EGG_0', combat_id: 10, name: 'Tough Egg', hp: 16, max_hp: 16 },
+    { entity_id: 'OVICOPTER_0', combat_id: 1, name: 'Ovicopter', hp: 5, max_hp: 129 },
+  ];
+  const potions = [
+    { slot: 0, id: 'POTION_SHAPED_ROCK', name: 'Potion-Shaped Rock', target_type: 'AnyEnemy', can_use_in_combat: true },
+    { slot: 1, id: 'POTION_SHAPED_ROCK', name: 'Potion-Shaped Rock', target_type: 'AnyEnemy', can_use_in_combat: true },
+  ];
+  // The screen walks: hand -> strip -> popup -> targeting -> thrown.
+  let where = 'hand', focus = null, aim = null, left = [...potions];
+  const pressed = [];
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (button === 'x') { where = 'strip'; focus = 'h0'; aim = null; return; }   // and it CANCELS a throw
+    if (where === 'strip' && ['left', 'right'].includes(button)) {
+      const at = holders.findIndex(item => item.id === focus);
+      focus = holders[Math.max(0, Math.min(holders.length - 1, at + (button === 'right' ? 1 : -1)))].id;
+    } else if (where === 'strip' && button === 'a') where = 'popup';
+    else if (where === 'popup' && button === 'a') { where = 'targeting'; aim = 10; }
+    else if (where === 'targeting' && ['left', 'right'].includes(button)) {
+      const at = enemies.findIndex(enemy => enemy.combat_id === aim);
+      aim = enemies[Math.max(0, Math.min(enemies.length - 1, at + (button === 'right' ? 1 : -1)))].combat_id;
+    } else if (where === 'targeting' && button === 'a') { left = left.filter(item => item.slot !== 1); where = 'hand'; aim = null; }
+  };
+  const read = () => ({ state_type: 'monster', run: { act: 2, floor: 29, ascension: 1 },
+    player: { hp: 38, max_hp: 80, energy: 0, hand: [], potions: left },
+    battle: { round: 8, turn: 'player', is_play_phase: true, enemies },
+    ui: { scene_id: 'fight', elements: holders, targeting: where === 'targeting', focused_creature: aim,
+      focused_element: where === 'strip' ? focus : null,
+      focus_path: where === 'strip' ? `/PotionHolders/PotionHolder` : where === 'popup' ? '/PotionHolders/PotionHolder/PotionPopup/Container/UseButton' : where === 'targeting' ? '/CombatSceneContainer/Creature/Hitbox' : '/CombatUi/Hand/CardHolderContainer' } });
+  executor.observe = async () => read();
+  executor.settled = async () => read();
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const after = await executor.usePotion({ type: 'use_potion', slot: 1, target: 1 }, read());
+  assert.equal(after.player.potions.length, 1, `the potion is spent: pressed ${pressed.join(',')}`);
+  assert.ok(!pressed.slice(pressed.indexOf('a')).includes('x'), `and x is never pressed after the popup opens: ${pressed.join(',')}`);
+  // It steered the aim off the Tough Egg the game picked and onto the Ovicopter.
+  assert.deepEqual(pressed, ['x', 'right', 'a', 'a', 'right', 'a'], `exact sequence: ${pressed.join(',')}`);
+}

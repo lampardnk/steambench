@@ -338,8 +338,8 @@ export function energyCost(cost) {
  */
 export const ROLE_ACTIONS = {
   strategist: new Set(['intent', 'learn', 'recall', 'research', 'lookup', 'wait', 'report_issue']),
-  combat: new Set(['play', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
-  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'learn', 'wait', 'report_issue']),
+  combat: new Set(['play', 'use_potion', 'end_turn', 'intent', 'learn', 'research', 'lookup', 'wait', 'report_issue']),
+  actuator: new Set(['activate', 'navigate', 'input', 'path', 'elements', 'scout', 'use_potion', 'learn', 'wait', 'report_issue']),
 };
 
 export function validatePlan(plan, state, { role = null } = {}) {
@@ -370,6 +370,17 @@ export function validatePlan(plan, state, { role = null } = {}) {
       if (action.target != null && typeof action.target !== 'string') throw new Error('invalid target');
       const card = state.player.hand.find(item => item.instance_id === action.card);
       if (card.target_type === 'AnyEnemy' && !state.battle.enemies.some(enemy => enemy.entity_id === action.target && enemy.hp > 0)) throw new Error('unknown enemy target');
+    } else if (action.type === 'use_potion') {
+      // Named the way the state names it: a slot, and for a thrown potion the
+      // combat_id it goes at. The runtime owns the presses.
+      if (!isCombat(state)) throw new Error('a potion can only be used in combat this way');
+      const potion = (state.player?.potions || []).find(item => item.slot === action.slot);
+      if (!Number.isInteger(action.slot) || !potion) throw new Error(`no potion in slot ${action.slot}; player.potions holds slots ${(state.player?.potions || []).map(item => item.slot).join(', ') || 'none'}`);
+      if (potion.can_use_in_combat === false) throw new Error(`${potion.name} cannot be used in this combat`);
+      const thrown = ['AnyEnemy', 'AnyAlly'].includes(potion.target_type);
+      if (thrown && !state.battle.enemies.some(enemy => enemy.combat_id === action.target && enemy.hp > 0)) throw new Error(`${potion.name} is ${potion.target_type} and needs target set to a living enemy's combat_id; living enemies are ${state.battle.enemies.filter(enemy => enemy.hp > 0).map(enemy => `${enemy.combat_id} (${enemy.name})`).join(', ')}`);
+      if (!thrown && action.target != null) throw new Error(`${potion.name} is ${potion.target_type} and takes no target`);
+      if (actions.length !== 1) throw new Error('one potion per plan; what it does is only visible afterwards');
     } else if (['navigate', 'activate', 'elements', 'path'].includes(action.type)) {
       if (action.scene !== state.ui?.scene_id || typeof action.scene !== 'string') throw new Error('stale or missing scene ID');
       if (['navigate', 'activate', 'path'].includes(action.type) && typeof action.target !== 'string') throw new Error('target element ID required');

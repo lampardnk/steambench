@@ -42,8 +42,8 @@ is one of the four being mistaken for another.
   else. When a screen looks finished but nothing happens, `y` is usually the
   press that was missing.
 - **`b` leaves, cancels, or closes what is open** - and leaving is itself a
-  choice, so `b` frequently raises a confirmation that `y` then answers.
-  Departing a shop is `b` then `y`. Both are reversible up to that `y`.
+  choice, so `b` frequently raises a confirmation that `y` then answers. Both
+  are reversible up to that `y`.
 
 So read a screen by asking which of the four it is waiting for, rather than by
 looking for a button named after what you want to do. The rules below are that
@@ -70,6 +70,14 @@ no `press` of its own, the entrance is the panel button sitting in its row:
 `x` reaches the potion strip from anywhere in a fight. Press the shortcut, then
 walk the row. This is also the best answer when a screen has stopped making
 sense - a shortcut lands somewhere known, where a direction only guesses.
+
+**A full-screen element whose neighbours all point at itself is a modal, and
+`b` closes it.** Inspecting a card opens `NInspectCardScreen` at 0,0,1920,1080
+with `activation: null` and every neighbour its own id. Nothing in the elements
+list closes it: what you see listed is the screen UNDERNEATH, and that screen's
+own Back may report `enabled: false` and sit off-screen at a negative x while
+the overlay is up. Its disabled state says nothing about the thing on top.
+`back` is the map and the overlay swallows it; `b` is the way out.
 
 **Two enabled controls can share one bound button, and the innermost wins.** A
 selection confirm and End Turn both report `press: y` in combat; View Upgrades
@@ -138,6 +146,14 @@ still needed.
   finishes the screen once you have taken what you want. `can_proceed: true` does
   not promise a Proceed button - it says `y` will leave. Its absence is not a
   fault.
+- **A shop room is left with `back`, not `b`.** `back` opens the map, and
+  taking the map is what ends the room: on this build the state went straight
+  from `shop` to `map` on a single `back` press. `b` on the shop's own
+  BackButton did nothing across five presses several minutes apart, even though
+  it reports `enabled: true` and `press: "b"`, and `shop.can_proceed` stays
+  false with Proceed disabled because a shop is not left that way. Use `b` for
+  what is OPEN ON TOP of the shop - a card inspection overlay - and `back` to
+  leave the room.
 - **Shops draw the artwork over the thing you buy.** The purchasable element is
   the PRICE TAG - `reference.kind: "entry"` - and the relic or potion picture
   beside it is `reference.kind: "model"`, which no element names as a neighbour
@@ -190,15 +206,34 @@ still needed.
   is only left and right plus `down`. Walk the row
   with `left` and `right`.
 - **`a` on a holder does not drink the potion.** It opens that potion's popup,
-  which names it and offers Use and Discard - so the popup is how you confirm
-  which holder you are on. Discard sits under the cursor and Use directly above,
-  so `up` reaches Use. `b` backs out having spent nothing.
+  which names it - so the popup is how you confirm which holder you are on. Its
+  options vary (Use and Discard, or Use and Throw) and the cursor does not
+  always start on the same one, so do not count presses from an assumed layout:
+  `ui.focus_path` ends in the button under the cursor - `UseButton`,
+  `DiscardButton`, `ThrowButton` - and that is the only thing worth reading.
+  Press `a` when it names the one you want, and `b` backs out having spent
+  nothing.
+- **Potions are used with the `use_potion` action, never by hand.** Give it the
+  `slot` from `player.potions`, plus the enemy's `combat_id` when
+  `target_type` is `AnyEnemy` or `AnyAlly`; omit the target for `AnyPlayer` or
+  `Self`. The runtime reaches the strip, opens the holder, takes Use or Throw,
+  steers the aim and confirms, checking each press. The reason it exists: a
+  DRINK potion does finish on `x, a, a`, so that sequence gets learned as "how
+  to use a potion" and then repeated on a THROWN one, where the second `a` only
+  ARMS it and the aim still has to be walked onto a creature. One run spent
+  about fifty presses on that in a single turn. Drive it by hand and you will
+  too.
 - **That dropdown holds focus, and `down` cannot leave it.** While
   `ui.focus_path` contains `PotionPopup` you are inside a two-item menu and
   directional presses do nothing at all - walking the rows will not start until
   you are out. `b` closes it, `x` returns to the potion bar, `left` walks out of
   the bar towards the relics. Any of them is reversible; check `focus_path`
-  after, not the press.
+  after, not the press. **None of that applies once a throw is armed:** with
+  `ui.targeting` true the focus path ends in `Hitbox` and `focused_card` is
+  null because the AIM is sitting on a creature, which is exactly right and not
+  lost focus. Pressing `x` there to "get back to the bar" cancels the throw,
+  and doing it every time is an endless loop. Check `ui.targeting` before
+  deciding you have fallen out of the panel.
 - **A one-shot discount makes EVERY eligible card report cost 0 at once.**
   "The next Attack you play costs 0" is true of each attack in hand
   individually - each would be free if it were the next one played - so several
