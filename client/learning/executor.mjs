@@ -591,7 +591,15 @@ export class Executor {
             completed.push({ action, verified: true, learned_files: learnedFiles(this.skillDir) });
           } else {
             const file = this.notePath(action.path);
-            if (!fs.existsSync(file)) throw new Error(`no learned note at ${action.path}`);
+            if (!fs.existsSync(file)) {
+              // Name the real thing rather than the miss. Filenames in this
+              // library are not all lowercase, so the near miss is usually case.
+              const wanted = action.path.toLowerCase();
+              const near = learnedFiles(this.skillDir).filter(item => item.toLowerCase() === wanted)
+                || [];
+              const same = near.length ? near : learnedFiles(this.skillDir).filter(item => item.toLowerCase().endsWith(wanted.split('/').pop()));
+              throw new Error(`no learned note at ${action.path}${same.length ? `; did you mean ${same.slice(0, 3).join(', ')}` : ''}`);
+            }
             const text = fs.readFileSync(file, 'utf8');
             completed.push({ action, verified: true, path: action.path, truncated: text.length > MAX_NOTE, text: text.slice(0, MAX_NOTE) });
           }

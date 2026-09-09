@@ -27,6 +27,25 @@
   assert.deepEqual(walked, ['down', 'down', 'down'], `and presses down each time: ${walked.join(',')}`);
 }
 
+// Half the library was unreadable by name.
+//
+// `learn` insists on lowercase so proposals arrive in one naming style, and
+// recall borrowed the same rule - but 29 of the 59 notes shipped as
+// UNDERDOCKS_BOSSES.md and the like. The real name was refused by the
+// validator and the lowercase name did not exist, so a run at decision 8
+// deadlocked between the two and spent its whole refine budget.
+{
+  const state = { state_type: 'map', run: { act: 1, floor: 3, ascension: 1 }, player: { hp: 60, max_hp: 80 }, ui: {} };
+  const plan = (path) => ({ observation: stateId(state), summary: 'Read the boss roster.', note: 'Routing towards the act boss.', actions: [{ type: 'recall', path }] });
+
+  assert.doesNotThrow(() => validatePlan(plan('ironclad/a1/act1/boss/UNDERDOCKS_BOSSES.md'), state, { role: 'strategist' }),
+    'a note is readable by the name it actually has');
+  assert.doesNotThrow(() => validatePlan(plan('ironclad/a1/meta_strategy/map/README.md'), state, { role: 'strategist' }));
+  for (const bad of ['ironclad/a1/../secret.md', 'ironclad//a1/x.md', '/etc/passwd.md', 'ironclad/a1/notes.txt']) {
+    assert.throws(() => validatePlan(plan(bad), state, { role: 'strategist' }), /recall\.path/, `path safety still holds: ${bad}`);
+  }
+}
+
 // A bobbing sprite is not a new situation.
 //
 // Live, in combat: two elements' bounds drifted 400 -> 398 between reads, one
