@@ -33,11 +33,17 @@ const proxy = http.createServer(async (request, response) => {
     assert.equal(payload.model, PROFILE.model);
     assert.equal(payload.stream, true);
     assert.equal(payload.reasoning, undefined);
-    assert.equal(payload.reasoning_effort, undefined);
     assert.equal(payload.provider, undefined);
+    // The reasoning level the profile asks for has to survive the trip. pi
+    // clamps `max` down to `high` unless the model declares
+    // thinkingLevelMap:{max:"max"}, and it does so silently: the run would look
+    // configured for max reasoning while every request on the wire said high.
+    // This assertion is the only place that difference is visible.
+    const wanted = PROFILE.reasoning && PROFILE.reasoning !== 'default' ? PROFILE.reasoning : undefined;
+    assert.equal(payload.reasoning_effort, wanted, `reasoning_effort on the wire must be ${wanted}`);
     assert.ok(payload.max_tokens > 0 && payload.max_tokens <= PROFILE.maxTokens);
     assert.ok(report.requests.length < 2, 'no automatic retries');
-    const audit = { model: payload.model, stream: payload.stream, maxTokens: payload.max_tokens, image: payload.messages.some(m => Array.isArray(m.content) && m.content.some(c => c.type === 'image_url')) };
+    const audit = { model: payload.model, stream: payload.stream, maxTokens: payload.max_tokens, reasoningEffort: payload.reasoning_effort ?? null, image: payload.messages.some(m => Array.isArray(m.content) && m.content.some(c => c.type === 'image_url')) };
     report.requests.push(audit);
     const upstream = await fetch(`${PROFILE.baseUrl}/chat/completions`, { method: 'POST', headers: { Authorization: request.headers.authorization, 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(PROFILE.plannerDeadlineMs - 5000) });
     audit.status = upstream.status;
