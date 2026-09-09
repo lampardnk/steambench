@@ -254,6 +254,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
+import { EncounterScratchpad } from '../client/learning/encounter.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
@@ -1162,4 +1163,65 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
     assert.equal(pressed[0], expected, `${label} leaves with ${expected}, not ${pressed[0]}`);
     assert.equal(after.state_type, 'map', `${label} actually left`);
   }
+}
+
+// The whole fight is handed over every turn, from the fields the mod actually
+// uses.
+//
+// Two things were silently missing. The mod publishes buffs and debuffs as
+// `status`, and the encounter scratchpad read `powers || buffs` - neither of
+// which the sensor has ever set - so player_powers and every enemy's powers
+// came out [] on every turn of every fight while the state carried Thorns 3,
+// Strength 1 and Surrounded 1. An empty list reads as "no powers", which is a
+// lie rather than a gap. And `ui` was stripped wholesale for combat, taking
+// with it the only published record of where the enemies are and what order
+// the hand is drawn in - a human reads both off the screen; this agent cannot.
+{
+  const state = {
+    state_type: 'boss', run: { act: 2, floor: 33, ascension: 1 },
+    player: {
+      hp: 61, max_hp: 90, block: 0, energy: 3, max_energy: 3, gold: 250, max_potion_slots: 3,
+      status: [{ id: 'THORNS_POWER', name: 'Thorns', amount: 3, type: 'Buff' },
+               { id: 'SURROUNDED_POWER', name: 'Surrounded', amount: 1, type: 'Debuff' }],
+      relics: [{ id: 'INK_BOTTLE', name: 'Ink Bottle', description: 'Every 10 cards, draw 1.', counter: 7 }],
+      potions: [{ slot: 1, name: 'Fire Potion', target_type: 'AnyEnemy', can_use_in_combat: true }],
+      hand: [{ instance_id: 274, index: 0, name: 'Defend', cost: '1', can_play: true },
+             { instance_id: 275, index: 1, name: 'Crimson Mantle', cost: '1', can_play: true }],
+      draw_pile: [{ instance_id: 300, id: 'STRIKE', name: 'Strike', type: 'Attack' }],
+      discard_pile: [], exhaust_pile: [],
+      draw_pile_count: 1, discard_pile_count: 0, exhaust_pile_count: 0,
+    },
+    battle: { round: 5, turn: 'player', is_play_phase: true, enemies: [
+      { entity_id: 'CRUSHER_0', combat_id: 1, name: 'Crusher', hp: 209, max_hp: 209, block: 4,
+        intents: [{ type: 'Attack', label: '18' }],
+        status: [{ id: 'BACK_ATTACK_LEFT_POWER', name: 'Back Attack', amount: 1, type: 'Buff' }] }] },
+    ui: { scene_id: 'boss', focused_card: 274, in_card_play: false, targeting: false,
+      targets: [{ combat_id: 2, hittable: true, x: 1632, y: 704 }, { combat_id: 1, hittable: true, x: 342, y: 722 }],
+      elements: [
+        // Drawn right-to-left of hand[] order, which is the trap.
+        { id: 'h1', label: 'Crimson Mantle', reference: { kind: 'card', instance_id: 275 }, bounds: [400, 700, 200, 300] },
+        { id: 'h0', label: 'Defend', reference: { kind: 'card', instance_id: 274 }, bounds: [700, 700, 200, 300] },
+      ] } };
+
+  const view = combatState(state);
+  // Buffs and debuffs survive, on both sides.
+  assert.deepEqual(view.player.status.map(p => p.name), ['Thorns', 'Surrounded']);
+  assert.deepEqual(view.battle.enemies[0].status.map(p => p.name), ['Back Attack']);
+  // Enemy order is screen order, not the order battle.enemies happens to list.
+  assert.deepEqual(view.layout.enemy_positions.map(t => t.combat_id), [1, 2], 'leftmost enemy first');
+  // Hand order is screen order, which disagrees with hand[].index here.
+  assert.deepEqual(view.layout.hand_left_to_right.map(c => c.instance_id), [275, 274],
+    'the hand is reported as drawn, not as indexed');
+  assert.notDeepEqual(view.layout.hand_left_to_right.map(c => c.instance_id),
+    state.player.hand.map(c => c.instance_id), 'and those two genuinely differ');
+
+  const pad = new EncounterScratchpad().observe(state);
+  assert.deepEqual(pad.player_powers.map(p => `${p.name} ${p.amount}`), ['Thorns 3', 'Surrounded 1']);
+  assert.deepEqual(pad.enemies[0].powers.map(p => p.name), ['Back Attack']);
+  assert.equal(pad.enemies[0].max_hp, 209);
+  assert.equal(pad.enemies[0].block, 4);
+  assert.equal(pad.relics[0].counter, 7, 'a relic counter advances with no log line, so its value is the record');
+  assert.equal(pad.potions[0].slot, 1);
+  assert.deepEqual(Object.keys(pad.piles).sort(), ['discard_pile', 'draw_pile', 'exhaust_pile', 'hand']);
+  assert.equal(pad.resources.energy, 3);
 }
