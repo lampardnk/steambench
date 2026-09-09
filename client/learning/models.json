@@ -31,6 +31,9 @@
           ],
           "contextWindow": 1048576,
           "maxTokens": 65536,
+          "thinkingLevelMap": {
+            "max": "max"
+          },
           "compat": {
             "supportsStore": false,
             "supportsReasoningEffort": true,
