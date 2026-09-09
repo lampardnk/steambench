@@ -206,9 +206,13 @@ still needed.
   is only left and right plus `down`. Walk the row
   with `left` and `right`.
 - **`a` on a holder does not drink the potion.** It opens that potion's popup,
-  which names it and offers Use and Discard - so the popup is how you confirm
-  which holder you are on. Discard sits under the cursor and Use directly above,
-  so `up` reaches Use. `b` backs out having spent nothing.
+  which names it - so the popup is how you confirm which holder you are on. Its
+  options vary (Use and Discard, or Use and Throw) and the cursor does not
+  always start on the same one, so do not count presses from an assumed layout:
+  `ui.focus_path` ends in the button under the cursor - `UseButton`,
+  `DiscardButton`, `ThrowButton` - and that is the only thing worth reading.
+  Press `a` when it names the one you want, and `b` backs out having spent
+  nothing.
 - **That dropdown holds focus, and `down` cannot leave it.** While
   `ui.focus_path` contains `PotionPopup` you are inside a two-item menu and
   directional presses do nothing at all - walking the rows will not start until
