@@ -830,3 +830,31 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.equal(matchElement(shop, 'NRelic-RELIC_VENERABLE_TEA_SET'), null, 'the artwork is never offered as a target');
   assert.equal(matchElement(shop, '182')?.id, entry.id, 'the price tag is, because neighbours point at it');
 }
+
+// A card that discounts a later card makes the energy sum unknowable.
+//
+// Live, on floor 24 of room 70f25b98: Unrelenting reads "Deal 15 damage. The
+// next Attack you play costs 0", so Unrelenting, Strike, Strike costs 2+0+1=3
+// against 3 energy. The budget added the printed costs to 4 and refused the
+// turn three times, spending the whole refinement budget on arithmetic the
+// model had got right.
+{
+  const hand = [
+    { index: 0, instance_id: 335, name: 'Unrelenting', cost: '2', can_play: true,
+      description: 'Deal 15 damage. The next Attack you play costs 0.' },
+    { index: 1, instance_id: 331, name: 'Strike', cost: '1', can_play: true, description: 'Deal 7 damage.' },
+    { index: 2, instance_id: 332, name: 'Strike', cost: '1', can_play: true, description: 'Deal 7 damage.' },
+  ];
+  const fight = { state_type: 'monster', run: { act: 2, floor: 24, ascension: 1 },
+    player: { hp: 23, max_hp: 80, energy: 3, hand },
+    battle: { round: 4, turn: 'player', is_play_phase: true, enemies: [{ entity_id: 'E0', combat_id: 1, name: 'Chomper', hp: 19 }] },
+    ui: { scene_id: 'fight', focused_card: 335, elements: [] } };
+  const plan = (cards) => ({ observation: stateId(fight), summary: 'spend the turn', note: 'n',
+    actions: cards.map(card => ({ type: 'play', card, target: 'E0' })) });
+
+  assert.ok(validatePlan(plan([335, 331, 332]), fight, { role: 'combat' }), 'the discounted batch is allowed through');
+  // Three plain Strikes really do cost more than the turn has, and still stop.
+  const plain = { ...fight, player: { ...fight.player, hand: hand.map(card => ({ ...card, name: 'Strike', cost: '2', description: 'Deal 7 damage.' })) } };
+  const plainPlan = { ...plan([335, 331, 332]), observation: stateId(plain) };
+  assert.throws(() => validatePlan(plainPlan, plain, { role: 'combat' }), /spends 6 energy and the turn has 3/);
+}
