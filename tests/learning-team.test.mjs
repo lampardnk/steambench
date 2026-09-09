@@ -1225,3 +1225,66 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.deepEqual(Object.keys(pad.piles).sort(), ['discard_pile', 'draw_pile', 'exhaust_pile', 'hand']);
   assert.equal(pad.resources.energy, 3);
 }
+
+// Captured from a live Act 2 merchant: 7 cards, 3 relics, 3 potions and card
+// removal. The shop labels almost nothing usefully - a relic holder reads
+// "NRelicContainerHolder-RELIC_VAJRA" and a potion holder reads "PotionHolder"
+// - so the only thing identifying a non-card is its price tag, and two of the
+// three potions cost the same 51. `buy` shipped without ever running against a
+// live shop; this is the screen it has to survive.
+test('every item on a real shelf resolves to its own control', async () => {
+  const shelf = JSON.parse(fs.readFileSync(new URL('./fixtures/shop-purchase.json', import.meta.url), 'utf8'));
+  const picked = {};
+  for (const item of shelf.shop.items) {
+    const ex = new Executor({ call: async () => ({}) });
+    ex.navigateElement = async (action) => { picked[item.index] = action.target; return shelf; };
+    ex.button = async () => {};
+    ex.settled = async () => ({ ...shelf, player: { gold: 0 } });
+    await ex.buyItem({ type: 'buy', item: item.index }, shelf);
+  }
+  const ids = shelf.shop.items.map(item => picked[item.index]);
+  assert.equal(ids.filter(Boolean).length, 14, 'every item on the shelf resolves');
+  assert.equal(new Set(ids).size, 14, 'and no two items resolve to the same control');
+
+  const labelOf = (index) => shelf.ui.elements.find(el => el.id === picked[index])?.label ?? '';
+  assert.match(labelOf(0), /\| Thunderclap \|/, 'a card is found by name, not by the price it shares');
+  assert.equal(labelOf(7).trim(), '155', 'a relic is found by its price tag');
+  assert.equal(labelOf(13).trim(), '75', 'and so is card removal');
+
+  // The two 51g potions must not collapse onto one tag, and the rank among
+  // same-priced items of a category has to follow screen order.
+  const xOf = (index) => shelf.ui.elements.find(el => el.id === picked[index]).bounds[0];
+  assert.notEqual(picked[10], picked[12], 'the two 51g potions are different controls');
+  assert.ok(xOf(10) < xOf(11) && xOf(11) < xOf(12), 'and they resolve left to right in shelf order');
+
+  // What the shelf refuses is refused before a press, with the reason.
+  const sold = { ...shelf, shop: { ...shelf.shop, items: shelf.shop.items.map(item => item.index === 4 ? { ...item, is_stocked: false } : item) } };
+  assert.throws(() => validatePlan({ observation: stateId(sold), summary: 's', note: 'n', actions: [{ type: 'buy', item: 4 }] }, sold, { role: 'strategist' }), /already been bought/);
+  const broke = { ...shelf, player: { gold: 10 }, shop: { ...shelf.shop, items: shelf.shop.items.map(item => ({ ...item, can_afford: item.price <= 10 })) } };
+  assert.throws(() => validatePlan({ observation: stateId(broke), summary: 's', note: 'n', actions: [{ type: 'buy', item: 1 }] }, broke, { role: 'strategist' }), /costs 154 and you have 10/);
+});
+
+// Captured from a live Act 1 rest site. The element list gives Smith before
+// Rest while `rest_site.options` gives Rest before Smith, so anything that
+// resolved an option by its position in either list would take the wrong one
+// half the time. The name is the only thing both agree on.
+test('a rest option is taken by name, not by the order either list happens to use', async () => {
+  const site = JSON.parse(fs.readFileSync(new URL('./fixtures/rest-site.json', import.meta.url), 'utf8'));
+  assert.deepEqual(site.ui.elements.filter(el => el.reference?.kind === 'option').map(el => el.label), ['Smith', 'Rest'], 'the fixture still disagrees with the state, which is the point of it');
+
+  for (const option of site.rest_site.options) {
+    const ex = new Executor({ call: async () => ({}) });
+    let picked = null;
+    ex.navigateElement = async (action) => { picked = action.target; return site; };
+    ex.button = async () => {};
+    ex.settled = async () => ({ ...site, state_type: 'map', rest_site: null, ui: { ...site.ui, focused_element: 'elsewhere' } });
+    await ex.restOption({ type: 'rest', option: option.index }, site);
+    assert.equal(site.ui.elements.find(el => el.id === picked)?.label.trim(), option.name, `${option.name} reaches its own control`);
+  }
+
+  // A site that offers nothing is already resolved, and is left rather than rested at.
+  const spent = { ...site, rest_site: { options: [], can_proceed: true } };
+  assert.throws(() => validatePlan({ observation: stateId(spent), summary: 's', note: 'n', actions: [{ type: 'rest', option: 0 }] }, spent, { role: 'strategist' }), /already resolved and is left with leave/);
+  const closed = { ...site, rest_site: { ...site.rest_site, options: site.rest_site.options.map(o => o.index === 1 ? { ...o, is_enabled: false } : o) } };
+  assert.throws(() => validatePlan({ observation: stateId(closed), summary: 's', note: 'n', actions: [{ type: 'rest', option: 1 }] }, closed, { role: 'strategist' }), /Smith is not available/);
+});
