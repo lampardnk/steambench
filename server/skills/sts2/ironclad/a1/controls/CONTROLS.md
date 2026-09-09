@@ -213,23 +213,16 @@ still needed.
   `DiscardButton`, `ThrowButton` - and that is the only thing worth reading.
   Press `a` when it names the one you want, and `b` backs out having spent
   nothing.
-- **A DRINK potion finishes on `x, a, a`. A THROW potion does not.** That
-  three-press sequence works whenever the only target is you, so it is easy to
-  learn it as "the way to use a potion" and then repeat it forever on one that
-  needs a target. `player.potions[].target_type` says which you are holding:
-  `AnyPlayer` or `Self` drinks and resolves on the second `a`; `AnyEnemy` or
-  `AnyAlly` must be thrown, and there the second `a` only ARMS it. Targeting
-  then opens, LEFT and RIGHT move the aim between creatures, and a THIRD `a`
-  throws it at the one you are on. Read `ui.targeting` and
-  `ui.focused_creature` to see where the aim actually is rather than assuming
-  it started on the enemy you wanted; `b` cancels without spending anything.
-- **`x` restarts the potion panel, so never press it mid-sequence.** It
-  re-focuses the leftmost holder from scratch, discarding an open popup or a
-  live targeting state. A run threw about forty presses away as
-  `x, a, a, x, a, a, x, ...`: each `a, a` armed a throw potion and each
-  following `x` cancelled it, which looks exactly like the sequence not
-  working. One press per decision, and read `focus_path` and `targeting`
-  between them.
+- **Potions are used with the `use_potion` action, never by hand.** Give it the
+  `slot` from `player.potions`, plus the enemy's `combat_id` when
+  `target_type` is `AnyEnemy` or `AnyAlly`; omit the target for `AnyPlayer` or
+  `Self`. The runtime reaches the strip, opens the holder, takes Use or Throw,
+  steers the aim and confirms, checking each press. The reason it exists: a
+  DRINK potion does finish on `x, a, a`, so that sequence gets learned as "how
+  to use a potion" and then repeated on a THROWN one, where the second `a` only
+  ARMS it and the aim still has to be walked onto a creature. One run spent
+  about fifty presses on that in a single turn. Drive it by hand and you will
+  too.
 - **That dropdown holds focus, and `down` cannot leave it.** While
   `ui.focus_path` contains `PotionPopup` you are inside a two-item menu and
   directional presses do nothing at all - walking the rows will not start until
