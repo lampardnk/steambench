@@ -1049,13 +1049,25 @@ export class Room extends EventEmitter {
   async _sts2Fetch(p, params) {
     if (!this.roomIp) throw new GatewayError('sts2_unavailable', 'room is not running yet');
     const qs = new URLSearchParams(params).toString();
-    let res;
-    try { res = await fetch(`http://${this.roomIp}:${this.fwdPort}${p}${qs ? `?${qs}` : ''}`, { signal: AbortSignal.timeout(10000) }); }
-    catch (e) { throw new GatewayError('sts2_unavailable', `STS2MCP mod not reachable in the room (${e.cause?.code || e.name}); is the game running with the mod enabled?`); }
-    const body = await res.text();
-    if (body.length > 1024 * 1024) throw new GatewayError('sts2_too_large', 'response exceeds 1 MiB');
-    if (res.status >= 400) throw new GatewayError('sts2_http_error', `STS2MCP returned ${res.status}`, { status: res.status, body: body.slice(0, 500) });
-    return { status: res.status, content_type: res.headers.get('content-type') || '', body, bytes: body.length };
+    const url = `http://${this.roomIp}:${this.fwdPort}${p}${qs ? `?${qs}` : ''}`;
+    // The mod cannot always serialise a room that is still loading, and answers
+    // 5xx for the moment it takes. That is not the run failing: entering an act
+    // 3 event returned one 500 and paused a run that was fine a second later.
+    // A read is free of side effects, so retry it briefly; a 4xx is the mod
+    // saying no and is returned at once.
+    let last = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await sleep(300);
+      let res;
+      try { res = await fetch(url, { signal: AbortSignal.timeout(10000) }); }
+      catch (e) { last = new GatewayError('sts2_unavailable', `STS2MCP mod not reachable in the room (${e.cause?.code || e.name}); is the game running with the mod enabled?`); continue; }
+      const body = await res.text();
+      if (body.length > 1024 * 1024) throw new GatewayError('sts2_too_large', 'response exceeds 1 MiB');
+      if (res.status >= 500) { last = new GatewayError('sts2_http_error', `STS2MCP returned ${res.status} on ${attempt + 1} attempts`, { status: res.status, body: body.slice(0, 500) }); continue; }
+      if (res.status >= 400) throw new GatewayError('sts2_http_error', `STS2MCP returned ${res.status}`, { status: res.status, body: body.slice(0, 500) });
+      return { status: res.status, content_type: res.headers.get('content-type') || '', body, bytes: body.length };
+    }
+    throw last;
   }
 
   _screenshot() {
