@@ -51,6 +51,39 @@
   assert.doesNotThrow(() => validatePlan(plan, at(398), { role: 'actuator' }), 'and the plan survives the drift');
 }
 
+// Getting back to the hand means backing out of what is trapping focus.
+//
+// Live: focus sat inside the potion popup on its Discard button, and four
+// `down` presses moved nothing, because `down` cannot leave something modal.
+// The run was told a full pass had failed while one `b` was the whole answer.
+{
+  const script = [
+    { path: '/TopBar/PotionHolders/PotionHolder/PotionPopup/Container/DiscardButton', card: null },
+    { path: '/TopBar/PotionHolders/PotionHolder/PotionPopup/Container/DiscardButton', card: null },
+    { path: '/CombatRoom/AllyContainer/Creature/Hitbox', card: null },
+    { path: '/CombatRoom/Hand/Card', card: 63 },
+  ];
+  const pressed = [];
+  let at = 0;
+  const executor = Object.create(Executor.prototype);
+  // `down` is inert inside the popup; `b` closes it; then `down` walks.
+  executor.button = async (button) => {
+    pressed.push(button);
+    if (at === 0 && button === 'b') at = 2;
+    else if (at >= 2 && button === 'down') at = Math.min(at + 1, script.length - 1);
+  };
+  executor.observe = async () => ({ state_type: 'monster', run: { act: 1, floor: 7, ascension: 1 },
+    player: { hp: 50, max_hp: 80, focused_card: script[at].card },
+    ui: { scene_id: 'combat-1', focus_path: script[at].path, focused_card: script[at].card, elements: [] } });
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const landed = await executor.focusHand({ ui: { focus_path: script[0].path } });
+  assert.ok(landed, 'it gets back to the hand');
+  assert.equal(landed.ui.focused_card, 63);
+  assert.ok(pressed.includes('b'), `it backs out of the popup: ${pressed.join(',')}`);
+}
+
 // A screen that redraws under the cursor does not spend the recovery budget.
 //
 // Live, on the potion strip: every `right` moves focus to the next holder,

@@ -9,6 +9,9 @@ export function reachable(state) {
   return parts.length ? `; ${parts.join('; ')}` : '';
 }
 import { indexNotes } from './retrieval.mjs';
+
+// Reversible ways out of something that is holding focus, cheapest first.
+const ESCAPES = ['b', 'x', 'left'];
 import fs from 'node:fs';
 import path from 'node:path';
 import { DIRECTIONS, isCardPlay, isCombat, noteProblem, planIdentity, progressId, ready, settleAnimation, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
@@ -23,10 +26,6 @@ export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item =>
 // still screen costs one extra read; only a screen that keeps moving - a reward
 // dealing its cards in - spends the budget, and 1.5s is shorter than the model
 // call it protects.
-// The combat screen's focus rows, top to bottom: potions, relics, the
-// creatures, the hand. `down` walks them and wraps, so one full pass always
-// finds the hand if the hand can be focused at all.
-const COMBAT_FOCUS_ROWS = 4;
 // How many times a screen may change shape under a route before it counts as
 // unstable. One per press along a strip that redraws, plus room to settle.
 const MAX_RESCENES = 12;
@@ -295,28 +294,42 @@ export class Executor {
   }
 
   /**
-   * Combat focus is one vertical cycle - potions, relics, the creatures, the
-   * hand - and `down` walks it, wrapping back to the hand. So a hand that has
-   * lost focus is never more than a lap away.
+   * Get focus back into the hand.
    *
-   * This used to press `down` exactly once and give up if that did not land on
-   * a card. From the potion row it lands on relics, which is not the hand, so
-   * it threw; the model then re-issued the same play, the same single press
-   * happened again, and the run sat there. That was four supervisor pauses and
-   * a turn thrown away on a screen where holding `down` would have worked.
+   * The screen is rows - potions, relics, the creatures, the hand - and `down`
+   * walks them and wraps, so the hand is never far. But `down` cannot leave
+   * something holding focus: selecting a potion opens a two-item Use/Discard
+   * dropdown, and inside it `down` does nothing at all. A run spent four
+   * presses in there and was told a full pass had failed.
+   *
+   * So when a press moves nothing, try the reversible ways out in turn: close
+   * what opened, toggle the panel that opened it, or walk sideways out of the
+   * row entirely. None of them activates anything, so being wrong costs a
+   * press.
+   *
+   * There is no row count here on purpose. The old one was four, which is the
+   * kind of number that is right until a screen has five.
    */
   async focusHand(before) {
     let path = before.ui?.focus_path ?? null;
-    for (let lap = 0; lap < COMBAT_FOCUS_ROWS; lap++) {
+    for (let step = 0; step < 10; step++) {
       await this.button('down');
-      for (let attempt = 0; attempt < 6; attempt++) {
-        const state = await this.observe();
+      let state = await this.observe();
+      if (state.ui?.focused_card != null) return state;
+      if ((state.ui?.focus_path ?? null) !== path) { path = state.ui?.focus_path ?? null; continue; }
+      // `down` moved nothing, so something is holding focus. Try the reversible
+      // ways out, in the order that costs least: close whatever opened, toggle
+      // the panel that opened it, then walk sideways out of the row.
+      let escaped = false;
+      for (const button of ESCAPES) {
+        await this.button(button);
+        state = await this.observe();
         if (state.ui?.focused_card != null) return state;
-        if ((state.ui?.focus_path ?? null) !== path) { path = state.ui?.focus_path ?? null; break; }
-        await this.sleep(100);
+        if ((state.ui?.focus_path ?? null) !== path) { path = state.ui?.focus_path ?? null; escaped = true; break; }
       }
+      if (!escaped) return null;
     }
-    throw new Error('a full pass of down never reached the hand; inspect the screenshot');
+    return null;
   }
 
   async navigateHand(cardId, before) {
@@ -352,7 +365,11 @@ export class Executor {
       if (state.ui.in_card_play) throw new Error('could not cancel a different card selection');
     }
     if (!state.ui.in_card_play) {
-      if (state.ui.focused_card == null) state = await this.focusHand(state);
+      if (state.ui.focused_card == null) {
+        const found = await this.focusHand(state);
+        if (!found) throw new Error(`focus is outside the hand and neither walking nor backing out reached it${reachable(state)}`);
+        state = found;
+      }
       state = await this.navigateHand(action.card, state);
       if (state.ui?.focused_card !== action.card) throw new Error('failed to focus intended card');
       await this.button('a');
