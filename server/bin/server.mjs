@@ -157,6 +157,7 @@ const server = http.createServer(async (req, res) => {
       if (!sub && req.method === 'DELETE') { await manager.remove(room.id, { keepHome: url.searchParams.get('keepHome') === '1', reason: 'deleted by user' }); return json(res, 200, { ok: true, archive: room.archiveDir ? path.basename(room.archiveDir) : null }); }
       if (sub === 'setup' && req.method === 'POST') { const body = await readJson(req); return json(res, 200, await room.applySetup(body)); }
       if (sub === 'objectives' && req.method === 'GET') return json(res, 200, library.objectivePage(path.join(room.home, 'skills', room.setup?.game || 'sts2', 'scratchpad', 'objectives.json'), Object.fromEntries(url.searchParams)));
+      if (sub === 'incidents' && req.method === 'GET') return json(res, 200, library.incidentPage(path.join(room.home, 'skills', room.setup?.game || 'sts2', 'scratchpad'), Object.fromEntries(url.searchParams)));
       if (sub === 'library' && req.method === 'GET') return json(res, 200, { games: room.library(), login: room.login });
       if (sub === 'chat' && req.method === 'POST') { const body = await readJson(req); if (!body.message) return json(res, 400, { error: 'message required' }); await room.chat(String(body.message)); return json(res, 200, { ok: true }); }
       if (sub === 'abort' && req.method === 'POST') { await room.agent?.abort(); return json(res, 200, { ok: true }); }

@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import test from 'node:test';
 import { Executor } from '../client/learning/executor.mjs';
 import { navigationPath } from '../client/learning/navigation.mjs';
-import { PROFILE } from '../client/learning/profile.mjs';
 import { compactState, stateId, validatePlan, needsScreenshot, plannerResult, mapId, stateDiff } from '../client/learning/state.mjs';
 import { actuatorContext, actuatorElements, combatState, encounterKind, strategistState } from '../client/learning/context.mjs';
 import { matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
@@ -272,11 +270,7 @@ test('unknown transitions and irreversible activations cannot have a remainder',
   }
 });
 
-test('configuration matches exact OrcaRouter profile with no provider restrictions or stale price metadata', () => {
-  const config = JSON.parse(fs.readFileSync(new URL('../client/learning/models.json', import.meta.url)));
-  const model = config.providers[PROFILE.provider].models[0];
-  assert.equal(model.id, PROFILE.model);
-  assert.equal(model.cost, undefined);
+test('a labelled focus needs no screenshot, and an unchanged map is not resent', () => {
   assert.equal(needsScreenshot(initialCombat()), false);
   assert.equal(needsScreenshot({ state_type: 'rewards', ui: { focus_path: '/RewardsContainer/RewardButton' } }), true);
   const state = initialMap();

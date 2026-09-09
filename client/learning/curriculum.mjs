@@ -21,7 +21,6 @@ import path from 'node:path';
 import { digest } from './state.mjs';
 import { PROFILE } from './profile.mjs';
 
-export const CURRICULUM_FILE = 'curriculum.json';
 const SCHEMA = 1;
 const MAX_HISTORY = 60;
 // Voyager re-queries the curriculum after four rounds of failed refinement.
