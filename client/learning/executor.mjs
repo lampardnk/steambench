@@ -1,4 +1,4 @@
-import { elements, pressableElement, targetElement, navigationPath, towards, across } from './navigation.mjs';
+import { across, elements, navigationPath, panelEntrance, pressableElement, targetElement, towards } from './navigation.mjs';
 
 /**
  * A card-selection screen that does not report what is selected.
@@ -236,6 +236,28 @@ export class Executor {
   }
 
   /**
+   * Jump into the target's row with its panel shortcut, then walk from there.
+   *
+   * Walking fails outright when the two rows are not wired together, and no
+   * amount of looking at the screen fixes that - the potion bar is simply not
+   * below the creatures. Pressing the shortcut puts focus somewhere known and
+   * turns an impossible walk into a short one. Each button is tried once per
+   * decision: one that did not land in the row will not land in it a second
+   * time.
+   */
+  async enterRow(target, state, scene, before, spent) {
+    const button = panelEntrance(state, target, spent);
+    if (!button) return null;
+    spent.add(button);
+    await this.button(button);
+    state = await this.observe();
+    if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
+    if (state.ui?.focused_element === target.id) return state;
+    if (!state.ui?.focused_element) return null;
+    return this.walkToward(target, state, state.ui?.scene_id ?? scene, before);
+  }
+
+  /**
    * What the screen still offers, for an error that would otherwise be a dead
    * end. "Unknown activation outcome" told the run nothing it could act on; a
    * card-select screen that was already satisfied and only needed its Confirm
@@ -263,6 +285,9 @@ export class Executor {
     // presses and a run that was walking correctly towards its target was
     // paused for "navigation recovery budget exhausted".
     let rescenes = 0;
+    // Panel shortcuts already spent this decision, so a row that the shortcut
+    // did not reach is not entered by pressing the same shortcut again.
+    const entrances = new Set();
     for (let recovery = 0; recovery <= 2; recovery++) {
       if (progressId(state) !== progressId(before)) throw new Error('gameplay advanced during navigation; nothing further was sent');
       if (state.ui?.scene_id !== scene) {
@@ -293,7 +318,9 @@ export class Executor {
         // The wiring does not describe this screen. Look at it instead.
         const walked = await this.walkToward(target, state, scene, before);
         if (walked) return walked;
-        if (recovery === 2) throw error;
+        const entered = await this.enterRow(target, state, scene, before, entrances);
+        if (entered) return entered;
+        if (recovery === 2) throw new Error(`${error.message}${reachable(state)}`);
         state = await this.observe(); // read-only recovery; never invent a neighbor
         continue;
       }

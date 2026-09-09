@@ -63,6 +63,14 @@ that button from anywhere, whatever holds focus. Some controls are reachable no
 other way - a card reward's Skip sits outside a row that wraps into itself, and
 is bound to `b`.
 
+**A panel shortcut is the way INTO its row, not only a way to open it.** `x`,
+`back`, `lb`/`rb` and `lt`/`rt` put focus on a fixed element wherever it was, so
+a row the d-pad cannot reach is one press away. When the thing you want carries
+no `press` of its own, the entrance is the panel button sitting in its row:
+`x` reaches the potion strip from anywhere in a fight. Press the shortcut, then
+walk the row. This is also the best answer when a screen has stopped making
+sense - a shortcut lands somewhere known, where a direction only guesses.
+
 **Two enabled controls can share one bound button, and the innermost wins.** A
 selection confirm and End Turn both report `press: y` in combat; View Upgrades
 and Confirm both do in the card zoom. Close the inner thing with `b` first, then
@@ -142,9 +150,13 @@ still needed.
   not choices: never try to activate one, and never route to a card by name
   here. This holds for the rest-site smith and for any event that asks which
   card to enchant; events that enchant at random show no such screen at all.
-- **Combat focus is one vertical cycle, and `down` walks it.** Top to bottom:
-  potion slots, relics, the allies-and-enemies field, the hand - then it wraps.
-  Left and right move within a row. The hand is focused when a turn begins.
+- **Combat focus is one vertical cycle, and `down` walks it - only `down`.**
+  Top to bottom: potion slots, relics, the allies-and-enemies field, the hand -
+  then it wraps. `up` is inert on this build, so a row above is reached by
+  going down and round, or by its shortcut. Left and right move within a row,
+  and the creature field is a closed pair: `left` and `right` there only toggle
+  between ally and enemy and never leave it. The hand is focused when a turn
+  begins.
 - **`focused_card` null means focus is outside the hand**, not that input was
   lost, and the hand is never more than one lap of `down` away. KEEP PRESSING
   `down` - one that lands on relics has not failed, it has moved one row. No
