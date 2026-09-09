@@ -16,6 +16,28 @@ function unreportedSelection(state, target) {
   return element?.reference?.kind === 'card';
 }
 
+/**
+ * What a selection screen says about itself after a press.
+ *
+ * `a` on one of these TOGGLES the highlighted card, and the screen reports no
+ * selected list, so the only way to know what a press did is can_confirm. A run
+ * that could not see it pressed `a` ten times, toggled its choice off, and then
+ * kept activating a Confirm button that had gone dark. Handing the gate back
+ * with the action makes the next decision a reading rather than a guess.
+ */
+export function selectionGate(state) {
+  const screen = state?.hand_select || state?.card_select;
+  if (!screen) return null;
+  const confirm = (state.ui?.elements || []).find(item => item.press === 'y' && item.enabled === true && /confirm/i.test(item.label || ''));
+  return {
+    prompt: screen.prompt ?? null,
+    mode: screen.mode ?? screen.screen_type ?? null,
+    can_confirm: screen.can_confirm === true,
+    confirm_control: confirm?.id ?? null,
+    candidates: (screen.cards || []).map(card => card.name),
+  };
+}
+
 /** The bound buttons a stuck screen still offers, named in the error. */
 export function reachable(state) {
   const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
@@ -511,7 +533,11 @@ export class Executor {
             await this.button('a');
             state = await this.settled();
             if (stateId(state) === stateId(fresh) && !unreportedSelection(state, action.target)) throw new Error(`activating ${action.target} changed nothing${reachable(state)}`);
-            completed.push({ action, verified: true, barrier: 'activation: replan from fresh scene' });
+            const gate = selectionGate(state);
+            completed.push({ action, verified: true, ...(gate ? { selection: gate } : {}),
+              barrier: gate
+                ? `selection: can_confirm is ${gate.can_confirm}. ${gate.can_confirm ? `The choice is held; activate ${gate.confirm_control || 'the Confirm control'} (bound y) to take it. Do NOT press a again - it would deselect.` : 'Nothing is selected yet; select a candidate before confirming.'}`
+                : 'activation: replan from fresh scene' });
             this.record({ type: 'action', before, after: state, action, verified: true });
             break;
           }

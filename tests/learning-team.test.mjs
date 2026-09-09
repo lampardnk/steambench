@@ -53,6 +53,36 @@
   assert.equal(resolveIntent(captionsOnly, { goal: 'Route to the Unknown room', target_label: 'Unknown' }), null);
 }
 
+// A selection screen hands back what the press actually did.
+//
+// `a` toggles the highlighted card and the screen reports no selected list, so
+// a run pressed it ten times, toggled its own choice off, and then kept
+// activating a Confirm that had gone dark. can_confirm is the only readout, so
+// it travels back with the action.
+{
+  const screen = (canConfirm) => ({
+    state_type: 'hand_select',
+    hand_select: { mode: 'upgrade_select', prompt: 'Confirm Card to Upgrade', can_confirm: canConfirm,
+      cards: [{ index: 0, name: 'Defend' }, { index: 1, name: 'Strike' }, { index: 2, name: 'Uppercut' }] },
+    ui: { scene_id: 's', focused_element: 'card', elements: [
+      { id: 'confirm', label: 'SelectModeConfirmButton', press: 'y', activation: 'a', enabled: canConfirm, visible: true, focus_mode: 'none' },
+      { id: 'endturn', label: 'End Turn 3', press: 'y', activation: 'a', enabled: false, visible: true, focus_mode: 'none' },
+    ] },
+  });
+
+  const held = selectionGate(screen(true));
+  assert.equal(held.can_confirm, true);
+  assert.equal(held.confirm_control, 'confirm', 'it names the ENABLED confirm, not End Turn which shares y');
+  assert.deepEqual(held.candidates, ['Defend', 'Strike', 'Uppercut']);
+  assert.equal(held.mode, 'upgrade_select');
+
+  const empty = selectionGate(screen(false));
+  assert.equal(empty.can_confirm, false);
+  assert.equal(empty.confirm_control, null, 'a dark confirm is not offered as the way out');
+
+  assert.equal(selectionGate({ state_type: 'map', ui: { elements: [] } }), null, 'and it says nothing off a selection screen');
+}
+
 // Half the library was unreadable by name.
 //
 // `learn` insists on lowercase so proposals arrive in one naming style, and
@@ -226,7 +256,7 @@ import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/le
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, splitNotes, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
-import { Executor, reachable } from '../client/learning/executor.mjs';
+import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
 import { API_KEY_ENVS, DEFAULT_MODEL, MODEL_PROFILES, PROFILE } from '../server/lib/learning-profile.mjs';
 
