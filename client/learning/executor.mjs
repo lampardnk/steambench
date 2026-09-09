@@ -1,5 +1,21 @@
 import { elements, pressableElement, targetElement, navigationPath, towards, across } from './navigation.mjs';
 
+/**
+ * A card-selection screen that does not report what is selected.
+ *
+ * "Choose 2 Common Cards to Add to Your Deck" carries the candidates and
+ * can_confirm and nothing else - no selected list, no per-card flag. So picking
+ * the FIRST card changes nothing an observer can see, and the guard that
+ * catches presses which did nothing cannot tell the difference. It fired on
+ * every multi-select reward screen. can_confirm flipping is the only signal,
+ * and it only arrives once enough cards are picked.
+ */
+function unreportedSelection(state, target) {
+  if (!state?.card_select && !state?.hand_select) return false;
+  const element = (state.ui?.elements || []).find(item => item.id === target);
+  return element?.reference?.kind === 'card';
+}
+
 /** The bound buttons a stuck screen still offers, named in the error. */
 export function reachable(state) {
   const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
@@ -470,7 +486,7 @@ export class Executor {
             if (!target.label || target.ambiguous || target.press !== bound) throw new Error('activation semantics are unknown; inspect screenshot and report issue');
             await this.button(bound);
             state = await this.settled();
-            if (stateId(state) === stateId(fresh)) throw new Error(`pressing ${bound} on ${action.target} changed nothing${reachable(state)}`);
+            if (stateId(state) === stateId(fresh) && !unreportedSelection(state, action.target)) throw new Error(`pressing ${bound} on ${action.target} changed nothing${reachable(state)}`);
             completed.push({ action, verified: true, pressed: bound, barrier: 'activation: replan from fresh scene' });
             this.record({ type: 'action', before, after: state, action, verified: true });
             break;
@@ -488,7 +504,7 @@ export class Executor {
             if (fresh.ui?.scene_id !== state.ui?.scene_id || fresh.ui.focused_element !== action.target || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
             await this.button('a');
             state = await this.settled();
-            if (stateId(state) === stateId(fresh)) throw new Error(`activating ${action.target} changed nothing${reachable(state)}`);
+            if (stateId(state) === stateId(fresh) && !unreportedSelection(state, action.target)) throw new Error(`activating ${action.target} changed nothing${reachable(state)}`);
             completed.push({ action, verified: true, barrier: 'activation: replan from fresh scene' });
             this.record({ type: 'action', before, after: state, action, verified: true });
             break;
