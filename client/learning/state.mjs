@@ -387,7 +387,14 @@ export function validatePlan(plan, state, { role = null } = {}) {
       // optional bookkeeping and must never cost a run its verified progress.
     } else if (action.type === 'recall') {
       if (actions.length !== 1) throw new Error('recall must be a standalone action');
-      if (action.path !== undefined && (typeof action.path !== 'string' || !/^[a-z0-9][a-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('..'))) throw new Error('recall.path must be a lowercase .md path inside the strategy guide');
+      // Reading a note is not writing one. `learn` insists on lowercase so
+      // proposals arrive in one naming style, but half the library shipped with
+      // names like UNDERDOCKS_BOSSES.md, and requiring lowercase here made
+      // every one of them unreadable: the real name was refused by the
+      // validator and the lowercase name did not exist, so a run deadlocked
+      // between the two and burned its whole refine budget. Case belongs to the
+      // file; the check is for path safety.
+      if (action.path !== undefined && (typeof action.path !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('..') || action.path.includes('//'))) throw new Error('recall.path must be a .md path inside the strategy guide, exactly as it is named in known_notes');
     } else if (action.type === 'research') {
       if (actions.length !== 1) throw new Error('research must be a standalone action');
       if (typeof action.url !== 'string' || !/^https:\/\/[^\s]{4,380}$/.test(action.url)) throw new Error('research.url must be one https reference URL');
