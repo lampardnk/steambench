@@ -71,6 +71,14 @@ no `press` of its own, the entrance is the panel button sitting in its row:
 walk the row. This is also the best answer when a screen has stopped making
 sense - a shortcut lands somewhere known, where a direction only guesses.
 
+**A full-screen element whose neighbours all point at itself is a modal, and
+`b` closes it.** Inspecting a card opens `NInspectCardScreen` at 0,0,1920,1080
+with `activation: null` and every neighbour its own id. Nothing in the elements
+list closes it: what you see listed is the screen UNDERNEATH, and that screen's
+own Back may report `enabled: false` and sit off-screen at a negative x while
+the overlay is up. Its disabled state says nothing about the thing on top.
+`back` is the map and the overlay swallows it; `b` is the way out.
+
 **Two enabled controls can share one bound button, and the innermost wins.** A
 selection confirm and End Turn both report `press: y` in combat; View Upgrades
 and Confirm both do in the card zoom. Close the inner thing with `b` first, then
