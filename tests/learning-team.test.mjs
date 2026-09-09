@@ -749,3 +749,84 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.match(result.error, /activation null/, `it names the reason: ${result.error}`);
   assert.match(result.error, /PotionHolder/, `and which element: ${result.error}`);
 }
+
+// The hand is walked in the order it is drawn, not in hand[] index order.
+//
+// Live, on floor 19 of room 70f25b98: player.hand read Defend(274), Crimson
+// Mantle+(275), Defend(276), Howl(264), Strike(257), while the screen read left
+// to right 274, 276, 264, 257, 275 - index 1 was the RIGHTMOST of five.
+// Counting desired-focused in index space pressed `right` once for a card four
+// places away, and the run refused the selection rather than play the wrong
+// card. Every holder carries reference.instance_id, which ties the two
+// together. Ids, bounds and instance ids are the ones the mod reported there.
+{
+  const holder = (id, x, instance, label) => ({ id, label, reference: { kind: 'card', instance_id: instance },
+    type: 'NHandCardHolder', focus_mode: 'all', selectable: true, enabled: true, visible: true,
+    activation: 'a', ambiguous: false, bounds: [x, 671, 607, 760], neighbors: {} });
+  const screen = [
+    holder('element-10541946900067', 239, 274, 'Defend'),
+    holder('element-10627359712782', 534, 276, 'Defend'),
+    holder('element-10709081535686', 705, 264, 'Howl from Beyond'),
+    holder('element-10565569230034', 877, 257, 'Strike'),
+    holder('element-10726026527618', 1051, 275, 'Crimson Mantle+'),
+  ];
+  // hand[] order deliberately disagrees with the screen, exactly as it did live.
+  const hand = [
+    { index: 0, instance_id: 274, name: 'Defend' },
+    { index: 1, instance_id: 275, name: 'Crimson Mantle+' },
+    { index: 2, instance_id: 276, name: 'Defend' },
+    { index: 3, instance_id: 264, name: 'Howl from Beyond' },
+    { index: 4, instance_id: 257, name: 'Strike' },
+  ];
+  const order = [274, 276, 264, 257, 275];
+  const pressed = [];
+  let at = 0;
+  const executor = Object.create(Executor.prototype);
+  executor.button = async (button) => {
+    pressed.push(button);
+    // The row wraps, which is what makes one `left` the short way round.
+    if (button === 'right') at = (at + 1) % order.length;
+    if (button === 'left') at = (at - 1 + order.length) % order.length;
+  };
+  executor.observe = async () => ({ state_type: 'monster', run: { act: 2, floor: 19, ascension: 1 },
+    player: { hp: 67, max_hp: 80, hand }, ui: { scene_id: 'fight', focused_card: order[at], elements: screen } });
+  executor.record = () => {};
+  executor.sleep = async () => {};
+
+  const before = { state_type: 'monster', run: { act: 2, floor: 19, ascension: 1 },
+    player: { hp: 67, max_hp: 80, hand }, ui: { scene_id: 'fight', focused_card: 274, elements: screen } };
+  const landed = await executor.navigateHand(275, before);
+  assert.equal(landed.ui.focused_card, 275, `it reaches the card it asked for: pressed ${pressed.join(',')}`);
+  assert.deepEqual(pressed, ['left'], `and takes the short way round a wrapping row: ${pressed.join(',')}`);
+}
+
+// A shop draws the relic's artwork over the thing you buy.
+//
+// Live, on floor 22 of room 70f25b98 with 465 gold: the strategist asked for
+// "Venerable Tea Set" and the matcher resolved it to NRelic-RELIC_VENERABLE_-
+// TEA_SET, the artwork. Both it and the price tag are enabled and take `a`,
+// but no element lists the artwork as a neighbour, so no route to it exists
+// and none ever will - the run spent its recovery budget walking towards a
+// picture, twice, on two different relics. Shop relics are labelled by price
+// alone; only shop.items carries the name. Ids and bounds are the mod's.
+{
+  const entry = { id: 'element-12027787485067', label: '182', reference: { kind: 'entry' }, type: 'NMerchantRelic',
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a', ambiguous: false,
+    bounds: [1139, 674, 79, 79], neighbors: { left: 'element-12027586157697', up: 'element-12026646634070' } };
+  const art = { id: 'element-12039598641145', label: 'NRelic-RELIC_VENERABLE_TEA_SET', reference: { kind: 'model' },
+    type: 'NRelic', focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    ambiguous: false, bounds: [1097, 622, 88, 88],
+    // It names neighbours of its own; nothing names it.
+    neighbors: { left: 'element-12026428525817', right: 'element-12027787485067' } };
+  const here = { id: 'element-12026646634070', label: '48 | 1 | Skill | Armaments | Upgrade a card.', reference: { kind: 'entry' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a', ambiguous: false,
+    bounds: [961, 382, 240, 337], neighbors: { down: 'element-12027787485067', left: 'element-12027586157697' } };
+  const other = { id: 'element-12027586157697', label: '200', reference: { kind: 'entry' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a', ambiguous: false,
+    bounds: [989, 674, 79, 79], neighbors: { right: 'element-12027787485067' } };
+  const shop = { state_type: 'shop', run: { act: 2, floor: 22, ascension: 1 }, player: { gold: 465 },
+    ui: { scene_id: 'shop-1', focused_element: here.id, elements: [entry, art, here, other] } };
+
+  assert.equal(matchElement(shop, 'NRelic-RELIC_VENERABLE_TEA_SET'), null, 'the artwork is never offered as a target');
+  assert.equal(matchElement(shop, '182')?.id, entry.id, 'the price tag is, because neighbours point at it');
+}

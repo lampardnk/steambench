@@ -29,6 +29,15 @@ export function normalizeLabel(label) {
     .trim();
 }
 
+/** Every element some other element names as a neighbour: the ones focus can walk to. */
+function inboundNeighbors(state) {
+  const named = new Set();
+  for (const item of state.ui?.elements || []) {
+    for (const id of Object.values(item.neighbors || {})) if (id && id !== item.id) named.add(id);
+  }
+  return named;
+}
+
 /**
  * The one control this goal is asking for, or null when the labels do not
  * settle it. Deliberately strict: a near-match that presses the wrong button on
@@ -45,8 +54,17 @@ export function matchElement(state, wanted) {
   // Matching over everything let the caption win on an exact match while the
   // node it named only matched as a substring, so a run walked the map trying
   // to reach a caption it was already standing next to.
+  // And only things focus can actually get to. A shop draws the relic's artwork
+  // over its price tag: both are enabled and take `a`, but nothing lists the
+  // artwork as a neighbour, so no route to it exists and none ever will. A run
+  // with 465 gold spent its recovery budget walking towards a picture. An
+  // element no neighbour names and no button presses is decoration.
+  const reachableIds = inboundNeighbors(state);
   const candidates = dedupeElements(state.ui?.elements || [])
-    .filter(item => addressable(item, focused) && item.enabled === true && item.label && (item.activation || item.press));
+    .filter(item => addressable(item, focused) && item.enabled === true && item.label && (item.activation || item.press))
+    // Only where the screen actually reports wiring: with no graph at all there
+    // is no evidence of unreachability, and the map's nodes report none.
+    .filter(item => !reachableIds.size || item.press || item.id === focused || reachableIds.has(item.id));
   const exact = candidates.filter(item => normalizeLabel(item.label) === target);
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) return null;
