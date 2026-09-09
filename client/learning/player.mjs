@@ -526,6 +526,16 @@ async function run(task) {
             `What you were shown is gone: the game is now ${live.state_type}. Nothing was sent and nothing is wrong. Plan against the observation in this message.`, lane);
           continue;
         }
+        // The commonest report is an agent asking where the screen it just
+        // finished went. It rested, the site resolved to no options and a live
+        // Proceed, and it paused asking what happened to Rest and Smith. A
+        // press that worked is supposed to change the screen; the options that
+        // are gone are the ones it spent.
+        if (lastResult?.completed?.length && !lastResult.error) {
+          refine('the last action succeeded and this is the screen it produced',
+            'Your previous action completed. What you were expecting to still be here is what that action consumed, so this is progress, not a fault. Read the screen as it is now and take the next step on it.', lane);
+          continue;
+        }
         throw new Error(`Agent requests help: ${plan.actions[0].issue}`);
       }
       emit({ type: 'tool_execution_start', agent: lane, toolCallId, toolName: 'sts2_execute', args: plan });
