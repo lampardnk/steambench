@@ -799,3 +799,34 @@ test('a plan the runtime rejects is recorded and blamed on whoever wrote it', as
   assert.equal(landed.ui.focused_card, 275, `it reaches the card it asked for: pressed ${pressed.join(',')}`);
   assert.deepEqual(pressed, ['left'], `and takes the short way round a wrapping row: ${pressed.join(',')}`);
 }
+
+// A shop draws the relic's artwork over the thing you buy.
+//
+// Live, on floor 22 of room 70f25b98 with 465 gold: the strategist asked for
+// "Venerable Tea Set" and the matcher resolved it to NRelic-RELIC_VENERABLE_-
+// TEA_SET, the artwork. Both it and the price tag are enabled and take `a`,
+// but no element lists the artwork as a neighbour, so no route to it exists
+// and none ever will - the run spent its recovery budget walking towards a
+// picture, twice, on two different relics. Shop relics are labelled by price
+// alone; only shop.items carries the name. Ids and bounds are the mod's.
+{
+  const entry = { id: 'element-12027787485067', label: '182', reference: { kind: 'entry' }, type: 'NMerchantRelic',
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a', ambiguous: false,
+    bounds: [1139, 674, 79, 79], neighbors: { left: 'element-12027586157697', up: 'element-12026646634070' } };
+  const art = { id: 'element-12039598641145', label: 'NRelic-RELIC_VENERABLE_TEA_SET', reference: { kind: 'model' },
+    type: 'NRelic', focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a',
+    ambiguous: false, bounds: [1097, 622, 88, 88],
+    // It names neighbours of its own; nothing names it.
+    neighbors: { left: 'element-12026428525817', right: 'element-12027787485067' } };
+  const here = { id: 'element-12026646634070', label: '48 | 1 | Skill | Armaments | Upgrade a card.', reference: { kind: 'entry' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a', ambiguous: false,
+    bounds: [961, 382, 240, 337], neighbors: { down: 'element-12027787485067', left: 'element-12027586157697' } };
+  const other = { id: 'element-12027586157697', label: '200', reference: { kind: 'entry' },
+    focus_mode: 'all', selectable: true, enabled: true, visible: true, activation: 'a', ambiguous: false,
+    bounds: [989, 674, 79, 79], neighbors: { right: 'element-12027787485067' } };
+  const shop = { state_type: 'shop', run: { act: 2, floor: 22, ascension: 1 }, player: { gold: 465 },
+    ui: { scene_id: 'shop-1', focused_element: here.id, elements: [entry, art, here, other] } };
+
+  assert.equal(matchElement(shop, 'NRelic-RELIC_VENERABLE_TEA_SET'), null, 'the artwork is never offered as a target');
+  assert.equal(matchElement(shop, '182')?.id, entry.id, 'the price tag is, because neighbours point at it');
+}

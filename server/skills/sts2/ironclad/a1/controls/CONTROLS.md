@@ -138,6 +138,13 @@ still needed.
   finishes the screen once you have taken what you want. `can_proceed: true` does
   not promise a Proceed button - it says `y` will leave. Its absence is not a
   fault.
+- **Shops draw the artwork over the thing you buy.** The purchasable element is
+  the PRICE TAG - `reference.kind: "entry"` - and the relic or potion picture
+  beside it is `reference.kind: "model"`, which no element names as a neighbour
+  and no route can reach. Shop cards are labelled `price | cost | type | name`,
+  but shop relics and potions are labelled by price ALONE, so `shop.items` is
+  the only place a name and a price meet. Turn the name you want into its price
+  there, then route to the entry carrying that price.
 - **Rest sites.** Read `rest_site.options` and their enabled state; services vary
   by run. Empty `options` with `can_proceed` true is a resolved site: `y`
   proceeds.
