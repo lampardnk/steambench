@@ -78,6 +78,14 @@ still needed.
   working: `hand_select.cards` omits what is already in `selected_cards`.
 - **Pack, bundle and card-selection.** LEFT/RIGHT moves between choices, `a`
   opens a preview, `b` cancels it.
+- **"Choose N cards" means pick N, then confirm with `y`.** On a
+  `card_select.screen_type: "simple_select"` - a Common-card reward, an event
+  offering several - `a` on a card selects it and the sensor reports NOTHING in
+  return: there is no selected list and no per-card flag, so the first pick
+  looks exactly like a press that did nothing. It was not. The only signal is
+  `can_confirm`, which stays false until enough cards are picked and then turns
+  true. So pick, pick again, and read can_confirm rather than looking for the
+  selection; when it is true, `y` takes them.
 - **The bundle preview IS the confirm step.** `a` on a bundle opens its cards
   side by side, with back on `b` and a CHECKMARK ON `y`. `y` there takes the
   bundle. Confirm, Cancel and View Upgrades exist only inside a preview, never on
@@ -102,6 +110,15 @@ still needed.
 - **Rest sites.** Read `rest_site.options` and their enabled state; services vary
   by run. Empty `options` with `can_proceed` true is a resolved site: `y`
   proceeds.
+- **Choosing a card to enchant or to smith ends with NO FOCUS, on purpose.**
+  Once the card is chosen, the foreground shows it beside what it becomes, and
+  the only controls are `b` to go back and `y` to confirm. `ui.focused_element`
+  and `ui.focus_path` are both null and no directional press will change that -
+  the screen is not waiting for one. `card_select.can_confirm` is already true,
+  which is the tell. The large card elements are the before-and-after preview,
+  not choices: never try to activate one, and never route to a card by name
+  here. This holds for the rest-site smith and for any event that asks which
+  card to enchant; events that enchant at random show no such screen at all.
 - **Combat focus is one vertical cycle, and `down` walks it.** Top to bottom:
   potion slots, relics, the allies-and-enemies field, the hand - then it wraps.
   Left and right move within a row. The hand is focused when a turn begins.
@@ -125,6 +142,12 @@ still needed.
   which names it and offers Use and Discard - so the popup is how you confirm
   which holder you are on. Discard sits under the cursor and Use directly above,
   so `up` reaches Use. `b` backs out having spent nothing.
+- **That dropdown holds focus, and `down` cannot leave it.** While
+  `ui.focus_path` contains `PotionPopup` you are inside a two-item menu and
+  directional presses do nothing at all - walking the rows will not start until
+  you are out. `b` closes it, `x` returns to the potion bar, `left` walks out of
+  the bar towards the relics. Any of them is reversible; check `focus_path`
+  after, not the press.
 - **Zero energy.** Every card with a positive cost reports `can_play: false`.
   Costs are STRINGS ("2"), so compare as numbers, and a batch spends energy as it
   goes: sum the whole plan against the turn's energy.

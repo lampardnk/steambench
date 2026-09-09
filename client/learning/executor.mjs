@@ -1,5 +1,21 @@
 import { elements, pressableElement, targetElement, navigationPath, towards, across } from './navigation.mjs';
 
+/**
+ * A card-selection screen that does not report what is selected.
+ *
+ * "Choose 2 Common Cards to Add to Your Deck" carries the candidates and
+ * can_confirm and nothing else - no selected list, no per-card flag. So picking
+ * the FIRST card changes nothing an observer can see, and the guard that
+ * catches presses which did nothing cannot tell the difference. It fired on
+ * every multi-select reward screen. can_confirm flipping is the only signal,
+ * and it only arrives once enough cards are picked.
+ */
+function unreportedSelection(state, target) {
+  if (!state?.card_select && !state?.hand_select) return false;
+  const element = (state.ui?.elements || []).find(item => item.id === target);
+  return element?.reference?.kind === 'card';
+}
+
 /** The bound buttons a stuck screen still offers, named in the error. */
 export function reachable(state) {
   const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
@@ -234,24 +250,19 @@ export class Executor {
       }
       const target = targetElement(state, action.target);
       if (state.ui.focused_element === target.id) return state;
-      // A freshly loaded screen can hold no focus at all, and a route has to
-      // start from somewhere. A directional press is reversible and activates
-      // nothing, so it is the safe way to make the screen adopt a focus before
-      // routing from it.
+      // A freshly loaded screen can hold no focus, and a route has to start
+      // somewhere; a directional press is reversible and activates nothing.
+      // But some screens hold no focus BY DESIGN and never will: choosing a
+      // card to enchant, or to smith at a rest site, ends in a foreground
+      // before-and-after preview driven only by `b` and `y`. Two presses, then
+      // say what the screen actually offers instead of guessing at more.
       if (!state.ui.focused_element) {
-        if (recovery === 2) {
-          // Two reversible presses have already been spent trying to make the
-          // screen adopt a focus. It has not, so this is a screen driven by
-          // bound buttons rather than by the pad - saying "press a direction"
-          // here sends the next plan back into what just failed. Name what is
-          // actually reachable instead.
-          const bound = elements(state).filter(item => item.press && item.enabled !== false).map(item => `${item.label || item.id} (${item.press})`);
-          throw new Error(`this screen adopts no focus, so no route can start and ${action.target} cannot be reached by navigating${bound.length ? `; it is driven by bound buttons: ${bound.slice(0, 8).join(', ')}` : ''}`);
-        }
+        if (recovery === 2) throw new Error(`this screen adopts no focus, so ${action.target} cannot be reached by navigating${reachable(state)}`);
         await this.button('down');
         state = await this.observe();
         continue;
       }
+
       let route;
       try { route = navigationPath(state, state.ui.focused_element, target.id, 12, avoid); }
       catch (error) {
@@ -475,7 +486,7 @@ export class Executor {
             if (!target.label || target.ambiguous || target.press !== bound) throw new Error('activation semantics are unknown; inspect screenshot and report issue');
             await this.button(bound);
             state = await this.settled();
-            if (stateId(state) === stateId(fresh)) throw new Error(`pressing ${bound} on ${action.target} changed nothing${reachable(state)}`);
+            if (stateId(state) === stateId(fresh) && !unreportedSelection(state, action.target)) throw new Error(`pressing ${bound} on ${action.target} changed nothing${reachable(state)}`);
             completed.push({ action, verified: true, pressed: bound, barrier: 'activation: replan from fresh scene' });
             this.record({ type: 'action', before, after: state, action, verified: true });
             break;
@@ -493,7 +504,7 @@ export class Executor {
             if (fresh.ui?.scene_id !== state.ui?.scene_id || fresh.ui.focused_element !== action.target || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
             await this.button('a');
             state = await this.settled();
-            if (stateId(state) === stateId(fresh)) throw new Error(`activating ${action.target} changed nothing${reachable(state)}`);
+            if (stateId(state) === stateId(fresh) && !unreportedSelection(state, action.target)) throw new Error(`activating ${action.target} changed nothing${reachable(state)}`);
             completed.push({ action, verified: true, barrier: 'activation: replan from fresh scene' });
             this.record({ type: 'action', before, after: state, action, verified: true });
             break;
