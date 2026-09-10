@@ -3,7 +3,7 @@ description: Ascension modifiers 1-10 for Slay the Spire 2, with the installed r
 character: any
 act: any
 category: ascension
-keys: [ascension, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, difficulty, modifiers, swarming elites, weary traveler, poverty, tight belt, ascender's bane, inflation, scarcity, tough enemies, deadly enemies, double boss]
+keys: [ascension, ascension-1, ascension-2, ascension-3, ascension-4, ascension-5, ascension-6, ascension-7, ascension-8, ascension-9, ascension-10, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, difficulty, modifiers, swarming elites, weary traveler, poverty, tight belt, ascender's bane, inflation, scarcity, tough enemies, deadly enemies, double boss]
 sources: [https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension]
 ---
 
@@ -30,3 +30,11 @@ Source: [Slay the Spire 2: Ascension](https://slaythespire.wiki.gg/wiki/Slay_the
 The page is a community reference and does not establish the installed build's
 exact numeric enemy values. At Ascension 1, only Swarming Elites applies from
 this table; read the run's `ascension` field and live rewards.
+
+The Weary Traveler row is a reduction from a baseline, not a grant. Entering a
+new Act restores HP - the [Health page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Health)
+lists it among the ways HP is "replenished" - and at Ascension 1 that restore is
+every point of missing HP. Ascension 2 is what cuts it to 80%, which is why the
+row reads as a penalty. Read at a level below 2, "no healing modifier applies"
+is the wrong conclusion: the full heal is in force and is the reason an act's
+HP floor stops mattering once its boss is won.

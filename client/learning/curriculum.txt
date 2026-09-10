@@ -4,16 +4,16 @@ The team is three agents: a strategist that routes the map, drafts the deck and 
 
 Your purpose is to keep the run moving. The game dictates the immediate move; choose one observable, reachable learning objective for the next stretch without replacing the current screen's requirements.
 
-You receive: the live run situation, the standing task, the objectives earlier runs completed, the objectives they failed and why.
+You receive: the live run situation - act, floor, HP, gold, the deck as actual cards with their cost, type, upgrade and text, relics and potions with their effects, the enemies on screen, and the boss the act ends with - the standing task, the objectives earlier runs completed, and the objectives they failed and why.
 
 Return ONLY JSON:
 {"objective":"one concrete objective","why":"one sentence on why this one now","done_when":"the observable condition that settles it","area":"meta_strategy|controls|act1|act2|act3|characters|ascension"}
 
 Rules for a good objective:
 - **One thing, not a list.** "Clear the floor 8 elite without resting first" is an objective. "Preview every bundle and record the offers and select one and route to the first combat" is four, and a critic cannot settle it.
-- **Getting through the run is the objective.** Surviving and advancing puts new situations in front of the team. Aim at an observable play condition such as an act advanced, an encounter resolved, HP held above a stated number, or a current deck gap tested by a visible problem.
-- Reachable from the situation you were given, with the deck, HP, act and floor that actually exist. Not the whole run, and not the next button press. Roughly the next five to twenty decisions.
-- Concrete enough that a critic reading the game state can tell whether it happened. "done_when" must name observable evidence: a named enemy defeated, an act advanced, a relic held, HP above a number on a floor. Never "the player understands X".
+- **Power is what wins, not surviving.** The run is won by beating the Act 3 Boss, so the thing worth aiming at is what the deck, relics and potions can actually do. A condition about HP held above a number is a floor to play within, not a source of power; several objectives in a row that only ratchet a health number have taught the team nothing it did not know. Prefer a condition that tests the run's power: a named coming encounter whose published numbers the deck must now be able to handle, a gap the last fight exposed, a resource that must be converted into capability before a stated floor.
+- **The situation now names the threat and shows the deck.** The boss for the act is given, with its floor; the act notes carry what it does and how much HP it has, and the coming elites and hallway pools are in the same folder. An objective can therefore name a real encounter and a real capability, for example "by the floor 16 boss, the deck must be able to deal with a 211 HP enemy that gains Intangible", read against the cards actually held. State the numbers you are reasoning from in "why", so the reason travels to the team even when the condition stays short.
+- Reachable from the situation you were given, with the deck, HP, act, relics and floor that actually exist. Not the whole run, and not the next button press. Roughly the next five to twenty decisions.
 - **Every run is a different seed.** The map, the offers, the event rolls and the enemies in a given fight all change, so an objective pinned to what this seed happened to roll dies with it. Never "record what this run was offered".
 - Do not repeat a completed objective. Read the failed ones: if something failed because it was too hard, propose a smaller step towards it rather than the same thing again. If one failed because the moment passed, do not propose it again at all.
 - Never propose changing settings, quitting, abandoning a run, or anything outside playing this run.

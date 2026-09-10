@@ -41,8 +41,37 @@ const AUXILIARY_DEADLINE_MS = Math.round(PROFILE.plannerDeadlineMs / 2);
 const AREAS = ['meta_strategy', 'controls', 'act1', 'act2', 'act3', 'characters', 'ascension', 'debugging'];
 const clamp = (value, limit) => (typeof value === 'string' ? value.slice(0, limit) : '');
 
-/** A small, stable description of where the run is, for proposal and verification. */
+/**
+ * A small, stable description of where the run is, for proposal and verification.
+ *
+ * This is the ONLY window the curriculum and the critic have on the run:
+ * `situation()` is read by `propose` and by `verify`, and by nothing else - the
+ * strategist and the combat agent have their own projections. An objective can
+ * only be as concrete as what arrives here, which is why the first run's ladder
+ * was four HP floors: `deck_size` was a count and the relics never arrived at
+ * all, so "is this deck strong enough for the boss ahead" was unanswerable and
+ * nobody could ask it.
+ *
+ * Two fields carry the weight:
+ * - The deck as cards, with cost/type/upgrade, because an objective about what
+ *   the deck must be able to do cannot be checked against a number.
+ * - `boss` from the map, because the power question is always relative to a
+ *   named encounter at a known floor. The map has carried it since floor 1.
+ *
+ * Relics and potions are read from `player`, where the mod puts them. The
+ * earlier `state.relics` spelling resolved to undefined in every one of the
+ * 189 observations of room 1810711c, so both agents have always been told this
+ * run held no relics at all.
+ *
+ * Card descriptions are included: the critic has to reason about what the deck
+ * does, and a bare name makes that a recall of the model's own training data
+ * rather than a reading of the live state.
+ */
 export function situation(state, extra = {}) {
+  const relics = state?.player?.relics || state?.relics || [];
+  const potions = state?.player?.potions || [];
+  const deck = Array.isArray(state?.deck) ? state.deck : [];
+  const map = state?.map || null;
   return {
     state_type: state?.state_type || null,
     menu_screen: state?.menu_screen || null,
@@ -53,8 +82,16 @@ export function situation(state, extra = {}) {
     hp: state?.player?.hp ?? null,
     max_hp: state?.player?.max_hp ?? null,
     gold: state?.player?.gold ?? null,
-    relics: (state?.relics || []).map(relic => relic.name).filter(Boolean).slice(0, 20),
-    deck_size: Array.isArray(state?.deck) ? state.deck.length : null,
+    relics: relics.map(relic => ({ name: relic?.name || relic?.id || null, description: relic?.description || null, counter: relic?.counter ?? null })).filter(relic => relic.name).slice(0, 24),
+    potions: potions.map(potion => ({ name: potion?.name || potion?.id || null, description: potion?.description || null, slot: potion?.slot ?? null })).filter(potion => potion.name).slice(0, 8),
+    // The deck as cards, so a completion condition can name what the deck must
+    // do rather than how many cards are in it.
+    deck: deck.map(card => ({ name: card?.name || card?.id || null, cost: card?.cost ?? null, type: card?.type ?? null, upgraded: card?.is_upgraded === true, description: card?.description || null })).filter(card => card.name),
+    deck_size: deck.length,
+    // The encounter the act ends with, and the floor it sits on, when the map
+    // is in front of us. This is what makes a power target measurable against a
+    // named threat instead of an invented HP number.
+    boss: map?.boss ? { name: map.boss.name || map.boss.id || null, floor: map.boss.row ?? null } : null,
     enemies: (state?.battle?.enemies || []).map(enemy => enemy.name).filter(Boolean).slice(0, 6),
     event: state?.event?.name || state?.event?.event_name || null,
     ...extra,
@@ -173,9 +210,19 @@ export class Curriculum {
    * decision that saw the transition was always skipped, and this method then
    * overwrote the marker and erased the evidence. The critic never ran once in
    * 85 decisions. A crossing stays pending until a check actually consumes it.
+   *
+   * The act and floor alone cannot see the start of a run. Neow sits on act 1
+   * floor 1, and choosing a blessing does not move either number: an objective
+   * opened before the blessing and settled after it produced an identical
+   * marker, so the boundary never latched, the critic was never asked, and the
+   * objective stayed active until the run left floor 1. The Ancient's identity
+   * plus whether its options are still open is what changes across that screen,
+   * so it belongs in the marker.
    */
   observe(state) {
-    const marker = `${state?.run?.act}/${state?.run?.floor}/${state?.state_type === 'game_over'}`;
+    const event = state?.event || null;
+    const ancient = event ? `${event.event_id || event.event_name || 'event'}/${event.is_ancient === true}/${event.in_dialogue === true}` : '';
+    const marker = `${state?.run?.act}/${state?.run?.floor}/${state?.state_type === 'game_over'}/${ancient}`;
     if (this.lastMarker !== null && marker !== this.lastMarker) this.crossedBoundary = true;
     this.lastMarker = marker;
   }

@@ -732,7 +732,12 @@ export class Room extends EventEmitter {
       throw error;
     }
     const t = this.setup.task;
-    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. Use live state, the strategy guide and source-linked factual notes to make adaptive decisions. Keep learning proposals reusable and brief; do not write a run diary. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
+    // The win condition is stated because it had been dropped: v0.3 and v0.4
+    // carried "Play efficiently to win", and it is absent from the kickoff that
+    // replaced them - so nothing in front of any agent says the point is to
+    // finish the three acts. A ladder of objectives can only aim at what the
+    // standing task says the run is for.
+    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. The point of the run is to win it: reach and defeat the Act 3 Boss, which ends the run in victory. Use live state, the strategy guide and source-linked factual notes to make adaptive decisions. Keep learning proposals reusable and brief; do not write a run diary. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
     this.setStage('playing', `${t.character} · Ascension ${t.ascension}`);
     if (!resume) agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
     else this.setDetail('learning player reloaded; awaiting explicit supervisor resume');

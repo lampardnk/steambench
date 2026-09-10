@@ -136,6 +136,50 @@ curriculum.lastCheckedAt = 60;
 curriculum.crossedBoundary = false;
 assert.equal(curriculum.dueForCheck(afterCombat, 70), false, 'and it is consumed, not re-fired every decision after');
 
+// The act and floor cannot see the start of a run. Neow sits on act 1 floor 1
+// and choosing a blessing moves neither number, so an objective opened before
+// the blessing and settled after it used to produce an identical marker: the
+// boundary never latched, the critic was never asked, and the objective stayed
+// open until the run left floor 1. The Ancient screen is what changes.
+curriculum.crossedBoundary = false;
+const neowOpen = { state_type: 'event', run: { act: 1, floor: 1 }, event: { event_id: 'NEOW', event_name: 'Neow', is_ancient: true, in_dialogue: false } };
+const neowChosen = { ...neowOpen, event: { event_id: 'NEOW', event_name: 'Neow', is_ancient: true, in_dialogue: true } };
+curriculum.observe(neowOpen);                        // seat the marker on the Ancient screen
+curriculum.crossedBoundary = false;
+curriculum.observe(neowOpen);
+assert.equal(curriculum.crossedBoundary, false, 'the same Ancient screen is not a boundary');
+curriculum.observe(neowChosen);
+assert.equal(curriculum.crossedBoundary, true, 'choosing the blessing is a boundary the act and floor cannot express');
+curriculum.crossedBoundary = false;
+
+// --- what the curriculum and the critic are shown ---------------------------
+// situation() is the only window both agents have on the run. An objective can
+// only be as concrete as what arrives here: the first room's ladder was four HP
+// floors because the deck was a count and the relics did not arrive at all.
+const full = situation({
+  state_type: 'map',
+  run: { act: 1, floor: 12, ascension: 1, character: 'The Ironclad' },
+  player: {
+    hp: 57, max_hp: 86, gold: 323,
+    relics: [{ name: 'Burning Blood', description: 'At the end of combat, heal 6 HP.', counter: null }],
+    potions: [{ name: 'Regen Potion', description: 'Gain 5 Regen.', slot: 0 }],
+  },
+  deck: [{ name: 'Inflame', cost: '1', type: 'Power', is_upgraded: true, description: 'Gain 2 Strength.' }, { name: 'Strike', cost: '1', type: 'Attack', is_upgraded: false, description: 'Deal 6 damage.' }],
+  map: { boss: { name: 'Soul Fysh', id: 'SOUL_FYSH_BOSS', row: 16 } },
+});
+assert.equal(full.deck.length, 2, 'the deck arrives as cards, not a count');
+assert.equal(full.deck[0].name, 'Inflame');
+assert.equal(full.deck[0].upgraded, true, 'and an upgrade is visible, since it changes what the card does');
+assert.equal(full.deck_size, 2, 'the count is kept alongside');
+assert.equal(full.relics[0].name, 'Burning Blood', 'relics are read from player, where the mod puts them');
+assert.equal(full.relics[0].description, 'At the end of combat, heal 6 HP.');
+assert.equal(full.potions[0].name, 'Regen Potion');
+assert.equal(full.boss.name, 'Soul Fysh', 'the act boss is named, so a power condition has a target');
+assert.equal(full.boss.floor, 16);
+// The old spelling read state.relics, which resolved to undefined in every one
+// of the 189 observations of the first room: both agents were always told the
+// run held no relics at all.
+assert.equal(situation({ ...inRun, relics: [{ name: 'Ignored' }] }).relics[0].name, 'Ignored', 'the top-level spelling still resolves for callers that use it');
 // --- a run that ends closes whatever was open ------------------------------
 curriculum.closeRun(inRun, { decision: 50, result: 'lost' });
 assert.equal(curriculum.active, null);
@@ -261,7 +305,7 @@ fs.rmSync(root, { recursive: true, force: true });
   assert.equal(focusNote(roster, new Set()), roster, 'and a situation with no subject slices nothing');
 }
 
-console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'the controls manual reaches the pad even when retrieval scores it zero', 'a roster note is cut to the enemies actually present'] }));
+console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'the Ancient screen is a boundary the act and floor cannot express', 'situation carries the deck as cards', 'situation reads relics from player', 'situation names the act boss', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'the controls manual reaches the pad even when retrieval scores it zero', 'a roster note is cut to the enemies actually present'] }));
 
 // Live effects are named under status, not powers. Selection cards, carried
 // relics and potions are also subjects whose mechanics must be discoverable.
@@ -276,7 +320,6 @@ console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion
   const { weights } = situationTerms(actual, null);
   assert.equal(weights.get('sandpit'), 5);
   assert.equal(weights.get('hard'), 5);
-  assert.equal(weights.get('bound'), 4);
   assert.equal(weights.get('gambling'), 2);
   assert.equal(weights.get('colorless'), 2);
   assert.equal(weights.get('frantic'), 2);

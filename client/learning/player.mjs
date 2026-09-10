@@ -522,7 +522,11 @@ async function run(task) {
       if (source.strategy && role !== 'combat') strategy = source.strategy;
       if (source.lesson) fs.appendFileSync(path.join(directory, 'candidates.jsonl'), JSON.stringify({ id: digest({ decision, lesson: source.lesson }), version: VERSION, compatibility: build, status: 'candidate', agent: lane, text: source.lesson, decision, evidence: toolCallId, verifiedActions: result.completed, error: result.error }) + '\n');
       saveMetrics();
-      evidence.push({ decision, agent: lane, act: state.run?.act ?? null, floor: state.run?.floor ?? null, actions: plan.actions.map(action => action.type), completed: result.completed.map(item => ({ type: item.action?.type, verified: item.verified === true, detail: item.error || item.detail || null })), error: result.error || null, after: lastResult?.after || null });
+      // The fight's own identity rides on the row: the critic was once unable to
+      // settle an objective reading "an Elite encounter is won" because a floor
+      // 7 win and a floor 8 Elite win looked identical in the evidence - it had
+      // the floor and the HP, but nothing saying which kind of encounter it was.
+      evidence.push({ decision, agent: lane, act: state.run?.act ?? null, floor: state.run?.floor ?? null, kind: fight?.kind ?? null, enemies: fight?.enemies ?? null, actions: plan.actions.map(action => action.type), completed: result.completed.map(item => ({ type: item.action?.type, verified: item.verified === true, detail: item.error || item.detail || null })), error: result.error || null, after: lastResult?.after || null });
       if (evidence.length > 24) evidence.shift();
       if (plan.actions.some(action => action.type === 'learn')) noteIndex = indexNotes(skillDir);
       quiet = bookkeepingOnly(plan) ? quiet + 1 : 0;
