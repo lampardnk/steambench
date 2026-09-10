@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { PROFILE } from './profile.mjs';
 
 export const VERSION = PROFILE.checkpointVersion;
-export const SENSOR_VERSION = 5;
+export const SENSOR_VERSION = 6;
 export const digest = (value) => crypto.createHash('sha256').update(JSON.stringify(value) ?? 'null').digest('hex').slice(0, 16);
 
 /**
@@ -115,8 +115,38 @@ export function mapId(state) {
  * a "Game Saved" toast, a focus outline redraw, an idle animation during
  * combat. Comparing that against a plan made a few seconds earlier declared
  * almost every combat decision stale and threw it away without sending input.
- * Gameplay progress, the set of controls on screen and what holds focus are
- * what a plan depends on; if those are unchanged the plan is still good.
+ * Gameplay progress and the set of controls on screen are what a plan depends
+ * on; if those are unchanged the plan is still good.
+ *
+ * Both of those have to be read in STABLE identity, which the previous version
+ * was not. It digested `ui.scene_id` and `ui.focused_element`, and the sensor
+ * builds both out of Godot instance ids that it mints fresh whenever a node is
+ * rebuilt. Measured over 572 idle windows in the archive - consecutive sensor
+ * reads with no pad input, which is exactly the gap a model spends thinking -
+ * that declared 17.5% of them stale after the screen had not changed at all.
+ * The churn is not the game doing something: tooltip text nodes
+ * (MegaRichTextLabel) are rebuilt as they show and hide, pile buttons and gold
+ * readouts are rebuilt as they update, and a card-targeting cursor passing back
+ * over a holder mints a new id for the same holder. All 402 "state changed while
+ * planning" refusals in the archive came from this class, and each one threw
+ * away a finished model turn and made it plan the same screen again.
+ *
+ * So the control set is compared by what each control IS - its type, what it
+ * refers to, how it is activated - rather than by which object happens to
+ * implement it, and only controls the pad can actually address are compared at
+ * all: decoration the runtime would never let a plan name cannot be something a
+ * plan rests on. Measured on the same 572 windows this holds every real
+ * transition (a potion popup opening, a shop stocking) and every case where
+ * gameplay progress moved, while dropping false staleness to 1.8%.
+ *
+ * Focus is deliberately NOT part of this. It is restored by the game after
+ * every press, and it moves on its own (a card-targeting cursor passing over a
+ * holder). A plan names what it acts on, and the executor re-resolves that by
+ * walking the focus graph from wherever focus currently is; a plan pressing
+ * relative to live focus does not exist in this codebase - `navigate` has never
+ * been used, and every `input` sequence either starts from focus the model
+ * itself just verified or is a one-press probe whose whole point is that it is
+ * relative.
  */
 export function planIdentity(state) {
   // Settled here too, not only by the caller. progressId and stateId already
@@ -124,9 +154,48 @@ export function planIdentity(state) {
   // not was the inconsistency that let a plan validate and then be declared
   // stale by the very next read of the same unchanged screen.
   const settled = settleAnimation(state);
-  return digest([progressId(settled), settled.state_type ?? null, settled.menu_screen ?? null, settled.ui?.scene_id ?? null, settled.ui?.focused_element ?? null]);
+  return digest([progressId(settled), settled.state_type ?? null, settled.menu_screen ?? null, controlIdentity(settled)]);
 }
 
+/**
+ * What a control IS, as opposed to which object currently implements it. A node
+ * rebuilt by the game keeps its meaning; the instance id under it does not, and
+ * neither does presentation text that changed because a counter updated.
+ */
+function stableControl(item) {
+  return [item.type ?? '', item.reference?.kind ?? '', item.activation ?? '',
+    item.reference?.card?.id ?? '', item.reference?.model_id ?? '',
+    item.reference?.type ?? '', item.reference?.name ?? '',
+    item.hotkeys?.length ? 'hotkey' : ''].join('|');
+}
+
+/** The controls a plan can name, by what they are rather than which object they are. */
+function controlIdentity(state) {
+  const counts = new Map();
+  for (const item of state.ui?.elements || []) {
+    if (!(item.selectable || item.press || item.hotkeys?.length)) continue;
+    const kind = stableControl(item);
+    counts.set(kind, (counts.get(kind) || 0) + 1);
+  }
+  // Sorted so the digest does not depend on the order the sensor happened to
+  // walk the tree, and counted so a control appearing or leaving still shows.
+  return [...counts].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([kind, count]) => `${count}x ${kind}`);
+}
+
+/**
+ * The control holding focus, as stable identity.
+ *
+ * Focus is deliberately not part of planIdentity - it moves on its own, and an
+ * action that names its target is unaffected by where focus moved from, because
+ * the executor re-resolves the name by walking the focus graph from wherever it
+ * happens to be. The exception is a bare activation press, which acts on
+ * whatever is focused; the executor compares this before sending one, so that
+ * one class keeps the protection the old identity gave it.
+ */
+export function focusIdentity(state) {
+  const focused = (state?.ui?.elements || []).find(item => item.id === state?.ui?.focused_element);
+  return focused ? stableControl(focused) : null;
+}
 const DIFF_FIELDS = [
   ['state_type', state => state.state_type],
   ['menu_screen', state => state.menu_screen ?? null],

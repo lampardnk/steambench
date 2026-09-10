@@ -2,7 +2,7 @@
 
 `steambench` operates containerized autonomous players inside isolated Steam gaming rooms observed on steambench.dev. The primary supported game is **Slay the Spire 2 (STS2)** (Steam App ID `2868840`).
 
-The sole builtin player is **`STS2-Pi-Experiential`** (running `gpt-5.6-luna` via `EXPLABS_API_KEY` on `https://api.experientiallabs.ai/v1`, image `steambench-learning:latest`). The model is a one-word switch: `MODEL_PROFILES` in `server/lib/learning-profile.mjs`, selected by `STEAMBENCH_MODEL` (default `experiential`, `orcarouter` also configured). Nothing outside that file names a provider, a base URL or a key.
+The sole builtin player is **`STS2-Pi-Gemini`** (running `google/gemini-3.8-flash` via `OPENROUTER_API_KEY` on `https://openrouter.ai/api/v1`, image `steambench-learning:latest`; 1,048,576-token context, 65,536-token output cap, `high` reasoning). The model is a one-word switch: `MODEL_PROFILES` in `server/lib/learning-profile.mjs`, selected by `STEAMBENCH_MODEL` (default `gemini`; `experiential`, `deepseek` and `orcarouter` also configured). Nothing outside that file names a provider, a base URL or a key.
 
 ---
 
@@ -22,7 +22,7 @@ The sole builtin player is **`STS2-Pi-Experiential`** (running `gpt-5.6-luna` vi
 Browser (steambench.dev) -- HTTPS/WS tunnel --> Server :8787 (host network, Docker/Wolf sockets)
   Server --> Wolf lobby: GOW Steam container + virtual display/audio/pad
          --> Observer session: H.264/AAC fMP4 via media FIFOs + JPEG stream + pad input
-         --> Player container: OrcaRouter agent (Pi RPC stdin/stdout), skills library mount
+         --> Player container: scoped agent team (Pi RPC stdin/stdout), skills library mount
   Player --> JSON-line gateway :28771 --> Allowlisted mod state GETs, screenshot, bounded pad actions, room-finish
 ```
 
@@ -74,8 +74,9 @@ node host/learning-player.mjs inspect $ROOM_ID
 ## 4. Player Runtime & Supervisor Contract
 
 The player runtime (`client/learning/`) is configured as follows:
-- **Model Identity:** `STS2-Pi-Experiential` using `gpt-5.6-luna` via the Experiential gateway (`https://api.experientiallabs.ai/v1`, key from system environment variable `EXPLABS_API_KEY`). Switch with `STEAMBENCH_MODEL=<profile>` and a player-image rebuild; `client/learning/models.json` already carries every profile, so no Pi configuration is edited.
-- **Reasoning tokens are spent out of `maxTokens`.** A budget sized for the answer alone returns `finish_reason: "length"` with no content at all. The `experiential` profile budgets 16384 against a 128K ceiling.
+- **Model Identity:** `STS2-Pi-Gemini` using `google/gemini-3.8-flash` via OpenRouter (`https://openrouter.ai/api/v1`, key from system environment variable `OPENROUTER_API_KEY`). Switch with `STEAMBENCH_MODEL=<profile>` and a player-image rebuild; `client/learning/models.json` already carries every profile, so no Pi configuration is edited.
+- **Reasoning tokens are spent out of `maxTokens`.** A budget sized for the answer alone returns `finish_reason: "length"` with no content at all. The `gemini` profile budgets 65536 against a 1,048,576-token context, the largest the route accepts.
+- **The reasoning level travels in one of two shapes.** On a generic OpenAI-compatible endpoint pi sends the flat `reasoning_effort`; on OpenRouter - detected from the host - it sends OpenRouter's native `reasoning:{effort}`. The probe asserts the LEVEL, not the spelling, so a level pi silently clamped is still caught.
 - **A team, not one agent.** The run is played by scoped roles (`client/learning/agents.mjs`), each with its own system prompt, its own context projection and its own dashboard lane. Nothing else may read outside its projection.
   - **Strategist** (`strategist.txt`): map, routing, drafting, shops, events, rest sites. Reads the sensor with `ui` and `battle` removed. Cannot press a button; it states an `intent`.
   - **Combat** (`combat.txt`): one encounter, opened when the fight starts and closed with one report when it ends. Reads the sensor with `ui`, `map` and `deck` removed. Its lane id is `combat-<ordinal>-a<act>f<floor>`; the report lands in `scratchpad/encounters.jsonl` and reaches the strategist as `last_encounter`.

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { EncounterScratchpad } from '../client/learning/encounter.mjs';
-import { parsePlanText } from '../client/learning/planner.mjs';
+import { budgetNotice, parsePlanText } from '../client/learning/planner.mjs';
 import { Act1Timer, ACT1_TARGET_MS } from '../client/learning/pacing.mjs';
 import { focusTargets, navigationPath, pressableElement, targetElement } from '../client/learning/navigation.mjs';
 import { indexNotes, parseNote, retrieve } from '../client/learning/retrieval.mjs';
@@ -128,6 +128,18 @@ assert.equal(parsePlanText(preamble).actions.length, 1);
 // Plain JSON is untouched, and prose with no plan in it is still an error.
 assert.equal(parsePlanText('{"observation":"x","actions":[]}').observation, 'x');
 for (const junk of ['I cannot answer that.', '{ not json }', '[1,2,3]', '']) assert.throws(() => parsePlanText(junk));
+
+// The deadline was always enforced and never disclosed: the model only learned
+// its budget by losing a turn to it, and a call that runs out produces no plan
+// at all. Every role is now told, from its own deadline, before it decides.
+for (const [ms, seconds] of [[120000, 120], [45000, 45], [30000, 30], [60000, 60]]) {
+  const notice = budgetNotice(ms);
+  assert.match(notice, new RegExp(`abandoned after ${seconds} seconds`), `the budget states ${seconds}s`);
+  assert.match(notice, /NO plan/);
+}
+// It is derived, not hardcoded: a notice that always said 120 would misreport
+// the actuator's 30-second call by a factor of four.
+assert.notEqual(budgetNotice(30000), budgetNotice(120000));
 
 // A busy provider is not a bad plan. Three 429s in a row spent the refinement
 // budget and ended a room, so these back off and retry instead of asking the

@@ -32,18 +32,23 @@ const proxy = http.createServer(async (request, response) => {
     const payload = JSON.parse(body);
     assert.equal(payload.model, PROFILE.model);
     assert.equal(payload.stream, true);
-    assert.equal(payload.reasoning, undefined);
     assert.equal(payload.provider, undefined);
-    // The reasoning level the profile asks for has to survive the trip. pi
-    // clamps `max` down to `high` unless the model declares
-    // thinkingLevelMap:{max:"max"}, and it does so silently: the run would look
-    // configured for max reasoning while every request on the wire said high.
-    // This assertion is the only place that difference is visible.
+    // The reasoning level the profile asks for has to survive the trip, and it
+    // travels in one of two shapes. On a generic OpenAI-compatible endpoint pi
+    // sends the flat `reasoning_effort`; on OpenRouter it detects the host and
+    // sends OpenRouter's native `reasoning:{effort}` instead. Both are the same
+    // request as far as the level is concerned - measured on this route,
+    // reasoning:{effort:"high"} returned 647 reasoning tokens - so the
+    // assertion is on the LEVEL, not on which spelling carried it. A level pi
+    // silently clamped (it clamps `max` down to `high` without a
+    // thinkingLevelMap) would still be caught here, which is the point.
     const wanted = PROFILE.reasoning && PROFILE.reasoning !== 'default' ? PROFILE.reasoning : undefined;
-    assert.equal(payload.reasoning_effort, wanted, `reasoning_effort on the wire must be ${wanted}`);
+    const carried = payload.reasoning && typeof payload.reasoning === 'object' ? payload.reasoning.effort : payload.reasoning_effort;
+    assert.equal(Boolean(payload.reasoning) && Boolean(payload.reasoning_effort), false, 'one shape only, never both');
+    assert.equal(carried, wanted, `the reasoning level on the wire must be ${wanted}`);
     assert.ok(payload.max_tokens > 0 && payload.max_tokens <= PROFILE.maxTokens);
     assert.ok(report.requests.length < 2, 'no automatic retries');
-    const audit = { model: payload.model, stream: payload.stream, maxTokens: payload.max_tokens, reasoningEffort: payload.reasoning_effort ?? null, image: payload.messages.some(m => Array.isArray(m.content) && m.content.some(c => c.type === 'image_url')) };
+    const audit = { model: payload.model, stream: payload.stream, maxTokens: payload.max_tokens, reasoningEffort: carried ?? null, image: payload.messages.some(m => Array.isArray(m.content) && m.content.some(c => c.type === 'image_url')) };
     report.requests.push(audit);
     const upstream = await fetch(`${PROFILE.baseUrl}/chat/completions`, { method: 'POST', headers: { Authorization: request.headers.authorization, 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(PROFILE.plannerDeadlineMs - 5000) });
     audit.status = upstream.status;

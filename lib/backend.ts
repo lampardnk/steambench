@@ -153,6 +153,7 @@ export type RoomSummary = {
   roomIp: string | null
   playerImage: string | null
   agentStatus: string
+  requiresResume?: boolean
   attention?: { id: string; error: string; path: string; decision: number; at: string; status: string } | null
   /** Latest commit this room made to the persistent skill library. */
   lastLibraryCommit?: { hash: string; message: string; by: string; at: number } | null

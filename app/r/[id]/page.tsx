@@ -15,7 +15,7 @@ type WsMessage =
   | { type: 'item'; item: TranscriptItem }
   | { type: 'agents'; agents: AgentInfo[] }
   | { type: 'delta'; id: string; kind: string; agent?: string; delta: string }
-  | { type: 'agent_status'; status: string }
+  | { type: 'agent_status'; status: string; requiresResume?: boolean; attention?: RoomSummary['attention'] }
   | { type: 'pad'; event: PadEvent }
   | { type: 'room'; room: RoomSummary }
   | { type: 'log'; line: string }
@@ -58,6 +58,8 @@ export default function RoomPage() {
           setLog(msg.log)
         } else if (msg.type === 'agents') {
           setAgents(msg.agents || [])
+        } else if (msg.type === 'agent_status') {
+          setRoom((prev) => prev ? { ...prev, agentStatus: msg.status, requiresResume: msg.requiresResume, attention: msg.attention } : prev)
         } else if (msg.type === 'item') {
           setItems((prev) => {
             const i = prev.findIndex((x) => x.id === msg.item.id)
@@ -101,10 +103,10 @@ export default function RoomPage() {
     if (!room) return false
     setError('')
     try {
-      if (room.attention) {
+      if (room.attention || room.requiresResume) {
         await api(settings, `/api/rooms/${room.id}/player/resume`, {
           method: 'POST',
-          body: JSON.stringify({ issueId: room.attention.id, message }),
+          body: JSON.stringify({ issueId: room.attention?.id, message }),
         })
       } else {
         if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error('Disconnected; your message has not been sent.')
@@ -190,8 +192,8 @@ export default function RoomPage() {
                 )}
                 <Transcript items={items} agents={agents} />
                 <ChatBox
-                  attention={Boolean(room.attention)}
-                  disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'}
+                  attention={Boolean(room.attention || room.requiresResume)}
+                  disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped' || (Boolean(room.attention || room.requiresResume) && room.agentStatus !== 'idle')}
                   onSend={reply}
                 />
               </section>

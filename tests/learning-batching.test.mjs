@@ -507,7 +507,7 @@ test('a selection overlay during combat is a list, not card play', async () => {
 const rewardScreen = () => ({
   state_type: 'card_reward', run: { floor: 1, act: 1 }, player: { hp: 80 },
   ui: {
-    sensor_version: 5, scene_id: 'scene-reward', focused_element: 'element-card',
+    sensor_version: 6, scene_id: 'scene-reward', focused_element: 'element-card',
     focus_path: '/root/Run/NCardRewardSelectionScreen/UI/CardRow/GridCardHolder-CARD_AFTERLIFE',
     elements: [
       { id: 'element-card', label: 'Afterlife', type: 'NGridCardHolder', visible: true, enabled: true, focus_mode: 'all', selectable: true, activation: 'a', ambiguous: false, bounds: [960, 616, 300, 420], neighbors: { up: 'element-card', down: 'element-card', left: 'element-other', right: 'element-other' } },
@@ -534,6 +534,30 @@ test('a control bound to a button is pressed directly, with no route and no focu
   assert.throws(() => navigationPath(rewardScreen(), 'element-card', 'element-skip'), /no verified focus path/);
 });
 
+test('an untargeted press refuses when focus moved off the control, but a probe stays relative', async () => {
+  // A press with no target acts on whatever holds focus, so it is the only kind
+  // of input whose meaning depends on focus not having moved. planIdentity no
+  // longer refuses a plan for a focus move alone (the majority are churn that a
+  // named target does not care about), so this guard carries that protection -
+  // and only for the presses that need it.
+  const moved = rewardScreen();
+  // Focus on the Skip button rather than the card: a different kind of control,
+  // which is the case that matters. A bare press planned for the card would
+  // land on Skip instead.
+  const screen = fixture(rewardScreen(), {
+    onObserve: (state) => { state.ui.focused_element = 'element-skip'; return state; },
+    onInput: state => state,
+  });
+  const refused = await screen.run([{ type: 'input', buttons: ['a'] }]);
+  assert.match(refused.error, /focus moved off the control this press would activate/);
+  assert.equal(screen.inputs.length, 0, 'nothing was sent');
+  assert.equal(moved.ui.focused_element, 'element-card');
+  const probe = fixture(rewardScreen(), { onInput: state => state });
+  const probed = await probe.run([{ type: 'input', buttons: ['right'] }]);
+  assert.equal(probed.error, undefined);
+  assert.equal(probe.inputs.length, 1);
+});
+
 test('an element with no bound button is still reached by the route the game wired', async () => {
   const screen = fixture(rewardScreen(), { onInput: (state, button) => {
     if (button === 'left' && state.ui.focused_element === 'element-card') state.ui.focused_element = 'element-other';
@@ -547,6 +571,7 @@ test('an element with no bound button is still reached by the route the game wir
 
 test('activate works from a screen that holds no focus yet', async () => {
   const cold = rewardScreen();
+
   cold.ui.focused_element = null;
   const screen = fixture(cold, { onInput: (state, button) => {
     if (button === 'down' && !state.ui.focused_element) state.ui.focused_element = 'element-card';
@@ -557,6 +582,44 @@ test('activate works from a screen that holds no focus yet', async () => {
   const result = await screen.run([{ type: 'activate', target: 'element-other', scene: 'scene-reward' }]);
   assert.equal(result.error, undefined);
   assert.deepEqual(screen.inputs.map(input => input.direction || input.button), ['down', 'left', 'a']);
+});
+
+test('a route survives the screen redrawing under it, but not focus slipping off the target', async () => {
+  // The route takes one read per press, so scene_id churns under it repeatedly.
+  // A screen redrawing as the cursor crosses it is not the route going stale -
+  // the press still lands on the control the plan named, and refusing here
+  // would refuse the same churn the pre-execution identity comparison used to.
+  const drifting = fixture(rewardScreen(), {
+    onObserve: (state, reads) => { if (reads > 1) state.ui.scene_id = `scene-drawn-${reads}`; return state; },
+    onInput: (state, button) => {
+      if (button === 'left' && state.ui.focused_element === 'element-card') state.ui.focused_element = 'element-other';
+      if (button === 'a' && state.ui.focused_element === 'element-other') state.state_type = 'card_select';
+      return state;
+    },
+  });
+  const walked = await drifting.run([{ type: 'activate', target: 'element-other', scene: 'scene-reward' }]);
+  assert.equal(walked.error, undefined, 'a redrawing screen does not stale the route');
+  assert.deepEqual(drifting.inputs.map(input => input.direction || input.button), ['left', 'a']);
+
+  // The press DOES depend on where focus is: `a` activates whatever holds it,
+  // and planIdentity deliberately no longer tracks focus, so this precondition
+  // is the only thing standing between a slipped cursor and the wrong control.
+  // The route lands on the target, then focus slips before the press is sent.
+  const slipped = fixture(rewardScreen(), {
+    onObserve: (state, reads) => {
+      // Read 1 is the plan's screen; read 2 is the route's landing; read 3 is
+      // the last-moment re-read the press is gated on.
+      if (reads === 3) state.ui.focused_element = 'element-card';
+      return state;
+    },
+    onInput: (state, button) => {
+      if (button === 'left' && state.ui.focused_element === 'element-card') state.ui.focused_element = 'element-other';
+      return state;
+    },
+  });
+  const missed = await slipped.run([{ type: 'activate', target: 'element-other', scene: 'scene-reward' }]);
+  assert.match(missed.error, /activation target became stale/);
+  assert.deepEqual(slipped.inputs.map(input => input.direction || input.button), ['left'], 'the route pressed; the activation did not');
 });
 
 test('semantic navigation refuses a stale scene and keeps read-only queries input-free', async () => {
@@ -592,7 +655,7 @@ test('only the actuator is sent the interface, and it is sent what it can press 
   assert.equal(strategistState(initialCombat()).battle, undefined);
 });
 
-test('presentation that moves on its own no longer discards a plan, but a changed scene still does', async () => {
+test('presentation that moves on its own is not a change, but a control that is gone is', async () => {
   // A tween sliding a control changes stateId every read. Nothing the plan
   // rests on moved, so the plan must still execute: treating this as stale is
   // what threw away most combat decisions without sending any input.
@@ -604,17 +667,33 @@ test('presentation that moves on its own no longer discards a plan, but a change
   assert.equal(moved.error, undefined);
   assert.deepEqual(drifting.inputs.map(input => input.direction || input.button), ['b']);
 
-  // A different set of controls is a real change and must not be acted on.
+  // A scene id that moved while the screen stayed the same is not a change.
+  // The sensor builds scene_id out of Godot instance ids, so it moves whenever
+  // the game rebuilds a node - a tooltip, a pile counter, a holder the cursor
+  // passed back over. Refusing on that alone is what threw away 402 finished
+  // model turns. The press names a control that is still there, so it goes.
   const replaced = fixture(rewardScreen(), {
     onObserve: (state) => { state.ui.scene_id = 'scene-moved-on'; return state; },
+    onInput: (state, button) => { if (button === 'b') state.state_type = 'map'; return state; },
+  });
+  const churned = await replaced.run([{ type: 'activate', target: 'element-skip', scene: 'scene-reward' }]);
+  assert.equal(churned.error, undefined);
+  assert.equal(churned.state.state_type, 'map');
+  assert.deepEqual(replaced.inputs.map(input => input.direction || input.button), ['b']);
+
+  // A control actually disappearing is the change that matters, and it is
+  // refused before any read of the game - the identity comparison still holds
+  // that line, and it is the only thing that ever should have.
+  const gone = fixture(rewardScreen(), {
+    onObserve: (state) => { state.ui.elements = state.ui.elements.filter(item => item.id !== 'element-skip'); return state; },
     onInput: state => state,
   });
-  const stale = await replaced.run([{ type: 'activate', target: 'element-skip', scene: 'scene-reward' }]).catch(error => error);
-  assert.equal(stale.code, 'stale_observation');
-  assert.equal(replaced.inputs.length, 0);
-  // The replan carries what actually moved, so the next call extends instead of
-  // re-deriving the screen from nothing.
-  assert.deepEqual(stateDiff(rewardScreen(), stale.state).scene_id, { was: 'scene-reward', now: 'scene-moved-on' });
+  const refused = await gone.run([{ type: 'activate', target: 'element-skip', scene: 'scene-reward' }]).catch(error => error);
+  assert.equal(refused.code, 'stale_observation');
+  assert.equal(gone.inputs.length, 0);
+  // The refusal hands back what the plan was written against and what is there
+  // now, so the next call extends the plan instead of re-deriving the screen.
+  assert.equal(refused.state.ui.elements.some(item => item.id === 'element-skip'), false);
 });
 
 test('a screen still arriving is routed around, but gameplay advancing during a route is not', async () => {
@@ -793,4 +872,169 @@ test('an entirely selected hand still uses tray verification when choosing no ca
   await f.executor.chooseCards({ cards: [] }, f.read());
   assert.equal(f.selected.size, 0);
   assert.deepEqual(f.presses.map(([button]) => button), ['a', 'a', 'a', 'a', 'a', 'y']);
+});
+
+test('stale hand-selection indices reject before any input after the tray shrinks', async () => {
+  const f = handSelectionFixture({ picked: [119] });
+  await assert.rejects(() => f.executor.chooseCards({ cards: [0, 1, 3, 4] }, f.read()), /no card at index 4/);
+  assert.deepEqual(f.presses, [], 'the stale plan cannot press a newly reindexed card');
+});
+
+test('generic sparse and reordered card indices resolve by reference identity', async () => {
+  let open = true;
+  let focused = 'card-two';
+  const pressed = [];
+  const cards = [
+    { index: 0, id: 'STRIKE', name: 'Strike', instance_id: 10 },
+    { index: 2, id: 'POMMEL', name: 'Pommel Strike', instance_id: 12 },
+  ];
+  const elements = [
+    { id: 'card-two', label: 'Pommel Strike', reference: { kind: 'card', instance_id: 12 }, bounds: [800, 0, 100, 100] },
+    { id: 'card-zero', label: 'Strike', reference: { kind: 'card', instance_id: 10 }, bounds: [200, 0, 100, 100] },
+  ];
+  const read = () => ({ state_type: 'card_select', card_select: { cards, can_confirm: pressed.length > 0 },
+    ui: { scene_id: `generic-${focused}`, focused_element: focused, elements } });
+  const executor = Object.create(Executor.prototype);
+  executor.navigateElement = async action => { focused = action.target; return read(); };
+  executor.button = async button => { pressed.push([button, focused]); if (button === 'y') open = false; };
+  executor.observe = executor.settled = async () => open ? read() : { state_type: 'combat' };
+  executor.record = () => {};
+  executor.sleep = async () => {};
+  const after = await executor.chooseCards({ cards: [2] }, read());
+  assert.equal(after.card_select, undefined);
+  assert.deepEqual(pressed, [['a', 'card-two'], ['y', 'card-two']]);
+});
+
+test('generic selection refuses an index with ambiguous physical references', async () => {
+  const executor = Object.create(Executor.prototype);
+  const pressed = [];
+  const state = { state_type: 'card_select', card_select: { cards: [{ index: 0, name: 'Strike' }], can_confirm: false },
+    ui: { scene_id: 'ambiguous', focused_element: null, elements: [
+      { id: 'one', label: 'Strike', reference: { kind: 'card', instance_id: 1 }, bounds: [0, 0, 10, 10] },
+      { id: 'two', label: 'Strike', reference: { kind: 'card', instance_id: 2 }, bounds: [20, 0, 10, 10] },
+    ] } };
+  executor.button = async button => pressed.push(button);
+  await assert.rejects(() => executor.chooseCards({ cards: [0] }, state), /cannot safely map/);
+  assert.deepEqual(pressed, []);
+});
+
+// Live incident 1789020238941-12, room dfb5e885 floor 2: Neow's Fury put a
+// "Choose up to 2 cards to put into your Hand" pile screen over a combat. The
+// screen's own grid held Bash, Defend, Strike, Defend, Strike, and the player's
+// hand of four - two more Defends and Strikes - stayed on screen underneath.
+// Both kinds of holder carry reference.kind 'card', so index 2 (Strike) matched
+// a grid holder and a hand holder and the run paused with "cannot safely map
+// card index 2 to a unique screen card", having pressed nothing.
+//
+// The scene below is the incident's own: same five grid holders, same four hand
+// holders, same bounds. `stamped` picks which half of the fix is under test -
+// the sensor stamping identity onto the offers, or the executor ignoring the
+// hand's holders when a scene arrives unstamped (an older mod build).
+function pileOverHandFixture({ grid, hand, stamped = true } = {}) {
+  const cards = grid.map(({ bounds, ...card }) => stamped ? card : { ...card, instance_id: undefined });
+  const elements = [
+    ...grid.map(card => ({ id: `grid-${card.instance_id}`, type: 'NGridCardHolder', label: card.name,
+      reference: { kind: 'card', instance_id: card.instance_id }, visible: true, enabled: true,
+      selectable: true, focus_mode: 'all', activation: 'a', bounds: card.bounds })),
+    // The hand is on screen but not part of the screen: unfocusable, so not a
+    // candidate even though it carries the same card reference.
+    ...hand.map(card => ({ id: `hand-${card.instance_id}`, type: 'NHandCardHolder', label: card.name,
+      reference: { kind: 'card', instance_id: card.instance_id }, visible: true, enabled: true,
+      selectable: false, focus_mode: 'none', activation: 'a', bounds: card.bounds })),
+  ];
+  let focused = elements[0].id;
+  const pressed = [];
+  let open = true;
+  const read = () => (open ? {
+    state_type: 'card_select', run: { act: 1, floor: 2 },
+    player: { hp: 76, max_hp: 80, energy: 2, hand: hand.map(card => ({ instance_id: card.instance_id, name: card.name })) },
+    card_select: { screen_type: 'NCombatPileCardSelectScreen', prompt: 'Choose up to 2 cards to put into your Hand.',
+      cards, can_confirm: pressed.some(([button]) => button === 'a'), can_cancel: false },
+    ui: { scene_id: 'pile-select', focused_element: focused, elements },
+  } : { state_type: 'monster', battle: { is_play_phase: true, enemies: [] }, player: { hp: 76, hand: [] }, ui: { elements: [] } });
+  const executor = Object.create(Executor.prototype);
+  executor.navigateElement = async action => { focused = action.target; return read(); };
+  executor.button = async button => { pressed.push([button, focused]); if (button === 'y') open = false; };
+  executor.observe = executor.settled = async () => read();
+  executor.sleep = async () => {};
+  executor.record = () => {};
+  return { executor, read, pressed };
+}
+
+// The incident's own scene: five grid holders - including two Strikes - and the
+// four-card hand underneath sharing two more models. Only the stamp the sensor
+// now writes can tell grid Strike (instance 3) from grid Strike (instance 1).
+const incidentGrid = [
+  { index: 0, id: 'BASH', name: 'Bash', instance_id: 5, bounds: [-6, -15, 759, 951] },
+  { index: 1, id: 'DEFEND_IRONCLAD', name: 'Defend', instance_id: 4, bounds: [1190, 80, 607, 760] },
+  { index: 2, id: 'STRIKE_IRONCLAD', name: 'Strike', instance_id: 3, bounds: [910, 80, 607, 760] },
+  { index: 3, id: 'DEFEND_IRONCLAD', name: 'Defend', instance_id: 2, bounds: [630, 80, 607, 760] },
+  { index: 4, id: 'STRIKE_IRONCLAD', name: 'Strike', instance_id: 1, bounds: [350, 80, 607, 760] },
+];
+const incidentHand = [
+  [10, 'Defend', [951, 636, 607, 760]], [9, 'Strike', [762, 629, 607, 760]],
+  [8, 'Defend', [549, 672, 607, 760]], [7, 'Strike', [365, 721, 607, 760]],
+].map(([instance_id, name, bounds]) => ({ instance_id, name, bounds }));
+
+test('a stamped pile screen over a live hand resolves each index to its own grid card', async () => {
+  const f = pileOverHandFixture({ grid: incidentGrid, hand: incidentHand });
+  const after = await f.executor.chooseCards({ cards: [0, 2] }, f.read());
+  assert.equal(after.card_select, undefined);
+  // Bash is index 0 (grid instance 5), Strike is index 2 (grid instance 3).
+  assert.deepEqual(f.pressed, [['a', 'grid-5'], ['a', 'grid-3'], ['y', 'grid-3']]);
+  assert.equal(f.pressed.some(([, id]) => id.startsWith('hand-')), false, 'no hand holder is pressed');
+});
+
+// Without the stamp the scene cannot tell the grid's two Strikes apart, so the
+// run must still refuse rather than press an arbitrary one.
+test('an unstamped pile screen refuses an index the scene cannot pin to one holder', async () => {
+  const f = pileOverHandFixture({ grid: incidentGrid, hand: incidentHand, stamped: false });
+  await assert.rejects(() => f.executor.chooseCards({ cards: [2] }, f.read()), /cannot safely map/);
+  assert.deepEqual(f.pressed, [], 'the ambiguous press never happens');
+});
+
+// The hand duplicates a model the grid offers exactly once. Unstamped, that is
+// two matches by name; only the hand's unaddressability collapses it to the one
+// grid holder the screen is actually offering.
+test('an unstamped pile screen ignores the hand that duplicates a single grid card', async () => {
+  const grid = [
+    { index: 0, id: 'BASH', name: 'Bash', instance_id: 5, bounds: [350, 80, 607, 760] },
+    { index: 1, id: 'POMMEL', name: 'Pommel Strike', instance_id: 4, bounds: [910, 80, 607, 760] },
+  ];
+  const hand = [{ instance_id: 22, name: 'Bash', bounds: [549, 672, 607, 760] }];
+  const f = pileOverHandFixture({ grid, hand, stamped: false });
+  const after = await f.executor.chooseCards({ cards: [0] }, f.read());
+  assert.equal(after.card_select, undefined);
+  assert.deepEqual(f.pressed, [['a', 'grid-5'], ['y', 'grid-5']]);
+});
+
+// The hand IS the selection surface in a hand-select screen, and upgrade_select
+// shares the generic path with the pile screens. Filtering by holder type rather
+// than by addressability disabled it outright.
+test('a hand-select screen whose hand is the selection surface stays playable', async () => {
+  const hand = [
+    { instance_id: 21, name: 'Strike', bounds: [200, 700, 600, 700] },
+    { instance_id: 22, name: 'Defend', bounds: [820, 700, 600, 700] },
+  ];
+  const cards = [{ index: 0, id: 'STRIKE_IRONCLAD', name: 'Strike', instance_id: 21 },
+    { index: 1, id: 'DEFEND_IRONCLAD', name: 'Defend', instance_id: 22 }];
+  let focused = 'hand-21';
+  const pressed = [];
+  let open = true;
+  const read = () => (open ? {
+    state_type: 'hand_select', hand_select: { mode: 'upgrade_select', prompt: 'Choose a card to upgrade.', cards, can_confirm: true },
+    ui: { scene_id: 'upgrade', focused_element: focused, elements: hand.map(card => ({
+      id: `hand-${card.instance_id}`, type: 'NHandCardHolder', label: card.name,
+      reference: { kind: 'card', instance_id: card.instance_id }, visible: true, enabled: true,
+      selectable: true, focus_mode: 'all', activation: 'a', bounds: card.bounds })) },
+  } : { state_type: 'event', ui: { elements: [] } });
+  const executor = Object.create(Executor.prototype);
+  executor.navigateElement = async action => { focused = action.target; return read(); };
+  executor.button = async button => { pressed.push([button, focused]); if (button === 'y') open = false; };
+  executor.observe = executor.settled = async () => read();
+  executor.sleep = async () => {};
+  executor.record = () => {};
+  const after = await executor.chooseCards({ cards: [1] }, read());
+  assert.equal(after.hand_select, undefined);
+  assert.deepEqual(pressed, [['a', 'hand-22'], ['y', 'hand-22']]);
 });

@@ -161,7 +161,7 @@ const server = http.createServer(async (req, res) => {
       if (sub === 'library' && req.method === 'GET') return json(res, 200, { games: room.library(), login: room.login });
       if (sub === 'chat' && req.method === 'POST') { const body = await readJson(req); if (!body.message) return json(res, 400, { error: 'message required' }); await room.chat(String(body.message)); return json(res, 200, { ok: true }); }
       if (sub === 'abort' && req.method === 'POST') { await room.agent?.abort(); return json(res, 200, { ok: true }); }
-      if (sub === 'player' && parts[4] === 'status' && req.method === 'GET') { return json(res, 200, { id: room.id, stage: room.stage, agentStatus: room.agent?.status || 'stopped', attention: room.agent?.attention || null, lastState: room.lastState, padCount: room.padHistory.length }); }
+      if (sub === 'player' && parts[4] === 'status' && req.method === 'GET') { return json(res, 200, { id: room.id, stage: room.stage, agentStatus: room.agent?.status || 'stopped', requiresResume: Boolean(room.agent?.requiresResume), attention: room.agent?.attention || null, lastState: room.lastState, padCount: room.padHistory.length }); }
       if (sub === 'player' && parts[4] === 'restart' && req.method === 'POST') { return json(res, 200, await room.restartPlayer()); }
       if (sub === 'player' && parts[4] === 'resume' && req.method === 'POST') { const body = await readJson(req); return json(res, 200, await room.resumePlayer(body)); }
       if (sub === 'health' && req.method === 'GET') return json(res, 200, await room.health());
@@ -285,7 +285,7 @@ function attachRoomSocket(ws, room) {
     'agent:item': (item) => send({ type: 'item', item }),
     'agent:agents': (agents) => send({ type: 'agents', agents }),
     'agent:delta': (d) => send({ type: 'delta', ...d }),
-    'agent:status': (s) => send({ type: 'agent_status', status: s }),
+    'agent:status': (s) => send({ type: 'agent_status', status: s, requiresResume: Boolean(room.agent?.requiresResume), attention: room.agent?.attention || null }),
     pad: (e) => send({ type: 'pad', event: e }),
     room: (s) => send({ type: 'room', room: s }),
     log: (line) => send({ type: 'log', line }),

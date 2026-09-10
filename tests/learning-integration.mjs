@@ -26,7 +26,7 @@ const baseState = {
   // The focused control carries no label, which is what keeps the screenshot
   // path in play for the stale_image scenario.
   ui: {
-    sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod',
+    sensor_version: 6, game_build: 'fixture-game', mod_build: 'fixture-mod',
     scene_id: 'scene-menu', focus_path: null, focused_element: 'element-menu',
     elements: [{ id: 'element-menu', type: 'Control', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} }],
   },
@@ -38,12 +38,12 @@ const fightState = {
   state_type: 'monster', run: { floor: 2, act: 1, ascension: 1 },
   player: { character: 'The Ironclad', hp: 70, max_hp: 80, energy: 3, gold: 99, relics: [], potions: [], hand: [{ instance_id: 1, index: 0, name: 'Defend', type: 'Skill', cost: '1', can_play: true, target_type: 'Self', description: 'Gain 5 Block.' }] },
   battle: { round: 1, turn: 'player', is_play_phase: true, enemies: [{ entity_id: 'ENEMY_0', combat_id: 'c0', name: 'Fogmog', hp: 20, intents: [{ name: 'Attack', damage: 9 }] }] },
-  ui: { sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-fight', hand_mode: 'Play', in_card_play: false, focused_card: 1, focus_path: '/Fight/NHandCardHolder-CARD_DEFEND', focused_element: null, elements: [] },
+  ui: { sensor_version: 6, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-fight', hand_mode: 'Play', in_card_play: false, focused_card: 1, focus_path: '/Fight/NHandCardHolder-CARD_DEFEND', focused_element: null, elements: [] },
 };
 const afterFightState = {
   state_type: 'rewards', run: { floor: 2, act: 1, ascension: 1 },
   player: { character: 'The Ironclad', hp: 63, max_hp: 80, gold: 110, relics: [], potions: [] },
-  ui: { sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-rewards', focus_path: '/Rewards/LeaveButton', focused_element: 'element-leave', elements: [{ id: 'element-leave', label: 'Leave', type: 'Button', visible: true, enabled: true, selectable: true, activation: 'a', ambiguous: false, focus_mode: 'all', neighbors: {} }] },
+  ui: { sensor_version: 6, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-rewards', focus_path: '/Rewards/LeaveButton', focused_element: 'element-leave', elements: [{ id: 'element-leave', label: 'Leave', type: 'Button', visible: true, enabled: true, selectable: true, activation: 'a', ambiguous: false, focus_mode: 'all', neighbors: {} }] },
 };
 // A screen with a named control on it, so the strategist can state a goal and the
 // actuator answer it from the label without a second model call.
@@ -51,7 +51,7 @@ const eventState = {
   state_type: 'event', run: { floor: 1, act: 1 }, player: { hp: 80 },
   event: { name: 'Fixture Event', options: [{ text: 'Leave' }] },
   ui: {
-    sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod',
+    sensor_version: 6, game_build: 'fixture-game', mod_build: 'fixture-mod',
     scene_id: 'scene-event', focus_path: '/Event/LeaveButton', focused_element: 'element-leave',
     elements: [{ id: 'element-leave', label: 'Leave', type: 'Button', visible: true, enabled: true, selectable: true, activation: 'a', ambiguous: false, focus_mode: 'all', neighbors: {} }],
   },

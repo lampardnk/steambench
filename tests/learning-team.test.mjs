@@ -256,7 +256,7 @@ import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/le
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { EncounterScratchpad } from '../client/learning/encounter.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, encounterOver, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
-import { ROLE_ACTIONS, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
+import { ROLE_ACTIONS, focusIdentity, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
 import { API_KEY_ENVS, DEFAULT_MODEL, MODEL_PROFILES, PROFILE } from '../server/lib/learning-profile.mjs';
@@ -489,8 +489,8 @@ test('a menu that lists no controls has not loaded, and is not planned against',
   // The first observation of a real room: the mod answers before the main menu
   // scene exists, so an empty payload arrived that was identical to the next
   // empty payload and quiescing declared it settled at once.
-  const empty = { state_type: 'menu', menu_screen: 'main', ui: { sensor_version: 5, focus_path: null, focused_element: null, elements: [] } };
-  const loaded = { state_type: 'menu', menu_screen: 'main', ui: { sensor_version: 5, scene_id: 'menu', focus_path: '/root/Game/RootSceneContainer/MainMenu/MainMenuTextButtons/SingleplayerButton', focused_element: 'element-1', elements: [{ id: 'element-1', label: 'SingleplayerButton', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} }] } };
+  const empty = { state_type: 'menu', menu_screen: 'main', ui: { sensor_version: 6, focus_path: null, focused_element: null, elements: [] } };
+  const loaded = { state_type: 'menu', menu_screen: 'main', ui: { sensor_version: 6, scene_id: 'menu', focus_path: '/root/Game/RootSceneContainer/MainMenu/MainMenuTextButtons/SingleplayerButton', focused_element: 'element-1', elements: [{ id: 'element-1', label: 'SingleplayerButton', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} }] } };
   assert.equal(unbuiltMenu(empty), true);
   assert.equal(ready(empty), false, 'an empty menu must never be handed to an agent');
   assert.equal(unbuiltMenu(loaded), false);
@@ -548,6 +548,65 @@ test('a screen that re-rolls on its own is one screen, not a new one every secon
   assert.match(settled.ui.scene_id, /^transform-preview:/);
 });
 
+test('a rebuilt control is the same control, and only a real change discards a plan', () => {
+  // Verbatim shape from the live sensor. Godot mints a fresh instance id for a
+  // node whenever it is rebuilt, and the sensor builds both scene_id and
+  // focused_element out of those ids: a tooltip showing, a pile count updating
+  // and a targeting cursor passing back over a holder all produced a new id for
+  // an unchanged screen. Measured over 512 idle windows in the archived runs,
+  // the old identity declared 17.5% of them stale, and each one threw away a
+  // finished model turn and made it plan the same screen again.
+  const screen = (ids, focused, extra = []) => ({ state_type: 'monster', run: { floor: 6, act: 1 },
+    player: { hp: 88, energy: 3, hand: [{ instance_id: 7, name: 'Strike' }] },
+    battle: { round: 1, enemies: [{ combat_id: 'WRIGGLER_0', hp: 19 }] },
+    ui: { sensor_version: 6, scene_id: ids.scene,
+      elements: [
+        { id: ids.strike, label: 'Strike', type: 'NHandCardHolder', reference: { kind: 'card', card: { id: 'STRIKE' } }, visible: true, enabled: true, focus_mode: 'all', selectable: true, activation: 'a', bounds: [350, 80, 300, 420] },
+        { id: ids.defend, label: 'Defend', type: 'NHandCardHolder', reference: { kind: 'card', card: { id: 'DEFEND' } }, visible: true, enabled: true, focus_mode: 'all', selectable: true, activation: 'a', bounds: [630, 80, 300, 420] },
+        // Presentation: a tooltip with no way for the pad to land on it.
+        { id: ids.tip, label: 'Until next turn, prevents damage.', type: 'MegaRichTextLabel', reference: {}, visible: true, enabled: true, focus_mode: 'accessibility', selectable: false, activation: null, bounds: [1200, 700, 300, 54] },
+        ...extra,
+      ], focused_element: focused } });
+
+  const before = screen({ scene: 'scene-a', strike: 'element-1', defend: 'element-2', tip: 'element-3' }, 'element-1');
+  // Same two cards, same meaning, new instance ids and new scene id, focus on
+  // the same card. Nothing a plan rests on moved.
+  const after = screen({ scene: 'scene-b', strike: 'element-91', defend: 'element-92', tip: 'element-93' }, 'element-91');
+  assert.notEqual(before.ui.scene_id, after.ui.scene_id, 'the raw scene id churns as nodes are rebuilt');
+  assert.notEqual(before.ui.focused_element, after.ui.focused_element, 'so does the raw focus id');
+  assert.equal(planIdentity(before), planIdentity(after), 'and the plan is still good');
+  assert.equal(focusIdentity(before), focusIdentity(after), 'focus is on the same control, so a press stays safe');
+
+  // A card actually replaced in the hand is a real change to what a plan can
+  // name, even though the same number of controls are on screen.
+  const swapped = screen({ scene: 'scene-c', strike: 'element-1', defend: 'element-2', tip: 'element-3' }, 'element-1');
+  swapped.ui.elements[0].reference = { kind: 'card', card: { id: 'BASH' } };
+  swapped.ui.elements[0].label = 'Bash';
+  assert.notEqual(planIdentity(before), planIdentity(swapped), 'a different card is a different screen');
+
+  // A control appearing (a popup opening) or leaving (the hand emptying) is a
+  // real change: this is what the identity still has to catch.
+  const opened = screen({ scene: 'scene-a', strike: 'element-1', defend: 'element-2', tip: 'element-3' }, 'element-1', [
+    { id: 'element-99', label: 'End Turn', type: 'NEndTurnButton', reference: {}, visible: true, enabled: true, focus_mode: 'none', selectable: false, press: 'y', hotkeys: ['end_turn'], bounds: [1700, 900, 200, 60] },
+  ]);
+  assert.notEqual(planIdentity(before), planIdentity(opened), 'a control that appeared is a new screen');
+  assert.equal(planIdentity(opened), planIdentity(screen({ scene: 'scene-z', strike: 'element-71', defend: 'element-72', tip: 'element-73' }, 'element-71', [
+    { id: 'element-199', label: 'End Turn', type: 'NEndTurnButton', reference: {}, visible: true, enabled: true, focus_mode: 'none', selectable: false, press: 'y', hotkeys: ['end_turn'], bounds: [1700, 900, 200, 60] },
+  ])), 'including when that control was rebuilt too');
+
+  // Presentation is not part of the identity at all: a tooltip appearing does
+  // not change what a plan can do.
+  const tipped = screen({ scene: 'scene-a', strike: 'element-1', defend: 'element-2', tip: 'element-3' }, 'element-1');
+  tipped.ui.elements.push({ id: 'element-98', label: 'Vulnerable creatures take 50% more damage from Attacks.', type: 'MegaRichTextLabel', reference: {}, visible: true, enabled: true, focus_mode: 'accessibility', selectable: false, activation: null, bounds: [891, 703, 300, 80] });
+  assert.equal(planIdentity(before), planIdentity(tipped), 'a combat log line is not a new screen');
+
+  // Focus moving to a DIFFERENT control is what a bare activation press cares
+  // about, and that is exactly what focusIdentity reports.
+  const refocused = screen({ scene: 'scene-a', strike: 'element-1', defend: 'element-2', tip: 'element-3' }, 'element-2');
+  assert.equal(planIdentity(before), planIdentity(refocused), 'a moved cursor does not by itself make the plan stale');
+  assert.notEqual(focusIdentity(before), focusIdentity(refocused), 'but an untargeted press must not fire from there');
+});
+
 test('the label match declines whenever it is not certain, and the model is asked instead', () => {
   // Verbatim from the run this came out of: the strategist asked to confirm the
   // transform and named the card in the sentence, and the resolver picked the
@@ -568,7 +627,7 @@ test('the label match declines whenever it is not certain, and the model is aske
 
   // The same sentence on a screen where the card IS reachable: two readings of
   // one goal is a judgement, and it is not made here.
-  const simple = { state_type: 'card_select', ui: { sensor_version: 5, scene_id: 'sc', focused_element: 'card', elements: [
+  const simple = { state_type: 'card_select', ui: { sensor_version: 6, scene_id: 'sc', focused_element: 'card', elements: [
     { id: 'card', label: 'Strike', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} },
     { id: 'ok', label: 'Confirm', visible: true, enabled: true, selectable: false, focus_mode: 'none', press: 'y', neighbors: {} },
   ] } };
@@ -1386,4 +1445,23 @@ test('the turn tallies its own attacks, and says so only when it can', () => {
   assert.equal(reshuffled.attacks_played_this_turn, null, 'unknowable is not zero');
   assert.equal(reshuffled.cards_played_this_turn, null);
   assert.match(reshuffled.authority, /null means a reshuffle/);
+});
+test('rejected ordinary chat is not recorded as delivered speech', async () => {
+  const agent = new PiAgent({ name: 'test', image: 'test', env: {} });
+  agent.send = async () => ({ success: false, command: 'prompt', error: 'player is paused; use explicit resume' });
+  await assert.rejects(agent.prompt('continue'), /player is paused/);
+  assert.equal(agent.transcript.some((item) => item.kind === 'user' && item.text === 'continue'), false);
+  assert.match(agent.transcript.at(-1).text, /rejected\/not delivered/);
+});
+
+test('PiAgent tracks requiresResume from state and attention events', () => {
+  const agent = new PiAgent({ name: 'test', image: 'test', env: {} });
+  agent._onMessage({ type: 'response', command: 'get_state', success: true, data: { requiresResume: true } });
+  assert.equal(agent.requiresResume, true);
+  agent._onMessage({ type: 'steambench_attention', attention: { id: 'incident-1', error: 'review', decision: 4 } });
+  assert.equal(agent.requiresResume, true);
+  agent._onMessage({ type: 'steambench_attention', attention: null });
+  assert.equal(agent.requiresResume, true, 'clearing the incident does not clear a checkpoint resume requirement');
+  agent._onMessage({ type: 'response', command: 'resume', success: true });
+  assert.equal(agent.requiresResume, false, 'an accepted explicit resume clears the requirement');
 });

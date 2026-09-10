@@ -203,7 +203,7 @@
         "can_confirm": true
       },
       "ui": {
-        "sensor_version": 5,
+        "sensor_version": 6,
         "scene_id": "d62aaf2f9bf8cde8",
         "focused_element": null,
         "focus_path": null,
@@ -1586,7 +1586,7 @@
         "can_confirm": true
       },
       "ui": {
-        "sensor_version": 5,
+        "sensor_version": 6,
         "scene_id": "61dbed1c4f2d8ced",
         "focused_element": null,
         "focus_path": null,

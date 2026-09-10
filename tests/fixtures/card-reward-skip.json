@@ -100,7 +100,7 @@
   "max_potion_slots": 3
  },
  "ui": {
-  "sensor_version": 5,
+  "sensor_version": 6,
   "scene_id": "ca500d427e09c04b",
   "focused_element": "element-108380819979",
   "elements": [
