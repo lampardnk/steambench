@@ -256,7 +256,7 @@ import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/le
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
 import { EncounterScratchpad } from '../client/learning/encounter.mjs';
 import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, encounterOver, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
-import { ROLE_ACTIONS, focusIdentity, planIdentity, ready, settleAnimation, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
+import { ROLE_ACTIONS, focusIdentity, planIdentity, ready, settleAnimation, situationId, stallReason, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
 import { API_KEY_ENVS, DEFAULT_MODEL, MODEL_PROFILES, PROFILE } from '../server/lib/learning-profile.mjs';
@@ -1446,6 +1446,76 @@ test('the turn tallies its own attacks, and says so only when it can', () => {
   assert.equal(reshuffled.cards_played_this_turn, null);
   assert.match(reshuffled.authority, /null means a reshuffle/);
 });
+// The stall guard is the one thing in the runtime that stops a healthy run, so
+// its boundary is pinned here against the measured corpus. Sixteen inputs of
+// history, and a run that collapsed to fewer than three distinct situations.
+test('the stall guard fires on a collapsed run and never on one that is moving', () => {
+  const input = (id) => id;
+
+  // A reward list and the card screen behind it, cycled forever: two situations
+  // reached over and over, which is exactly the live room's 363-input loop.
+  const loop = [];
+  for (let i = 0; i < 40; i++) loop.push(i % 2 ? 'card_reward' : 'rewards');
+  assert.equal(stallReason(loop, 16, 3), 2, 'two situations across the window is a stall, and it says which');
+  assert.equal(stallReason(loop, 16, 2), null, 'and raising the floor to two would let the loop run on');
+
+  // Under the window there is no verdict yet: the guard must not fire early on
+  // a short run, and a fresh run is always short.
+  assert.equal(stallReason(loop.slice(0, 15), 16, 3), null, 'fifteen inputs is not yet a window');
+  assert.equal(stallReason([], 16, 3), null, 'an empty history is not a stall');
+
+  // A fight genuinely moves - hand, enemy health, round - so a window that
+  // merely repeats a screen type is not enough to stop it.
+  const fight = [];
+  for (let i = 0; i < 16; i++) fight.push(`turn-${i % 3}-hp-${100 - i}`);
+  assert.equal(stallReason(fight, 16, 3), null, 'a fight that keeps changing is never a stall');
+
+  // Three distinct situations is the floor: at the boundary the run is still
+  // reaching somewhere new, so it is left alone.
+  const three = ['a', 'b', 'c', ...Array(13).fill('a')];
+  assert.equal(stallReason(three, 16, 3), null, 'three situations clears the guard');
+  const two = ['a', 'b', ...Array(14).fill('a')];
+  assert.equal(stallReason(two, 16, 3), 2, 'dropping to two does not');
+});
+
+// What the guard counts is the situation, not the screen. The live stall
+// alternated a reward list and the card screen behind it, which are two
+// situations - and that is why the floor is three and not two. A two-screen
+// loop only trips the guard because a THIRD situation never arrives, so the
+// key has to keep counting them apart rather than merging them.
+test('a situation is the moment, not just the screen name', () => {
+  const base = {
+    state_type: 'rewards', run: { act: 2, floor: 19 },
+    player: { hp: 76, max_hp: 86, gold: 436, relics: [], potions: [] },
+    deck: [{ id: 'STRIKE', is_upgraded: false }],
+    rewards: { items: [{ index: 0, type: 'card', description: 'Add a card to your deck.' }] },
+  };
+  const cardScreen = { ...base, state_type: 'card_reward', rewards: undefined, card_reward: { cards: [{ id: 'ANGER', is_upgraded: false }] } };
+
+  // A list offering a card and the screen behind that card are different
+  // situations. If the key merged them, the two-screen loop would look like one
+  // repeated situation and the guard's floor of three would stop real runs.
+  assert.notEqual(situationId(base), situationId(cardScreen), 'a different offer is a different situation');
+  assert.notEqual(situationId(base), situationId({ ...base, rewards: { items: [] } }), 'an emptied list is a different situation');
+
+  // Those two, cycled, are the two distinct values the guard counts.
+  const loop = [situationId(base), situationId(cardScreen)];
+  assert.equal(stallReason([...loop, ...loop, ...loop, ...loop, ...loop, ...loop, ...loop, ...loop], 16, 3), 2,
+    'the real loop presents as two situations, which is below the floor of three');
+
+  // Taking the card changes the deck and clears the offer, which is progress.
+  const taken = { ...base, deck: [...base.deck, { id: 'ANGER', is_upgraded: false }], rewards: { items: [] } };
+  assert.notEqual(situationId(base), situationId(taken), 'a taken card is a new situation');
+
+  // So does anything that moves the run forward.
+  assert.notEqual(situationId(base), situationId({ ...base, run: { act: 2, floor: 20 } }), 'a floor is progress');
+  assert.notEqual(situationId(base), situationId({ ...base, player: { ...base.player, gold: 455 } }), 'gold is progress');
+
+  // Focus and element ids churn on their own and must not read as movement.
+  const jittered = { ...base, ui: { focused_element: 'element-99', elements: [{ id: 'element-99', bounds: [1, 2, 3, 4] }] } };
+  assert.equal(situationId(base), situationId(jittered), 'focus and geometry are not the situation');
+});
+
 test('rejected ordinary chat is not recorded as delivered speech', async () => {
   const agent = new PiAgent({ name: 'test', image: 'test', env: {} });
   agent.send = async () => ({ success: false, command: 'prompt', error: 'player is paused; use explicit resume' });

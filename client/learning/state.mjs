@@ -105,6 +105,87 @@ export function progressId(state) {
   return digest(rest);
 }
 
+/**
+ * The situation the run is in: what it has achieved, and what the screen in
+ * front of it is offering.
+ *
+ * `progressId` cannot answer "is this run still getting anywhere". It digests
+ * `state_type`, so a reward list and the card screen behind it are two
+ * different values, and a run that walks between them forever looks like a run
+ * that keeps moving. A live room spent 363 of its 449 inputs doing exactly that
+ * - open card reward, press `b`, repeat - for 86 minutes and 11.3M of the run's
+ * 17.0M tokens, and it never left the loop on its own.
+ *
+ * So this key deliberately leaves out `state_type`, the element ids and the
+ * focus: those churn or oscillate on their own. What is left is the run's
+ * position and holdings, and the contents of whatever is being offered. Two
+ * observations with the same key are the same moment reached twice.
+ */
+export function situationId(state) {
+  return digest(situationKey(settleAnimation(state)));
+}
+
+/**
+ * Whether the recent inputs were spent inside too few distinct situations.
+ *
+ * Returns how many distinct situations the window held, or null when the run
+ * is still finding new ones. It is a separate function from the guard that
+ * throws so the boundary can be pinned by a test: a run stopped for stalling
+ * when it was in fact moving is the expensive mistake here, and the margins
+ * are what keep it honest. `window` and `distinct` are the caller's policy,
+ * passed in rather than defaulted, so the constants live in one place.
+ */
+export function stallReason(situations, window, distinct) {
+  if (situations.length < window) return null;
+  const seen = new Set(situations.slice(-window)).size;
+  return seen < distinct ? seen : null;
+}
+
+/**
+ * The fields behind `situationId`, kept separate so the caller that has to
+ * explain a stall can name what did not change.
+ */
+export function situationKey(state) {
+  const player = state.player || {};
+  const battle = state.battle || {};
+  const map = state.map || {};
+  const hand = state.hand_select || {};
+  const event = state.event || {};
+  const sorted = (items, pick) => (items || []).map(item => pick(item)).sort();
+  return [
+    state.run?.act ?? null, state.run?.floor ?? null,
+    player.hp ?? null, player.max_hp ?? null, player.gold ?? null,
+    sorted(player.relics, item => item?.id ?? null),
+    sorted(player.potions, item => item?.id ?? null),
+    sorted(state.deck, card => `${card?.id ?? ''}|${card?.is_upgraded === true}`),
+    sorted(player.hand, card => card?.id ?? null),
+    // What the screen is offering, so a screen that merely rebuilt is not read
+    // as progress.
+    sorted(state.rewards?.items, item => `${item?.index ?? ''}|${item?.type ?? ''}|${item?.description ?? ''}`),
+    sorted(state.card_reward?.cards, card => `${card?.id ?? ''}|${card?.is_upgraded === true}`),
+    sorted(state.card_select?.cards, card => `${card?.id ?? ''}|${card?.index ?? ''}`),
+    sorted(hand.cards, card => `${card?.id ?? ''}|${card?.index ?? ''}`),
+    // A bundle screen offers groups of cards; the group is what would change if
+    // one were taken. Leaving it out reported the Ancient's bundle screen as a
+    // stall while it was being read normally, which is the kind of false alarm
+    // that stops healthy runs.
+    sorted(state.bundle_select?.bundles, bundle => `${bundle?.index ?? ''}|`
+      + sorted(bundle?.cards, card => card?.id ?? null).join(',')),
+    state.bundle_select?.prompt ?? null,
+    hand.prompt ?? null, hand.mode ?? null,
+    event.event_id ?? null, event.in_dialogue === true,
+    sorted(event.options, option => `${option?.index ?? ''}|${option?.id ?? ''}|${option?.title ?? ''}`),
+    sorted(state.rest_site?.options, option => `${option?.index ?? ''}|${option?.id ?? ''}`),
+    sorted(state.shop?.items, item => `${item?.id ?? ''}|${item?.price ?? ''}`),
+    sorted(state.treasure?.relics, relic => relic?.id ?? null),
+    // A fight moves on its own: rounds, enemy health, the cards in hand.
+    battle.round ?? null, battle.turn ?? null,
+    sorted(battle.enemies, enemy => `${enemy?.name ?? ''}|${enemy?.hp ?? ''}|${enemy?.block ?? ''}`),
+    map.current_column ?? null, map.current_row ?? null,
+    state.menu_screen ?? null,
+  ];
+}
+
 export function mapId(state) {
   return state.state_type === 'map' ? digest(state.map) : null;
 }

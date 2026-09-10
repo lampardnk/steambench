@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { Actuator } from './actuator.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, splitNotes, strategistContext } from './context.mjs';
@@ -22,6 +22,28 @@ import { controlManual, indexNotes, retrieve } from './retrieval.mjs';
 const BOOKKEEPING = new Set(['learn', 'recall', 'research', 'lookup']);
 const bookkeepingOnly = (plan) => plan.actions.every(action => BOOKKEEPING.has(action.type));
 const TRANSIENT_BACKOFF_MS = [2000, 5000, 12000, 30000];
+
+// How many consecutive inputs may be spent inside too few distinct situations
+// before the run is stopped for a supervisor.
+//
+// Measured against all eight recorded runs. Sixteen inputs, not eight: at eight
+// this fires on four runs, three of which recovered within six inputs - a fight
+// where a turn merely ended, and a screen that was being read - whereas sixteen
+// fires only on screens a run was genuinely thrashing. The five runs that kept
+// moving never fell below six distinct situations in a window; all three this
+// stops had collapsed to two:
+//   * 346 inputs left cycling a reward list and the card screen behind it
+//     (live, 499k tokens of run budget in the window alone),
+//   * 212 left alternating two card-upgrade selections, an 84-input screen the
+//     run escaped only 67 inputs after this would have stopped it,
+//   * 19 left cycling a card reward.
+// Three situations, not one: a screen and the overlay it opens are two
+// situations, which is what makes `progressId` count the live loop as
+// movement, and neither is a third. Stopping the middle run early is the
+// intent, not a cost: it had spent 84 inputs on one card-upgrade screen by
+// the time the guard fires.
+const STALL_WINDOW = 16;
+const STALL_SITUATIONS = 3;
 
 // One reversible directional press, sent to find out where focus actually is.
 // It answers a question, so a run of them means the question is not the problem.
@@ -179,6 +201,12 @@ async function run(task) {
   let previous = '';
   let previousInput = '';
   let repeatedInput = 0;
+  // The situations the last few inputs were spent in. A run that keeps acting
+  // without the situation ever changing is not deciding anything, and the
+  // existing guards cannot see it: `unchanged` compares the whole stateId and
+  // `repeatedInput` compares one plan against the next, so a two-screen cycle
+  // reads as progress to both. See situationId.
+  const situations = [];
   let observation = lastState;
   let plan = null;
   let objectiveCheck = null;
@@ -453,6 +481,17 @@ async function run(task) {
         refine(`${quiet} decisions in a row without touching the game`, 'Notes are worth a decision, but not three in a row. Act on the screen in front of you now, and attach the learn as the final action of that plan instead of spending another decision on it.', lane);
         continue;
       }
+      // Has this run moved at all recently? A plan is "new" whenever its actions
+      // differ, so a strategist cycling between two screens produces a fresh
+      // signature every time and `repeatedInput` never fires. This asks the only
+      // question that matters - is the run still reaching situations it has not
+      // already been in - and stops it when the answer is no.
+      const stalled = stallReason(situations, STALL_WINDOW, STALL_SITUATIONS);
+      if (stalled !== null) {
+        throw new Error(`${STALL_WINDOW} inputs across only ${stalled} distinct situation${stalled === 1 ? '' : 's'}`
+          + ` (${state.state_type} at act ${state.run?.act ?? '?'} floor ${state.run?.floor ?? '?'});`
+          + ' the run is not making progress, so it is stopping for a supervisor rather than spending more inputs on it');
+      }
       const signature = digest({ state: current, actions: plan.actions });
       repeatedInput = signature === previousInput ? repeatedInput + 1 : 0;
       previousInput = signature;
@@ -497,6 +536,15 @@ async function run(task) {
       executionMetrics.batches++;
       executionMetrics.completedActions += result.completed.length;
       record({ type: 'decision_result', agent: lane, plan, completed: result.completed, error: result.error, latencyMs: Date.now() - batchStarted, sensorCalls: executionMetrics.sensors - batchSensors, inputs: executor.inputs - batchInputs });
+      // Sample the situation once per batch that actually reached the pad. A
+      // batch that sent nothing (a stale plan, a refinement round) leaves the
+      // game untouched, so counting it would report a stall the run did not
+      // have. `state` is the observation the batch ran against, which is the
+      // situation the inputs were spent in.
+      if (executor.inputs > batchInputs) {
+        situations.push(situationId(state));
+        if (situations.length > STALL_WINDOW) situations.shift();
+      }
       if (result.state) {
         lastState = result.state;
         encounter.observe(result.state, result.completed.filter(item => item.verified).map(item => ({ action: item.action?.type, card: item.card, barrier: item.barrier })));

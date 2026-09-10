@@ -60,8 +60,11 @@ into a closed loop on purpose, and there the answer is a bound button.
 
 **Bound buttons beat navigation.** An element carrying `press` is activated by
 that button from anywhere, whatever holds focus. Some controls are reachable no
-other way - a card reward's Skip sits outside a row that wraps into itself, and
-is bound to `b`.
+other way - a card reward's own Skip sits outside a row that wraps into itself,
+and is bound to `b`. That button is the screen's `ui_cancel`: it takes you back
+to the reward list and **decides nothing**, so the row survives and the same
+cards come back. The Skip that resolves the reward is the reward list's own, on
+`y`. See [rewards](../meta_strategy/rewards/README.md).
 
 **A panel shortcut is the way INTO its row, not only a way to open it.** `x`,
 `back`, `lb`/`rb` and `lt`/`rt` put focus on a fixed element wherever it was, so
