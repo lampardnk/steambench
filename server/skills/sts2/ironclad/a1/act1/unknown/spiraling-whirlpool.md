@@ -1,33 +1,26 @@
 ---
-description: Spiraling Whirlpool — Underdocks. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: Spiraling Whirlpool — exact wiki outcomes, enchantment, and gate.
 character: ironclad
 act: 1
 category: unknown
 ascension: a1
-keys: [spiraling whirlpool, event, unknown, act1, underdocks, spiral, replay, enchant, heal]
+keys: [spiraling whirlpool, event, act1, underdocks, spiral, heal, enchant]
 sources: [slaythespire.wiki.gg]
 ---
 
 # Spiraling Whirlpool
 
-**Pool:** Underdocks  
-**Appears when:** you have at least 1 Strike or Defend that can take the enchantment
+**Biome:** Underdocks only. **Condition:** at least 1 card that can be
+enchanted with Spiral (a Basic Strike or Defend).
 
 ## Options
 
 | Option | Exact outcome |
 |---|---|
-| **[Observe]** | Enchant a Basic Strike or Defend with **Spiral** (that card gains Replay 1). |
-| **[Drink]** | Heal 33% of your Max HP. |
+| **[Observe]** | Enchant a Basic Strike or Defend with **Spiral**. Spiral gives that card Replay 1. |
+| **[Drink]** | Heal 33% of Max HP. |
 
-## Mechanics
+No event-specific ascension variant is listed. Compare the percentage heal with
+the card enchantment in the current deck.
 
-- Spiral can only go on a Basic Strike or Defend, not on a card you drafted.
-
-## What each option costs and buys
-
-- Replay 1 makes that Basic card play twice, which roughly doubles the weakest card in your deck rather than improving your best one.
-- It also argues against removing that Strike or Defend later, which cuts against thinning the deck.
-- A 33% Max HP heal is large in absolute terms and scales with your Max HP, but it is current HP only and buys nothing permanent.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Spiraling_Whirlpool

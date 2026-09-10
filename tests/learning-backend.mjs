@@ -59,7 +59,10 @@ try {
   assert.deepEqual(room.agent.transcript, transcript);
   for (const operation of ['pad-press', 'pad-dpad', 'pad-stick', 'room-finish']) await assert.rejects(() => room.gatewayOp(operation, {}), error => error.code === 'supervisor_required');
   await assert.rejects(() => room.resumePlayer({ issueId: 'wrong', message: 'review' }), /wrong issue/);
+  assert.deepEqual(room.agent.transcript, transcript, 'a rejected review is not shown as accepted');
   assert.deepEqual(await room.resumePlayer({ issueId: 'fixture-issue', message: 'review' }), { ok: true });
+  assert.equal(room.agent.transcript.at(-1).text, 'review');
+  assert.equal(room.agent.transcript.at(-1).from, 'supervisor review');
   compatible = false;
   await assert.rejects(() => room.restartPlayer(), /did not restore/);
   assert.equal(room.stage, 'error');

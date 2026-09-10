@@ -6,7 +6,7 @@ import readline from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
-import { Executor, learnedFiles, SCRATCHPAD_NOTE, REFLECTION_HEADER } from './executor.mjs';
+import { Executor, learnedFiles } from './executor.mjs';
 import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { Actuator } from './actuator.mjs';
@@ -43,7 +43,7 @@ if (checkpoint?.version !== VERSION) checkpoint = null;
 const sessionId = randomUUID().slice(0, 8);
 const emit = event => process.stdout.write(JSON.stringify(event) + '\n');
 const usage = { requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, modelLatencyMs: 0, ...checkpoint?.usage };
-const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'actuator.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'reflection.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'actuator.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'navigation.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
+const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'actuator.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'actuator.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'navigation.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
 const catalog = new ObservationCatalog(directory);
 const started = checkpoint?.started || Date.now();
 let totalInputs = checkpoint?.totalInputs || 0;
@@ -115,9 +115,8 @@ try {
   if (fs.statSync(file).size <= 12000) memorySeed = JSON.parse(fs.readFileSync(file, 'utf8'));
 } catch { }
 
-// Voyager's two load-bearing components: a curriculum that proposes the next
-// objective, and a critic that decides whether it was met. The ladder lives in
-// the skill library, so it is inherited rather than restarted with each room.
+// The curriculum and critic track objectives for this run only. Their ladder
+// stays in the room scratchpad and is never inherited by a different seed.
 // Constructed after the counters above, because it journals through record(),
 // which reads `decision`.
 const curriculum = new Curriculum({ skillDir, planner, record, playerName: PROFILE.name, roomId: process.env.STEAMBENCH_ROOM_ID || null });
@@ -133,9 +132,8 @@ function saveMetrics() {
   fs.renameSync(temporary, path.join(directory, 'checkpoint.json'));
 }
 
-// The operator answers a paused player either through the explicit resume route or by replying in
-// the room chat. Both record the review, clear the pending issue and mark the previous error
-// historical; only the explicit route can acknowledge an incident ID.
+// The dashboard reply-and-resume button uses the explicit resume route,
+// carrying the displayed incident ID and the operator review.
 function acknowledge(text, { via, issueId = null }) {
   const resolution = { at: Date.now(), issueId: attention?.id || null, acknowledgedIssueId: issueId, via, message: text.slice(0, 2000), policyHash };
   fs.appendFileSync(path.join(directory, 'incident-resolutions.jsonl'), JSON.stringify(resolution) + '\n');
@@ -236,42 +234,6 @@ async function run(task) {
    * facts the fight actually established - what it cost, what carried it, and
    * what the deck still cannot do.
    */
-  const readJsonl = (file, limit) => {
-    try {
-      return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(-limit)
-        .map(line => { try { return JSON.parse(line); } catch { return null; } }).filter(Boolean);
-    } catch { return []; }
-  };
-  const readIncidents = (dir) => {
-    try {
-      return fs.readdirSync(path.join(dir, 'incidents'), { withFileTypes: true })
-        .filter(entry => entry.isDirectory()).slice(-12)
-        .map(entry => {
-          try {
-            const saved = JSON.parse(fs.readFileSync(path.join(dir, 'incidents', entry.name, 'incident.json'), 'utf8'));
-            return { id: saved.id, decision: saved.decision, error: String(saved.error || '').slice(0, 300), agent: saved.agents?.find(item => item.status === 'open')?.id ?? null };
-          } catch { return null; }
-        }).filter(Boolean);
-    } catch { return []; }
-  };
-
-  // The run's own account of itself, in the file a human reads afterwards.
-  //
-  // It used to be written only by a `learn` action, and across a 116-decision
-  // run - six incidents, five fights, an act cleared - not one was emitted, so
-  // the file stayed at its template header. Nothing here waits to be
-  // remembered: a fight writes its report when it closes, an incident writes
-  // itself when it pauses the run, and the team writes a reflection at the end.
-  // A room deleted mid-run therefore still leaves an account behind.
-  const reflect = (heading, lines) => {
-    const file = path.join(skillDir, SCRATCHPAD_NOTE);
-    const body = lines.filter(Boolean).map(line => `- ${line}`).join('\n');
-    if (!body) return;
-    try {
-      fs.appendFileSync(file, `${fs.existsSync(file) ? '' : REFLECTION_HEADER}## ${heading}\n\n${body}\n\n`);
-    } catch (error) { record({ type: 'reflection_write_failure', error: error.message }); }
-  };
-
   const closeFight = async (state, fallback) => {
     if (!fight) return;
     const { lane, kind } = fight;
@@ -290,14 +252,6 @@ async function run(task) {
     fs.appendFileSync(path.join(directory, 'encounters.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, lane, ...lastEncounter }) + '\n');
     roster.close(lane, { outcome: closing.outcome, summary: [closing.worked, closing.deck_need].filter(Boolean).join(' — ') || null });
     record({ type: 'encounter_close', agent: lane, ...lastEncounter });
-    reflect(`Encounter ${lane} — ${kind} on act ${fight.act} floor ${fight.floor}`, [
-      `Outcome: ${closing.outcome}${Number.isInteger(closing.hp_cost) ? `, cost ${closing.hp_cost} HP` : ''}.`,
-      fight.enemies?.length ? `Enemies: ${fight.enemies.join(', ')}.` : null,
-      closing.worked && `Worked: ${closing.worked}`,
-      closing.struggled && `Struggled: ${closing.struggled}`,
-      closing.deck_need && `Deck need: ${closing.deck_need}`,
-      closing.enemy_note && `Enemy note: ${closing.enemy_note}`,
-    ]);
     message(`Report: ${closing.outcome}${Number.isInteger(closing.hp_cost) ? `, ${closing.hp_cost} HP` : ''}.${closing.worked ? ` ${closing.worked}` : ''}${closing.deck_need ? ` Deck needs: ${closing.deck_need}` : ''}`, lane);
     delete laneResults[lane];
     fight = null;
@@ -378,26 +332,8 @@ async function run(task) {
         const finished = await gateway.call({ op: 'room-finish', result, summary });
         lifecycle = result;
         record({ type: 'run_finished', result, state });
-        reflect(`Run ${result}`, [summary, `Standing task: ${task.slice(0, 200)}`]);
-        // One call, at the one moment the whole run is visible. A failure here
-        // must never be what ends a run badly: the incremental sections above
-        // are already on disk and are the account that matters.
-        try {
-          const answer = await planner.ask({ role: 'reflection', agent: LANE.room, prompt: 'reflection.txt', context: {
-            ended: { result, act: state.run?.act ?? null, floor: state.run?.floor ?? null, decisions: decision, encounters: fights },
-            standing_task: task.slice(0, 1500),
-            objectives: curriculum.summary(),
-            encounter_reports: readJsonl(path.join(directory, 'encounters.jsonl'), 24),
-            incidents: readIncidents(directory),
-          }, deadlineMs: PROFILE.plannerDeadlineMs });
-          const list = (value) => (Array.isArray(value) ? value.map(item => String(item).slice(0, 300)) : []);
-          reflect('Reflection', [answer?.verdict && `**${String(answer.verdict).slice(0, 300)}**`]);
-          for (const [heading, key] of [['What went well', 'went_well'], ['What went wrong', 'went_wrong'],
-            ['Interface', 'interface'], ['Library gaps', 'library_gaps'], ['For the next run', 'next_run']]) {
-            reflect(heading, list(answer?.[key]));
-          }
-          message('Reflection written to scratchpad.md.', LANE.room);
-        } catch (error) { record({ type: 'reflection_failure', error: error.message }); }
+        // Completion is recorded as measured telemetry. No narrative run
+        // reflection or advice for a different seed is written to the library.
         message(JSON.stringify(finished));
         return;
       }
@@ -460,10 +396,15 @@ async function run(task) {
       objectiveCheck = null;
       if (context) {
         record({ type: 'decision_context', agent: lane, role, characters: JSON.stringify(context).length, acceptedMemoryHash: digest(accepted), objective: ladder.objective?.text || null, retrieved: retrieved.map(note => note.path) });
-        // Retrieved notes are the one part of the context that grows without
-        // bound, so they are what gets dropped when the budget is tight.
-        if (JSON.stringify(context).length > 60000) context.retrieved_notes = context.retrieved_notes.map(({ content, ...rest }) => rest);
-        if (JSON.stringify(context).length > 60000) throw new Error('decision context exceeds 60,000 characters; refusing silent truncation');
+        // Keep source bodies under the larger model budget. If a smaller
+        // profile is selected, remove the lowest-ranked bodies one at a time
+        // with an explicit marker instead of silently dropping every fact at 60KB.
+        const contextBudget = Math.max(20000, (PROFILE.contextWindow - PROFILE.maxTokens) * 2);
+        for (let i = context.retrieved_notes.length - 1; i >= 0 && JSON.stringify(context).length > contextBudget; i--) {
+          const { content, ...metadata } = context.retrieved_notes[i];
+          context.retrieved_notes[i] = { ...metadata, truncated: true, omitted_for_context_budget: true };
+        }
+        if (JSON.stringify(context).length > contextBudget) throw new Error(`decision context exceeds the configured ${contextBudget}-character budget; refusing silent truncation`);
       }
       act1Timer.start(state, freshRunVerified);
       saveMetrics();
@@ -580,7 +521,6 @@ async function run(task) {
       // fight's and must not leak into routing after the fight is over.
       if (source.strategy && role !== 'combat') strategy = source.strategy;
       if (source.lesson) fs.appendFileSync(path.join(directory, 'candidates.jsonl'), JSON.stringify({ id: digest({ decision, lesson: source.lesson }), version: VERSION, compatibility: build, status: 'candidate', agent: lane, text: source.lesson, decision, evidence: toolCallId, verifiedActions: result.completed, error: result.error }) + '\n');
-      fs.writeFileSync(path.join(directory, 'run.md'), `# ${PROFILE.name}\n\nDecision: ${decision}\n\nStrategy (hypothesis): ${strategy}\n\nLatest verified result: ${JSON.stringify(lastResult)}\n`);
       saveMetrics();
       evidence.push({ decision, agent: lane, act: state.run?.act ?? null, floor: state.run?.floor ?? null, actions: plan.actions.map(action => action.type), completed: result.completed.map(item => ({ type: item.action?.type, verified: item.verified === true, detail: item.error || item.detail || null })), error: result.error || null, after: lastResult?.after || null });
       if (evidence.length > 24) evidence.shift();
@@ -622,11 +562,6 @@ async function run(task) {
   } catch (error) {
     lifecycle = 'paused';
     requiresResume = true;
-    reflect(`Paused at decision ${decision}`, [
-      `Error: ${error.message}`,
-      `Screen: ${lastState?.state_type ?? 'unknown'}${lastState?.ui?.scene_id ? ` (scene ${lastState.ui.scene_id})` : ''}, act ${lastState?.run?.act ?? '?'} floor ${lastState?.run?.floor ?? '?'}.`,
-      `Agent: ${error.lane || (fight ? fight.lane : 'strategist')}.`,
-    ]);
     if (fight) roster.close(fight.lane, { outcome: 'interrupted', summary: 'The run paused mid-encounter.' });
     await gateway.call({ op: 'pad-neutral' }, { timeoutMs: 3000 }).catch(() => {});
     let after = recentSensors.at(-1)?.state || lastState;
@@ -677,8 +612,8 @@ if (process.argv.includes('--smoke')) {
       else if (command.type === 'prompt' || command.type === 'steer') {
         if (typeof command.message !== 'string' || !command.message.trim()) throw new Error('message required');
         if (active && (attention || requiresResume)) throw new Error('player is still stopping; wait for it to settle before replying');
-        // A chat reply answers a paused, reloaded or issue-reporting player: it clears the pending
-        // issue and restarts the same run. The resolution journal records that it came from chat.
+        // Ordinary prompts cannot acknowledge an incident. The dashboard must
+        // use the explicit resume RPC with the displayed incident ID.
         const answering = Boolean(attention || requiresResume);
         if (answering) throw new Error('player is paused; use the explicit resume operation with the incident ID');
         emit({ type: 'response', id: command.id, command: command.type, success: true });

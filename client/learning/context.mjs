@@ -3,13 +3,9 @@ import { compactState, isCombat, mapId, stateId } from './state.mjs';
 /**
  * What each member of the team is allowed to read.
  *
- * The sensor payload is dominated by `ui`: on a card-reward screen it is 13.6KB
- * of a 21.6KB state, or 63% of it, and it is the one block that no strategic
- * decision rests on. It was going to every agent on every decision, and with it
- * went every element id the model could invent a route through. Nothing here is
- * a summary or a paraphrase - each projection is the live state with the blocks
- * that role has no business reading removed, so what survives is still exactly
- * what the sensor said.
+ * The sensor contains role-specific blocks. Each projection removes only the
+ * blocks that role has no business reading; what survives remains the live
+ * sensor data rather than a summary or paraphrase.
  */
 
 const OMIT_FOR_STRATEGIST = ['ui', 'battle'];
@@ -43,10 +39,9 @@ export function strategistState(state, { mapUnchanged = false } = {}) {
 }
 
 /**
- * One fight. No map, because routing is not this agent's decision and the graph
- * is 4KB of it; no deck, because the encounter scratchpad already reports every
- * pile and two sources for the same cards is how a plan ends up counting a card
- * twice.
+ * One fight. No map, because routing belongs to the strategist; no permanent
+ * deck, because the encounter scratchpad carries the combat piles and avoids
+ * presenting duplicate card inventories.
  */
 /**
  * Where things are, and what is half-done.
@@ -57,14 +52,11 @@ export function strategistState(state, { mapUnchanged = false } = {}) {
  * took them all. A human sees them by looking at the screen; this agent cannot
  * look, so they have to be handed over.
  *
- * - `targets` gives each enemy's combat_id and screen position, which is the
- *   only way to know the left-to-right order. Attacks resolve on the leftmost
- *   enemy by default, and Kaiser Crab's Surrounded and Back Attack are about
- *   which side you are on.
- * - The hand's screen order is NOT `hand[].index`: a hand that indexed
- *   274, 275, 276, 264, 257 was drawn 274, 276, 264, 257, 275, so index 1 sat
- *   rightmost of five. Position is what the pad walks, so it is what a plan
- *   naming a card has to agree with.
+ * - `targets` gives each enemy's combat_id and screen position. Position is
+ *   relevant when an attack or effect uses the current target or orientation.
+ * - The hand's screen order is not guaranteed to match `hand[].index`. Position
+ *   is what the pad walks, so a plan naming a card must use the current observed
+ *   hand-selection identity and screen order.
  * - A card can be half-played - lifted, awaiting a target - and the agent that
  *   has to finish it needs to know.
  */
@@ -122,12 +114,10 @@ const generation = item => Number(String(item?.id ?? '').replace(/\D/g, '')) || 
 /**
  * Collapse the ghosts of rebuilt overlays.
  *
- * Reopening a preview leaves the previous generation's nodes in the tree, still
- * reported visible and still focusable. Live, one 3-card bundle reported nine
- * cards and the name "Shrug It Off" matched three addressable elements, two of
- * them at identical bounds - which is what defeated routing and burned the
- * navigation budget. Same label at the same bounds is the same thing on screen;
- * keep the later node, because that is the generation the game is driving.
+ * Reopening a preview can leave an earlier generation's nodes in the tree, still
+ * reported visible and still focusable. Same-label, same-bounds elements are the
+ * same thing on screen; keep the later node, because that is the generation the
+ * game is driving.
  */
 export function dedupeElements(items = []) {
   const out = [];

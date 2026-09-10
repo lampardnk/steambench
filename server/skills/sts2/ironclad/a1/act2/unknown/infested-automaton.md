@@ -1,49 +1,25 @@
 ---
-description: Infested Automaton — Act 2. Exact outcomes for every option, with the trade-offs left open.
+description: Infested Automaton — exact wiki outcomes and availability.
 character: ironclad
 act: 2
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, infested automaton, act 2]
-sources: [slaythespire2.net]
+keys: [infested automaton, event, act2, hive, power, zero cost]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Infested Automaton
 
-**Pool:** Act 2  
-**Pages:** 3
+**Biome:** Hive only.
 
-## What the screen says
+## Options
 
-There's a chamber filled with dead robots.
+| Option | Exact outcome |
+|---|---|
+| **[Study]** | Obtain a random Power. |
+| **[Touch the Core]** | Obtain a random 0-cost card. |
 
-A lone automaton still has a faintly glowing core but it's engulfed by a
-grotesque, organic growth and doesn't respond.
+No additional condition or event-specific ascension variant is listed. Compare
+the two random card pools with current deck state.
 
-## Options — page `INITIAL`
-
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Study]** | Add **a card** (adds 1 random Power card from the player's character pool to the deck) — screen text: "Obtain a random **Power**." | STUDY |
-| **[Touch the Core]** | Add **a card** (adds 1 random 0-cost (non-X) card from the player's character pool to the deck) — screen text: "Obtain a random **0 cost card**." | TOUCH_CORE |
-
-## Options — page `STUDY`
-
-By studying the Glowing Automaton and how its inner workings are laid out, you
-realize that specific metals and their arrangements resist various ailments!
-You apply this Technology to yourself.
-
-This page presents no standard options.
-
-## Options — page `TOUCH_CORE`
-
-At the slightest touch of the core, you are jolted by **electricity**.  You
-scamper away, feeling altered from the experience.
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Infested_Automaton

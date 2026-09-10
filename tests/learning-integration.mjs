@@ -72,6 +72,11 @@ async function scenario(mode) {
       objectives: [{ id: 'obj-old', text: 'From the floor-4 card reward, reach the next fight', done_when: 'a reward screen is visible', area: 'strategy', status: 'active', attempts: 0, critiques: [], opened: { room: 'aaaa1111', decision: 12, floor: 4 } }],
     }));
   }
+  if (mode === 'delegated_goal') {
+    fs.writeFileSync(path.join(path.dirname(directory), 'fixture-reference.md'),
+      '---\ndescription: Fixture Event factual mechanics\nkeys: fixture, event\n---\n' +
+      'A factual fixture condition.\n'.repeat(2600) + 'END_OF_REFERENCE');
+  }
   const callsFile = path.join(directory, 'calls.txt');
   const inputs = [];
   let reads = 0;
@@ -151,6 +156,8 @@ async function scenario(mode) {
     assert.ok(attention?.id);
     const incident = JSON.parse(fs.readFileSync(path.join(directory, attention.path)));
     assert.ok(incident.before);
+    assert.ok(!fs.existsSync(path.join(directory, 'run.md')), 'no narrative run diary is generated');
+    if (mode !== 'notes_only') assert.ok(!fs.existsSync(path.join(path.dirname(directory), 'scratchpad.md')), 'encounters and failures do not write inherited reflections');
     assert.ok(incident.after);
     assert.ok(fs.existsSync(path.join(path.dirname(path.join(directory, attention.path)), 'after.jpg')));
     const checkpoint = JSON.parse(fs.readFileSync(path.join(directory, 'checkpoint.json')));
@@ -196,6 +203,7 @@ async function scenario(mode) {
       // label answered it outright, so the pad moved on ONE model call: the
       // whole point of resolving a goal before asking anyone.
       assert.deepEqual(roles, ['strategist'], 'the actuator was not asked; the label already answered');
+      assert.equal(fs.readFileSync(`${callsFile}.references`, 'utf8'), 'complete', 'large source bodies reach the model beyond the old 60KB context cutoff');
       const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
       const asked = events.find(event => event.type === 'decision_context');
       assert.equal(asked.role, 'strategist');

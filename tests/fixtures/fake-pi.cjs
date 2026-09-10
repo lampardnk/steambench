@@ -26,6 +26,10 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     console.log(JSON.stringify({ type: 'agent_settled' }));
     return;
   }
+  if (mode === 'delegated_goal' && !actuating) {
+    const reference = context.retrieved_notes?.find(note => note.path === 'fixture-reference.md');
+    fs.writeFileSync(`${process.env.FIXTURE_CALLS}.references`, reference?.content?.endsWith('END_OF_REFERENCE') ? 'complete' : 'missing');
+  }
   if (!actuating) {
     // A play agent says what it wants; it is shown no control to press. In a
     // fight it names cards instead, because it is dealt a hand and not a screen.

@@ -1,109 +1,86 @@
 ---
 title: Mechanics
-description: >-
-  Core Slay the Spire 2 gameplay mechanics, combat flow, piles, card upgrades, transformations, enchantments, and afflictions.
+description: Wiki-linked core card, pile, transform, enchantment and affliction mechanics for Ironclad.
 character: Ironclad
 act: any
-tags: [mechanics, combat, deckbuilding]
+tags: [mechanics, combat, deckbuilding, transform, enchantment, affliction, piles]
 topic: mechanics
+sources:
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Mechanics
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Enchantments
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Afflictions
 ---
 
-# Core Mechanics — Ironclad Strategy Guide
+# Core mechanics
 
+Use the live sensor for the current phase, card text, pile membership, modified
+cost and available controls. The links below are explanatory references and can
+lag the installed build.
 
-## Combat Flow
+## Turns and resources
 
-Source: slaythespire.wiki.gg (Mechanics page)
+The [Keywords page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords)
+defines Energy as the resource used to play cards and states that the standard
+start of a turn grants 3 Energy. It also defines Block as damage prevention until
+the next turn, with damage applied to Block before HP. The sensor's current
+Energy, Block, intents and card text decide how those rules apply in a turn.
 
-1. **Player turn**: Draw 5 cards, gain 3 Energy. Play cards, end turn manually.
-2. **Enemy turn**: Enemies act left-to-right based on visible Intents.
-3. Repeat until all enemies or player is dead.
+## Card piles
 
-**Key differences from STS1 (per v0.111.0 beta data):**
-- Intents still govern enemy actions.
-- Draw Pile order view shows cards by rarity, not actual draw order.
-- Turns end manually (unless Void Form or similar effect ends it early).
+The [Cards page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards) and
+[Keywords page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords)
+describe the combat piles and their card keywords:
 
-## Card Piles
+- cards in Hand are the cards currently available to play or select;
+- the Draw pile contains future cards, but its membership does not reveal a
+  guaranteed draw order;
+- played or discarded cards enter the Discard pile unless their text says
+  otherwise;
+- Exhaust removes a card from the deck until combat ends and places it in the
+  Exhaust pile; only specific effects can play cards from Exhaust;
+- Powers leave the ordinary Hand/pile flow according to their live text.
 
-Source: slaythespire.wiki.gg (Mechanics page)
+The runtime's `encounter_scratchpad` reports membership and counts. It is not a
+prediction of random draws.
 
-| Pile | Location | Ironclad Significance |
-|---|---|---|
-| **Draw Pile** | Cards to be drawn | Viewable during combat; shows rarity order, not true order. |
-| **Hand** | Cards currently held | Max hand size typically 10 (discard excess). Burning Pact, Battle Trance, Dark Embrace affect hand. |
-| **Discard Pile** | Cards played or discarded | Headbutt retrieves from here. Anger adds copies here. |
-| **Exhaust Pile** | Exhausted cards | **Core Ironclad mechanic.** Fiend Fire, Second Wind, Burning Pact, Dark Embrace, Feel No Pain, Charon's Ashes all interact. Howl from Beyond plays from Exhaust Pile. Pact's End checks Exhaust Pile count. |
+## Upgrades and transforms
 
-## Upgrading Cards
+The [Cards reference](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards)
+describes card generation, upgraded cards and transform sources. An upgrade or
+transform can change cost, values, keywords or text, so use the current card
+description and the active selection screen. The [Eternal keyword](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords)
+describes the permanent-deck restriction on removing or transforming Eternal
+cards; an in-battle effect can have separate rules stated in its own text.
 
-Source: slaythespire.wiki.gg (Mechanics page)
-
-- Upgrade once per card (except Wither, which Aeonglass re-upgrades).
-- Upgrades increase stats or remove Keywords like Exhaust.
-- Some cards reduce energy cost on upgrade.
-
-{strategic inference} **Ironclad upgrade priorities**: Which card to upgrade depends on the specific fight ahead and which cards are already upgraded. General candidates to consider: Bash (increases Vulnerable application), Shrug It Off (increases Block), Offering (verify upgrade effect in-game), Impervious (increases Block), Inflame (verify upgrade value). Exact upgrade values should be checked against the installed build's card text.
-
-## Transforming Cards
-
-Source: slaythespire.wiki.gg (Mechanics page)
-
-- Transformed cards become a random card of the same color, any rarity.
-- Includes Statuses and Curses unless specified.
-- Eternal keyword cards cannot be transformed or removed.
-
-**Ironclad transform notes:**
-- Transform Strikes/Defends at events or via Pandora's Box.
-- Primal Force transforms ALL Attacks in hand into Giant Rock (0-cost, X damage).
-- Ancient relics like Astrolabe (Transform 3, then Upgrade) are excellent for Ironclad.
+Do not predict a random transform, reroll, generated card or upgrade outcome.
+Record only the observed result or a precise source-backed rule.
 
 ## Enchantments
 
-Source: slaythespire.wiki.gg (Mechanics page)
-
-- Permanent bonuses added to cards (damage, block, effects).
-- One Enchantment per card maximum.
-- Applied via relics (Gnarled Hammer, Kifuda, Punch Dagger, Royal Stamp) and events.
-
-**Notable Enchantment relics:**
-- **Gnarled Hammer** (Shop): Enchant up to 3 Attacks with Sharp 3 (+3 damage).
-- **Kifuda** (Shop): Enchant up to 3 cards with Adroit (draw 1 card on play).
-- **Punch Dagger** (Shop): Enchant an Attack with Momentum 5 (+5 damage per play this turn).
-- **Fresnel Lens** (Event): Enchant block-gaining cards with Nimble 2 (gain 2 Block on play).
+[Enchantments](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Enchantments)
+are permanent positive effects added to cards in the Deck or during combat. The
+enchantment name and amount are part of the live card text. The page's exact
+definition and linked individual enchantment pages are the source for an
+effect; the current card remains authoritative if a build changes it.
 
 ## Afflictions
 
-Source: slaythespire.wiki.gg (Mechanics page)
+[Afflictions](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Afflictions)
+are modifiers placed on cards during combat by an enemy that affect the cards in
+some way. Read the affected card's live text and the source enemy's live power;
+do not infer an Affliction from a similar keyword or from a previous encounter.
 
-- Negative effects added to cards during combat.
-- Affect specific card types.
-- Ironclad's Exhaust tools can remove afflicted cards.
+## Cross-character mechanics
 
-## New Mechanics in STS2 (Relative to STS1)
+The [Keywords page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords)
+defines Silent's Poison and Sly, Regent's Stars and Forge, Necrobinder's Doom
+and Summon, and Defect's Channel, Evoke, Focus and Orbs. They may appear in a
+cross-character reference, but they do not add actions to the Ironclad role.
 
-| Mechanic | Description | Ironclad Relevance |
-|---|---|---|
-| **Vigor** | Extra damage on next Attack | Akabeko. Setup Strike grants temporary Strength instead. |
-| **Sly** | Discard -> free play (Silent-only) | N/A |
-| **Doom** | End-of-turn execution if Doom >= HP (Necrobinder-only) | N/A |
-| **Stars/Forge** | Regent resource mechanics | N/A |
-| **Summon** | Osty companion (Necrobinder-only) | N/A |
-| **Enchantments** | Permanent card enhancements | Several shop relics access this. |
-| **Online Co-op** | Multiplayer mode | Not relevant for single-player runs. |
-| **Ancients** | Every act *begins* with an Ancient; the floor after the Act 1/2 boss is that next act's Ancient. | Act 1 always starts with Neow. Heals 100% of missing HP (80% at A2+). |
-| **Eternal** | Cannot be removed/transformed | Ascender's Bane is Eternal. |
-| **Fatal** | Triggers on kill of non-Minion enemy | Relevant for Ironclad's heavy damage. |
-| **Replay** | Plays card an extra time | Available via Glam/Spiral enchantments, Soldier's Stew, Hidden Gem, Transfigure, Sword Sage. |
+## Decision use
 
-## Ascension modifiers
-
-The full A1–A10 table lives at `ascension/README.md` (skill root, outside the
-Ironclad A1 tree, because it applies to every character). Read it there when a
-note cites A3+, A6+, A8+ or A9+.
-
-## Source Attribution
-
-- Core mechanics from slaythespire.wiki.gg (Slay the Spire 2:Mechanics, revision 50033).
-- Card/relic details from slaythespire2.net (beta v0.111.0 game data, extracted 2026-06-18).
-- **Strategic upgrade priorities and value assessments are inference based on card data.**
+Calculate the cost, timing, target, pile transition and observable payoff of the
+mechanic in the current state. A comparison remains a run-specific hypothesis;
+the mechanic definition itself must retain its exact source and uncertainty.

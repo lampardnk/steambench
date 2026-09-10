@@ -1,57 +1,44 @@
 ---
-description: Crystal Sphere — Any act. Exact outcomes for every option, with the trade-offs left open.
+description: Crystal Sphere — exact wiki divination costs, board mechanics, rewards, and gate.
 character: ironclad
 act: any
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, crystal sphere, any act]
-sources: [slaythespire2.net]
+keys: [crystal sphere, event, hive, glory, gold, divination, debt, doubt]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Crystal Sphere
 
-**Pool:** Any act  
-**Pages:** 4
+**Biomes:** Hive and Glory. **Condition:** at least 100 Gold.
 
-## What the screen says
+## Entry options
 
-"I predicted you'd enter...!"
+| Option | Exact outcome |
+|---|---|
+| **[Uncover Future]** | Pay 51–99 Gold; receive 3 Divinations. |
+| **[Payment Plan]** | Gain **Debt** (curse); receive 6 Divinations. Debt is unplayable and loses 10 Gold at end of turn while in Hand. |
 
-A raspy voice calls out as you enter a mystic hut.
+Both options lead to the same minigame: an 11×11 unrevealed grid. A Small
+Divination reveals 1 tile and a Big Divination reveals a 3×3 area; either uses
+one Divination. Rewards are presented at the end and can be chosen in any order
+or skipped, except **Doubt**, which is added immediately when uncovered.
 
-"Your destiny has brought you here. We must uncover your future and fortunes
-so you can SAVE US ALL!!"
+## Hidden reward sizes [wiki-driven]
 
-"Okay, here are the options for the Crystal Sphere reading. Be sure to sign
-this waiver as well," she says while bringing out pen and parchment.
+| Reward | Footprint |
+|---|---|
+| 1 Relic | 4×4 |
+| 2 Common Potions | 1×3 |
+| 1 Rare Potion | 2×2 |
+| Common, Uncommon, or Rare card reward | 2×2 each |
+| Doubt | 2×2 |
+| 5 small Gold piles (10 Gold each) | 1×1 each |
+| 2 big Gold piles (30 Gold each) | 2×1 each |
 
-## Options — page `INITIAL`
+The relic footprint is 4×4 even though its box is drawn at an angle, so it
+cannot be fully uncovered with only 3 Divinations. The wiki lists no separate
+event ascension variant. Compare the Gold/curse cost and the available
+divinations with current state.
 
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Uncover Future]** | Lose 50 Gold (lose gold equal to UncoverFutureCost = 50 + random(1..50)); other (play CrystalSphere minigame with 3 prophesize reveals (reveals/manipulates upcoming card rewards)) — screen text: "Pay 50 **Gold**. Divine 3 times." | FINISH |
-| **[Payment Plan]** | Add **Debt** (add Debt curse to deck); other (play CrystalSphere minigame with 6 reveals) — screen text: "Gain a ?. Divine 6 times." | FINISH |
-
-## Options — page `FINISH`
-
-I'm done pondering
-
-This page presents no standard options.
-
-## Options — page `UNCOVER_FUTURE`
-
-Uncover Future
-
-This page presents no standard options. en.json page for the UNCOVER_FUTURE flavor/minigame; code sends both options to FINISH after the minigame
-
-## Options — page `PAYMENT_PLAN`
-
-Payment Plan
-
-This page presents no standard options. en.json page for the PAYMENT_PLAN flavor/minigame; code sends both options to FINISH after the minigame
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Crystal_Sphere

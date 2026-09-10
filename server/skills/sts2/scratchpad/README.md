@@ -4,17 +4,15 @@
 the room and **never inherited across seeds**: every run is a different map,
 different offers and different rolls, so nothing here is read by a later room.
 
-The run's own account of itself is **not** in this directory. It is written to
-`skills/sts2/scratchpad.md`, one level up — the encounter reports as fights
-close, the incidents as they pause the run, and the team's reflection when the
-run ends. That file is for a human to read afterwards.
+`skills/sts2/scratchpad.md`, one level up, is reserved for proposed factual
+corrections for human review. It is not retrieved or copied into later rooms.
+No encounter diary, run verdict, or advice for the next seed belongs there.
 
 ## What is in here
 
 | File | What it holds | Lifecycle |
 |---|---|---|
 | `facts.json` | Snapshot of the game state the last decision was made against. | Overwritten each decision. |
-| `run.md` | The strategy hypothesis and the last verified result. | Rewritten each decision. |
 | `events.jsonl` | Observations, attempted inputs, verified actions, errors, token usage. | Appended each decision. |
 | `metrics.json` | Decisions, wall time, verified plays, execution overhead, the agent roster. | Updated each decision. |
 | `objectives.json` | The objective ladder: what the curriculum opened, how the critic settled it. | Updated on settlement. |
@@ -42,3 +40,5 @@ and a human decides whether it joins the library:
 `controls/CONTROLS.md` is the file kept current by hand against this build. It
 is the one an agent should reach for first when the interface, rather than the
 game, is the obstacle.
+
+No narrative run diaries or end-of-run strategic reflections are generated. Structured checkpoints and incident evidence stay with this run; they are never inherited as game knowledge.

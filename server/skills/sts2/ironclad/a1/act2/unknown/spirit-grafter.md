@@ -1,51 +1,26 @@
 ---
-description: Spirit Grafter — Act 2. Exact outcomes for every option, with the trade-offs left open.
+description: Spirit Grafter — exact wiki outcomes and Metamorphosis effect.
 character: ironclad
 act: 2
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, spirit grafter, act 2]
-sources: [slaythespire2.net]
+keys: [spirit grafter, event, act2, hive, heal, remove, metamorphosis]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Spirit Grafter
 
-**Pool:** Act 2  
-**Pages:** 3
+**Biome:** Hive only.
 
-## What the screen says
+## Options
 
-Above, a cocoon is shaking and wriggling, about to burst forth!
+| Option | Exact outcome |
+|---|---|
+| **[Let It In]** | Heal 25 HP; add **Metamorphosis**. It is a 2-energy Event Skill that adds 3 random Attacks (5 when upgraded) to the Draw Pile; they are free this combat, and the card Exhausts. |
+| **[Rejection]** | Lose 9 HP; remove 1 card from your Deck. |
 
-...it stops wriggling. The cocoon ignites! What is going on?
+No additional condition or event-specific ascension variant is listed. The
+parenthesized value is the upgraded-card value. Compare the current-HP heal or
+loss with the deck change.
 
-In a flash of light and flame, a Spirit Grafter rushes into you, threatening
-to merge with your being to become complete.
-
-## Options — page `INITIAL`
-
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Let It In]** | Heal 25 HP; Add **Metamorphosis** (adds Metamorphosis to the deck) — screen text: "Heal 25 HP. Add **Metamorphosis** to your **Deck**." | LET_IT_IN |
-| **[Rejection]** | Upgrade chosen card; Lose 10 HP — screen text: "Lose 10 HP. **Upgrade** a card." | REJECTION |
-
-## Options — page `LET_IT_IN`
-
-The Spirit Grafter merges with you. The vital kindred spirit swiftly heals you
-up.  You are reborn.
-
-This page presents no standard options.
-
-## Options — page `REJECTION`
-
-The Spirit Grafter is easily stopped by your will.  However, it repeatedly
-flies into you, desperate for a host. Its strength runs out and it dissolves
-with a poof.  A fleeting spirit.
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Spirit_Grafter

@@ -727,7 +727,7 @@ export class Room extends EventEmitter {
       throw error;
     }
     const t = this.setup.task;
-    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. Play efficiently to win. Target verified Act 1 completion within one hour of the first fresh Neow decision; continue if over time. Use the strategy guide and keep supplementary learning brief. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
+    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. Use live state, the strategy guide and source-linked factual notes to make adaptive decisions. Keep learning proposals reusable and brief; do not write a run diary. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
     this.setStage('playing', `${t.character} · Ascension ${t.ascension}`);
     if (!resume) agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
     else this.setDetail('learning player reloaded; awaiting explicit supervisor resume');
@@ -967,6 +967,7 @@ export class Room extends EventEmitter {
     if (this.playerRestarting || this.stage !== 'playing' || this.agent?.status !== 'idle' || this.finish) throw new Error('learning player must be idle in an unfinished playing room');
     const response = await this.agent.send({ type: 'resume', issueId, message });
     if (response.success === false) throw new Error(response.error || 'resume rejected');
+    this.agent._push({ kind: 'user', agent: 'room', from: 'supervisor review', text: message });
     return { ok: true };
   }
 

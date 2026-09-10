@@ -1,65 +1,45 @@
 ---
-title: Map Navigation
-description: >-
-  Map location types, pathing strategy for Ironclad at Ascension 1, and decision framework.
+title: Map navigation
+description: Source-linked map location facts and a live-state route comparison worksheet for Ironclad.
 character: Ironclad
 act: any
-tags: [map, pathing, route-planning]
+tags: [map, pathing, route planning, locations]
 topic: map
+sources:
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Map_Locations
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension
 ---
 
-# Map Navigation — Ironclad Strategy Guide
+# Map navigation
 
+The [STS2 Map Locations page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Map_Locations)
+describes the map icons, location rules and encounter pools. The live `map`
+object is authoritative for the current graph, reachable options and boss.
 
-## Location Types (Sourced)
+## Location facts
 
-Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028)
+| Location | Wiki-described contents |
+|---|---|
+| Monster | A normal combat. The page states that the first three Act 1 encounters, and the first two in Acts 2 and 3, use the easy pool; later monster encounters use the hard pool. A completed normal combat gives 10–20 Gold (8–15 at the Poverty modifier), a choice of 3 cards and sometimes a Potion. |
+| Elite | An Elite combat. A completed Elite gives 35–45 Gold (26–34 with Poverty), sometimes a Potion, a choice of 3 cards with higher rare/uncommon odds, and a random Relic. |
+| Rest Site | A Rest Site. The [Rest Sites page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Rest_Sites) describes Rest, Smith and relic-enabled options. |
+| Unknown | An Unknown can become an Event, Monster, Merchant or Treasure Room. The wiki says an encounter type that has not appeared becomes more likely in later Unknown rooms. |
+| Treasure Room | A Treasure Room contains a chest and its relic/gold reward as described by the live room and the [Map Locations page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Map_Locations). |
+| Merchant | The Merchant's stock and removal are described on [The Merchant page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:The_Merchant). |
+| Boss | A Boss combat. The page states that there is always a Rest Site before the Boss regardless of route; Act 1/2 boss rewards include 100 Gold (75 with Poverty), a choice of 3 Rare cards and sometimes a random Potion. |
+| Ancient | An Ancient encounter between acts; read the live options and the [Ancients page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ancients). |
 
-| Icon | Type | Reward |
-|---|---|---|
-| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Monster.png/42px-StS2_Map-Monster.png) | **Monster** (Normal) | 10-20 Gold (**8-15** at A3+), 3 card choices, sometimes a Potion |
-| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Elite.png/42px-StS2_Map-Elite.png) | **Elite** | Random Relic, 35-45 Gold (26-34 at A3+), higher rare card odds, sometimes a Potion |
-| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-RestSite.png/42px-StS2_Map-RestSite.png) | **Rest Site** | Heal 30% max HP, Smith (upgrade a card), or relic-granted options |
-| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Event.png/42px-StS2_Map-Event.png) | **Unknown (?)** | Event, Monster, Merchant, or Treasure Room (weighted random, guaranteed pity system) |
-| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Treasure.png/42px-StS2_Map-Treasure.png) | **Treasure Room** | Chest with 1 Relic + 42-53 Gold (32-40 at A3+). Guaranteed at act midpoint. |
-| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Merchant.png/42px-StS2_Map-Merchant.png) | **Merchant** | Shop: 5 character cards, 2 Colorless cards, 3 Relics, 3 Potions, 1 card removal |
-| ![](https://slaythespire.wiki.gg/images/thumb/StS2_Map-Boss.png/42px-StS2_Map-Boss.png) | **Boss** | 3 Rare card choices, 100 Gold (75 at A3+), sometimes a Potion. Always has a Rest Site before it. |
+The `Poverty` values and other difficulty changes are defined on [Ascension](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension).
+The source does not replace the run's observed reward.
 
-## What the act puts in front of you
+## Route comparison
 
-### Act 1 (Ascension 1)
+`map.next_options` is the set of nodes reachable from the current location;
+`map.nodes` is the known graph and `map.boss` is the act's boss. `map.current_position`
+is a visited location, not a cursor. Compare each reachable route using the
+current HP, deck, potions, relics, available rest and the encounter types shown
+by the graph. A route choice is a risk/reward calculation; no location has a
+fixed value across seeds.
 
-- A1's modifier is **Swarming Elites** — roughly 60% more elites spawn, which is
-  where the 5 → 8 elite-node figure comes from.
-- Burning Blood heals 6 HP after every combat, so normal fights are not a
-  straight HP loss for the Ironclad the way they are for other characters.
-- The same elite can appear several times in an act, but **never twice in a row**.
-- The first three monster encounters of Act 1 come from an "easy pool"; every
-  later monster fight is drawn from the harder pool. The step up after floor 3
-  is a real difficulty jump, not variance.
-- The treasure chest sits at the act midpoint and its relic is guaranteed.
-- A Rest Site always precedes the boss.
-
-### Act 2
-
-- Enemy damage scales up; the same route costs more HP than it does in Act 1.
-- Elites continue to be the main source of relics.
-- The event pool widens considerably, in both directions.
-- The Merchant is the only reliable card removal.
-
-### Act 3
-
-- At A10 and above there are two bosses, and only one Rest Site before them.
-
-## Unknown rooms
-
-Source: slaythespire.wiki.gg — unknown rooms have weighted spawns. Each missed encounter type increases its next spawn chance.
-
-A `?` node can resolve to an Event, a Merchant, a Treasure or a Monster. The
-weighting shifts as an act goes on: each type that has not yet appeared becomes
-more likely next time.
-
-## Source Attribution
-
-- Map location types and rules from slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028).
-- A1 elite count (5 -> 8) from slaythespire2.net Ascension table (beta v0.111.0).
+Do not treat an Unknown as a known event before the room resolves. Do not infer
+a future enemy, card offer, event outcome or random reward from the map.

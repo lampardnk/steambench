@@ -1,286 +1,298 @@
 ---
-description: Act 1 Underdocks normal encounters — verified mob HP, intents, damage scaling, and Ironclad tactics. All stats sourced from slaythespire2.net beta.
+description: Act 1 Underdocks normal encounters — wiki fact reference for every published enemy, move, effect, and encounter grouping.
 character: ironclad
 act: 1
 category: normal
 ascension: a1
-keys: [ironclad, act1, normal, underdocks, living fog, calcified cultist, damp cultist, seapunk, corpse slug, gremlin merc, fossil stalker, haunted ship, punch construct, sewer clam, two-tailed rat, gas bomb, toadpole, sludge spinner, fat gremlin, sneaky gremlin, thievery, suck, smoggy, minion]
-sources: [slaythespire2.net, slaythespire.wiki.gg]
+keys: [ironclad, act1, normal, underdocks, living fog, gas bomb, calcified cultist, damp cultist, seapunk, corpse slug, two-tailed rat, punch construct, haunted ship, sewer clam, gremlin merc, fat gremlin, sneaky gremlin, fossil stalker, toadpole, sludge spinner, thievery, ravenous, artifact, smoggy]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Act 1 — Underdocks normal encounters
 
-All stats verified from slaythespire2.net beta (v0.111.0, display 2026-06-18),
-then completed and corrected against slaythespire.wiki.gg, which resolved every
-effect the first source left undefined and supplied several powers it omits.
-A8 raises HP; A9 raises damage. Installed build may differ — treat in-game
-intent as authoritative when it conflicts.
+This is a source-bounded reference to the Underdocks normal pool. HP and
+damage values use the wiki's base and displayed ascension values; the live
+intent is authoritative if the installed build differs. “A8” is the wiki's
+HP value at Ascension 8 and “A9” is its damage value at Ascension 9 unless an
+entry says otherwise. “Appears with” describes a published encounter group,
+not a guarantee that every listed companion is present together.
 
-## How to read entries
+## Reading the entries
 
-- **Debuff** intents are applied TO THE PLAYER by the enemy.
-- **Buff** intents are applied TO THE ENEMY ITSELF.
-- **Attack · Buff/Debuff** combines damage with a self-buff or player-debuff.
-- "Appears with" on the wiki = possible companions across encounters, NOT a
-  guaranteed simultaneous spawn. Actual encounter composition varies.
-- Several enemies here pick moves at random rather than cycling. Where that is
-  the case the probabilities are given; read the live intent regardless.
-- Card names are examples of a property, not a shortlist. Read the pool with
-  `research https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List?color=Ironclad`.
+- Attack effects damage the player; Buff effects usually affect the enemy;
+  Debuff and Status effects usually affect the player. The target is stated
+  where a move combines effects.
+- A move marked “random” is a published selection rule. Read the current
+  `battle.enemies[].intents` for the actual roll.
+- A multi-hit value such as `3×2` means two separate damage instances. Effects
+  that trigger per hit, such as Suck or Thorns, use those instances separately.
 
-## Key monsters — verified stats and intents
+## Roster
 
-### Living Fog — 80 HP (A8+: 82)
+### Living Fog — 80 HP (A8: 82)
 
-- T1: **Advanced Gas** (Attack·Debuff) — 8 dmg (A9+: 9) + applies **Smoggy**.
-- Then alternates **Bloat** — 5 dmg (A9+: 6) + summons a Gas Bomb — and
-  **Super Gas Blast** — 8 dmg (A9+: 9).
+- Advanced Gas (Attack · Debuff) — 8 damage (A9: 9), then applies 1 Smoggy.
+- Bloat (Attack · Summon) — 5 damage (A9: 6), then summons 1 Gas Bomb.
+- Super Gas Blast (Attack) — 8 damage (A9: 9).
+- Pattern: Advanced Gas first, then Bloat and Super Gas Blast alternate.
 
-**Smoggy** (does **not** stack): "You can only play 1 Skill per turn." The
-earlier question about whether it stacks past 1 is resolved — it does not, so
-one Advanced Gas is as bad as several.
+#### Notes/Interactions [wiki-driven]
 
-**Gas Bomb — 7 HP (A8+: 8)**, power **Minion**: "Minions abandon combat without
-their leader." Its only move is **Explode** — 8 dmg (A9+: 9), then it dies.
+- Source: [Slay the Spire 2: Living Fog](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Living_Fog).
+- Smoggy does not stack and limits the player to 1 Skill per turn.
+- Gas Bomb is a Minion summoned by Bloat. [Gas Bomb](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Gas_Bomb)
+  has 7 HP (A8: 8), uses Explode for 8 damage (A9: 9), then dies. Minions
+  abandon combat without their leader.
+- Effect references: [Smoggy](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Smoggy)
+  and [Minion](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Minion).
 
-**Tactics**: Smoggy caps you at one Skill per turn but leaves Attacks and Powers
-untouched, which suits an attack-heavy Ironclad better than most. Potions are not
-cards either, so a Block Potion covers the defensive turn Smoggy denied you. Each Gas Bomb
-is 8 damage on a 7 HP body — cheap to pop before it detonates, but the Minion
-power means killing Living Fog itself removes every bomb at once. That makes
-focusing the Fog strictly better than clearing bombs, provided you can survive
-the ones already primed. [Damage from slaythespire2.net; Smoggy's stacking, Gas
-Bomb HP and the Minion rule from wiki.gg]
+### Calcified Cultist — 38–41 HP (A8: 39–42)
 
-### Calcified Cultist — 38–41 HP (A8+: 39–42)
-Possible companions (wiki "Appears with"): Damp Cultist, Seapunk.
+Appears with Damp Cultist in the Cultists encounter and with Seapunk in the
+published Underdocks group.
 
-- T1: Incantation (Buff) — Ritual +2 (self). "Ritual — Gain Strength at the
-  end of your turn." So the cultist gains +2 Strength at end of each turn.
-- T2: Dark Strike (Attack) — 9 dmg (A9+: 11). Then keeps using Dark Strike
-  every turn.
+- Incantation (Buff) — gains 2 Ritual.
+- Dark Strike (Attack) — 9 damage (A9: 11), every turn after Incantation.
+- Pattern: Incantation, then Dark Strike repeatedly.
 
-**Ritual skips its first end-of-turn trigger when an enemy applies it**, so the
-Strength arrives one turn later than it looks: T1 Incantation (no gain), T2 Dark
-Strike = **9**, then +2 at end of T2, T3 = 11, T4 = 13, T5 = 15...
+#### Notes/Interactions [wiki-driven]
 
-**Tactics**: Ritual +2 Strength per turn makes Dark Strike scale: 11, 13, 15,
-17... Kill fast — at 38–41 HP, 2–3 attacks suffice. The Incantation turn (T1)
-deals no damage — push damage then. In the Cultists encounter (Calcified +
-Damp), kill Calcified first (lower HP, slower Ritual). [Source verified]
+- Source: [Slay the Spire 2: Cultists](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Calcified_Cultist)
+  (the Calcified and Damp subsections share this page).
+- The wiki records that the Cultists do not gain Strength on the turn they use
+  Incantation; Ritual's later end-of-turn gain begins after that opening move.
+- Effect reference: [Ritual](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ritual).
 
-### Damp Cultist — 51–53 HP (A8+: 52–54)
-Possible companions: Calcified Cultist.
+### Damp Cultist — 51–53 HP (A8: 52–54)
 
-- T1: Incantation (Buff) — Ritual +5 (A9+: +6) (self). Gains +5 Strength at
-  end of each turn.
-- T2: Dark Strike (Attack) — 1 dmg (A9+: 3). Then keeps using Dark Strike
-  every turn.
+Appears with Calcified Cultist.
 
-Same one-turn delay from Ritual: T1 Incantation (no gain), T2 Dark Strike = **1**,
-then +5 at end of T2, T3 = 6, T4 = 11, T5 = 16, T6 = 21... The opening two turns
-are nearly free, and the fight becomes lethal fast after that.
+- Incantation (Buff) — gains 5 Ritual (A9: 6).
+- Dark Strike (Attack) — 1 damage (A9: 3), every turn after Incantation.
+- Pattern: Incantation, then Dark Strike repeatedly.
 
-**Tactics**: Ritual +5 is much faster than Calcified's +2. Dark Strike starts
-at 1 but snowballs hard: 6, 11, 16, 21... Higher HP (51–53) than Calcified,
-so it takes longer to kill. In the Cultists encounter, kill Calcified first
-(quick kill, stops one scaler), then focus Damp before its Dark Strike becomes
-lethal (T4+: 16+ dmg). [Source verified]
+#### Notes/Interactions [wiki-driven]
 
-### Seapunk — 44–46 HP (A8+: 47–49)
-Possible companions: Calcified Cultist.
+- Source: [Slay the Spire 2: Cultists](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Damp_Cultist).
+- Both Cultists skip their first Ritual gain on the Incantation turn; later
+  Dark Strikes use the Strength accumulated at the end of earlier turns.
+- Effect reference: [Ritual](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ritual).
 
-- T1: Sea Kick (Attack) — 11 dmg (A9+: 13)
-- T2: Spinning Kick (Attack) — 2×4 = 8 dmg (no A9 scaling listed)
-- T3: Bubble Burp (Buff·Defend) — 7 block (A9+: 8) + Strength +1 (A9+: +2)
-  (self). No damage to player.
-- Loops to Sea Kick.
+### Seapunk — 44–46 HP (A8: 47–49)
 
-Strength: +1 per cycle (every 3 turns). Bubble Burp's block (7) makes the
-Seapunk harder to damage on T3. Spinning Kick is multi-hit (2×4); Weak reduces
-total by 25%.
+Appears in Underdocks normal groups, including a group with Calcified Cultist.
 
-**Tactics**: Sea Kick (11/13) is the big hit — block for it. Bubble Burp
-turns (T3) deal no damage — push damage then. Strength scales slowly (+1 per
-cycle), so this is a moderate fight. In Underdocks Wildlife (Calcified +
-Seapunk), kill Calcified first (lower HP, Ritual scaling). [Source verified]
+- Sea Kick (Attack) — 11 damage (A9: 13).
+- Spinning Kick (Attack) — 2×4 damage.
+- Bubble Burp (Buff) — gains 7 Block (A9: 8) and 1 Strength (A9: 2).
+- Pattern: Sea Kick, Spinning Kick, Bubble Burp, then repeat.
 
-### Corpse Slug — 25–27 HP (A8+: 27–29)
-No companions listed — appears as swarm (3× in encounter).
+#### Notes/Interactions [wiki-driven]
 
-- T1: Whip Slap (Attack) — 3×2 = 6 dmg (no A9 scaling listed)
-- T2: Glomp (Attack) — 8 dmg (A9+: 9)
-- T3: Goop (Debuff) — Frail +2 TO PLAYER. No damage.
-- Loops to Whip Slap.
+- Source: [Slay the Spire 2: Seapunk](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Seapunk).
+- Bubble Burp's Strength carries into later attacks. Its fixed cycle is why
+  later Sea Kick and Spinning Kick values can exceed their base move values.
 
-Frail: you gain 25% less Block from cards. Applied to YOU.
+### Corpse Slug — 25–27 HP (A8: 27–29)
 
-**Tactics**: Very low HP (25–27) — any single attack kills one. Don't block;
-just kill. Whirlwind or any AoE clears multiple. Goop (T3) applies Frail but
-deals no damage — if the fight reaches T3, your block is weakened. Burning
-Blood heals 6 HP post-combat, covering incidental damage. [Source verified]
+Two or three Corpse Slugs appear together, each starting at a different point
+of the same cycle.
 
-### Two-Tailed Rat — 17–21 HP (A8+: 18–22)
-No companions listed — appears as swarm (3× in encounter).
+- Whip Slap (Attack) — 3×2 damage.
+- Glomp (Attack) — 8 damage (A9: 9).
+- Goop (Debuff) — applies 2 Frail to the player.
+- Pattern: Whip Slap, Glomp, Goop, then repeat.
+- Starts with Ravenous 4 (A9: 5): when an enemy dies, it immediately eats it,
+  becomes Stunned, and gains the listed Strength.
 
-Every turn: Random — 25% each:
-- Scratch (Attack) — 8 dmg (A9+: 9)
-- Disease Bite (Attack) — 6 dmg (A9+: 7)
-- Screech (Debuff) — Frail +1 TO PLAYER. No damage.
-- Call for Backup (Summon) — summons another Two-Tailed Rat.
+#### Notes/Interactions [wiki-driven]
 
-**Tactics**: Very low HP (17–21) — any attack kills one. Kill fast to prevent
-Call for Backup from swelling the swarm. Don't block. Whirlwind or Explosive
-Ampoule clears all three. [Source verified]
+- Source: [Slay the Spire 2: Corpse Slug](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Corpse_Slug).
+- The wiki specifies that the individual slugs are staggered, so their moves
+  are not synchronized even though their cycles match.
+- Effect references: [Ravenous](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ravenous)
+  and [Frail](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Frail).
 
-### Punch Construct — 55 HP (A8+: 60)
-Act 1 Underdocks, Act 3 Glory. Possible companion: Cubex Construct (Act 3).
+### Two-Tailed Rat — 17–21 HP (A8: 18–22)
 
-- T1: Ready (Defend) — 10 block (self). No damage.
-- T2: Fast Punch (Attack·Debuff) — 5×2 = 10 dmg (A9+: 6×2 = 12) + Frail +1
-  TO PLAYER.
-- T3: Strong Punch (Attack) — 14 dmg (A9+: 16)
-- Loops to Ready (T1).
+Three appear together.
 
-Frail: you gain 25% less Block from cards. Applied on T2.
+- Scratch (Attack) — 8 damage (A9: 9).
+- Disease Bite (Attack) — 6 damage (A9: 7).
+- Screech (Debuff) — applies 1 Frail to the player.
+- Call for Backup (Summon) — summons a new Two-Tailed Rat.
+- Opening: one rat starts on Scratch, one on Disease Bite, and one on
+  Screech. Later turns choose Scratch, Disease Bite, or Screech at random and
+  cannot repeat the same move.
+- After at least two turns, a rat may use Call for Backup. Each rat can call
+  at most once and the group can summon at most three times.
 
-**Tactics**: Ready (T1) gives 10 block — don't waste attacks into it; use T1
-for setup (Inflame, Shrug). Fast Punch applies Frail before the Strong Punch
-hit — your block for T3 will be 25% less effective. Strong Punch (14/16) is
-the big hit. Kill by T3 or block hard (accounting for Frail reduction).
-[Source verified]
+#### Notes/Interactions [wiki-driven]
 
-### Haunted Ship — 63 HP (A8+: 67)
-No companions listed — solo encounter.
+- Source: [Slay the Spire 2: Two-Tailed Rat](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Two-Tailed_Rat).
+- The opening offsets and the delayed, capped summon rule are part of the
+  encounter definition; a four-way random move on turn one is inaccurate.
 
-- T1: Haunt (Debuff·Status) — Weak +3 TO PLAYER + 5 Dazed into your draw
-  pile. No damage.
-- T2: Swipe (Attack) — 13 dmg (A9+: 14)
-- T3: Stomp (Attack) — 4×3 = 12 dmg (A9+: 5×3 = 15)
-- Loops to Swipe (T2).
+### Punch Construct — 55 HP (A8: 60)
 
-Weak: you deal 25% less damage with Attacks. Applied to YOU.
-Dazed: 5 Dazed (unplayable) status cards clog your draw pile, reducing good
-card draw rate.
+Appears in Underdocks and Glory, and starts with 1 Artifact.
 
-**Tactics**: Haunt (T1) deals no damage but weakens you and clogs your deck.
-The Dazed cards dilute your draws for several turns. Swipe (13/14) is the
-moderate hit; Stomp (4×3 = 12/15) is multi-hit. Weak reduces your damage
-output by 25% — prioritize Strength (Inflame) to overcome it. Don't waste
-big attacks on T1 (no damage, just debuff). [Source verified]
+- READY (Block) — gains 10 Block.
+- Fast Punch (Attack · Debuff) — 5×2 damage (A9: 6×2), then applies 1 Frail
+  to the player.
+- Strong Punch (Attack) — 14 damage (A9: 16).
+- Pattern: READY, Fast Punch, Strong Punch, then repeat.
 
-### Sewer Clam — 56 HP (A8+: 58)
-No companions listed — solo encounter.
+#### Notes/Interactions [wiki-driven]
 
-- T1: Jet (Attack) — 10 dmg (A9+: 11)
-- T2: Pressurize (Buff) — Strength +4 (self). No damage.
-- Loops to Jet (T1).
+- Source: [Slay the Spire 2: Punch Construct](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Punch_Construct).
+- Artifact starts at 1 and negates the next debuff applied to the construct.
+  The wiki's update history records the current Fast Punch → Strong Punch
+  order and Frail application.
+- Effect reference: [Artifact](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Artifact).
 
-Strength: +4 per cycle. Jet scales: T1 = 10, T3 = 10+4 = 14, T5 = 10+8 = 18,
-T7 = 10+12 = 22...
+### Haunted Ship — 63 HP (A8: 67)
 
-**Tactics**: Pressurize (T2) deals no damage — push damage on that turn. Jet
-scales fast (+4 per cycle). Kill within 2 cycles (4 turns) before Jet reaches
-18+. Block Jet (10/14/18). [Source verified]
+- Haunt (Debuff · Status) — applies 3 Weak to the player and shuffles 5 Dazed
+  into the player's discard pile.
+- Swipe (Attack) — 13 damage (A9: 14).
+- Stomp (Attack) — 4×3 damage (A9: 5×3).
+- Pattern: Haunt, then Swipe and Stomp alternate, beginning with Swipe.
 
-### Gremlin Merc — 47–49 HP (A8+: 51–53)
+#### Notes/Interactions [wiki-driven]
 
-**It steals your gold, and it does not fight alone for long.**
+- Source: [Slay the Spire 2: Haunted Ship](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Haunted_Ship).
+- The Dazed cards are placed in the discard pile, and Weak is applied on the
+  opening Haunt. Dazed is unplayable and Ethereal.
+- Effect references: [Weak](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Weak)
+  and [Dazed](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Dazed).
 
-Powers:
-- **Thievery 20** — "Steals 20 Gold when Attacking." Every attack takes gold.
-- **Surprise** — when the Gremlin Merc dies, it summons a **Fat Gremlin** and a
-  **Sneaky Gremlin**.
+### Sewer Clam — 56 HP (A8: 58)
 
-Rotation, in fixed order: **Gimme** 7×2 = 14 (A8+: 8×2 = 16) · **Double Smash**
-6×2 = 12 (A8+: 7×2 = 14) + applies **2 Weak** · **Hehe** 8 (A8+: 9) + gains 2
-Strength · back to Gimme.
+- Starts with Plating 8 (A8: 9). Plating grants Block at the end of the
+  player's turn and loses 1 stack at the start of the player's turn.
+- Jet (Attack) — 10 damage (A9: 11).
+- Pressurize (Buff) — gains 4 Strength.
+- Pattern: Jet first, then Pressurize and Jet alternate.
 
-Note this is the **only enemy in the game whose damage scales at Ascension 8
-rather than Ascension 9**.
+#### Notes/Interactions [wiki-driven]
 
-**Sneaky Gremlin — 10–14 HP (A8+: 11–15)**: Spawned (does nothing) on its first
-turn, then **Tackle** 9 (A9+: 10) every turn.
+- Source: [Slay the Spire 2: Sewer Clam](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Sewer_Clam).
+- The wiki notes that the coral grows each time Pressurize is used; the
+  Strength remains on the Clam for later Jet attacks.
+- Effect reference: [Plating](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Plating).
 
-**Fat Gremlin — 13–17 HP (A8+: 14–18)**, power **Heist**: "When killed, returns
-all the stolen Gold." It deals no damage — it Spawns, then **Flees**, taking
-every gold piece the Merc stole with it.
+### Gremlin Merc — 47–49 HP (A8: 51–53)
 
-**Tactics**: this fight has a resource clock as well as an HP clock. Every Merc
-attack removes 20 gold, and killing the Merc does not end the fight — it starts
-the second half, where the Fat Gremlin is actively running off with your money.
-You get the gold back only by killing the Fat Gremlin before it escapes, and it
-has one free turn before it starts fleeing. Killing the Merc early limits the
-theft; killing the Fat Gremlin fast recovers it. The Sneaky Gremlin is the only
-one of the three that threatens you afterwards. [Damage from slaythespire2.net;
-Thievery, Surprise, Heist and both minions from wiki.gg]
+- Thievery 20 — steals 20 Gold whenever it attacks.
+- Surprise — on death, summons a Fat Gremlin and a Sneaky Gremlin.
+- Gimme (Attack) — 7×2 damage (A8: 8×2).
+- Double Smash (Attack · Debuff) — 6×2 damage (A8: 7×2), then applies 2 Weak.
+- Hehe (Attack · Buff) — 8 damage (A8: 9), then gains 2 Strength.
+- Pattern: Gimme, Double Smash, Hehe, then repeat.
 
-### Fossil Stalker — 51–53 HP (A8+: 54–56)
+#### Notes/Interactions [wiki-driven]
 
-**Power — Suck 3**: "Whenever it deals unblocked attack damage, it gains 3
-Strength." This is the fight. There is no scripted trigger and no second
-rotation — the file previously guessed at one. What actually happens is that
-every hit you fail to block makes every future hit larger.
+- Source: [Slay the Spire 2: Gremlin Merc](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Gremlin_Merc).
+- The wiki identifies Gremlin Merc as the only enemy whose attack damage
+  increases at Ascension 8 rather than Ascension 9.
+- Fat Gremlin and Sneaky Gremlin are summoned minions documented on the same
+  page. Fat Gremlin wakes, then Flees with the stolen Gold and deals no damage;
+  its Heist returns the stolen Gold if it is killed. Sneaky Gremlin wakes, then
+  uses Tackle for 9 damage (A9: 10) every turn.
+- Effect references: [Thievery](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Thievery),
+  [Heist](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Heist), and
+  [Minion](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Minion).
 
-- Always opens with **Latch** — 12 dmg (A9+: 14).
-- Every turn after is a flat 33/33/33 random pick between **Latch**, **Tackle**
-  — 9 dmg (A9+: 11) + applies 1 **Frail** — and **Lash** — 3×2 = 6 dmg (A9+:
-  4×2 = 8). It may repeat the same move.
+### Fat Gremlin — 13–17 HP (A8: 14–18)
 
-**Tactics**: blocking is not optional here, it is the scaling check. Let the
-opening Latch through and it is immediately +3 Strength on everything after.
-Tackle's Frail then reduces the Block you use to stop the next one, which is how
-this enemy runs away with a fight. Lash is the move that punishes accumulated
-Strength worst, since it hits twice. Block fully on the turns you can, and note
-that partial blocking still triggers Suck — only fully blocked damage does not.
-[Damage from slaythespire2.net; Suck and the random selection from wiki.gg]
+Summoned by Gremlin Merc's Surprise.
 
-### Toadpole — 21–25 HP (A8+: 22–26)
+- Spawned — wakes up and does nothing.
+- Flee — leaves combat with the stolen Gold.
+- Heist — when killed, returns all Gold stolen by Gremlin Merc.
+- It has no damaging move.
 
-Power: **Thorns** — "When hit by an attack, deal X damage back."
+#### Notes/Interactions [wiki-driven]
 
-Fixed cycle: **Whirl** 7 (A9+: 8) → **Spiken** gains **2 Thorns** → **Spike
-Spit** 3×3 = 9 (A9+: 4×3 = 12) and removes 2 Thorns from itself. In the weak
-Toadpoles encounter the front one starts on Spiken instead.
+- Source: [Slay the Spire 2: Gremlin Merc](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Gremlin_Merc),
+  which contains the Fat Gremlin subsection.
+- The wiki lists Fat Gremlin among the enemies incapable of causing damage.
+  [Heist](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Heist) defines
+  the Gold-return trigger.
 
-**Tactics**: Thorns punishes the number of times you hit it, not how hard — so
-against a Toadpole the efficient shape is the opposite of most fights here: one
-large hit rather than many small ones. It spends its own Thorns on Spike Spit,
-so the safest window to attack repeatedly is right after that move.
+### Sneaky Gremlin — 10–14 HP (A8: 11–15)
 
-### Sludge Spinner — 37–39 HP (A8+: 41–42)
+Summoned by Gremlin Merc's Surprise.
 
-Always opens with **Oil Spray** — 8 dmg (A9+: 9) + applies 1 **Weak**. After
-that it picks randomly among its three moves each turn and cannot repeat:
+- Spawned — wakes up and does nothing.
+- Tackle (Attack) — 9 damage (A9: 10), every turn after Spawned.
 
-- **Oil Spray** — 8 (9) + 1 Weak · **Slam** — 11 (12) · **Rage** — 6 (7) and
-  gains **3 Strength**.
+#### Notes/Interactions [wiki-driven]
 
-**Tactics**: it opens by cutting your damage 25%, and Rage is the only scaling
-move — at +3 Strength a turn it climbs quickly if the fight drags. The no-repeat
-rule means a Rage turn is never followed by another, so the Strength arrives at
-a predictable maximum of every other turn.
+- Source: [Slay the Spire 2: Gremlin Merc](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Gremlin_Merc),
+  which contains the Sneaky Gremlin subsection.
+- Sneaky Gremlin is a minion of Gremlin Merc and abandons combat without its
+  leader under the Minion rule.
 
-## Ironclad-relevant mechanics
+### Fossil Stalker — 51–53 HP (A8: 54–56)
 
-Facts about this biome that a plan may turn on. What to do with them is the
-encounter's call, not this file's.
+- Starts with Suck 3: each time an attack deals unblocked damage, gains 3
+  Strength.
+- Latch (Attack) — 12 damage (A9: 14).
+- Tackle (Attack · Debuff) — 9 damage (A9: 11), then applies 1 Frail.
+- Lash (Attack) — 3×2 damage (A9: 4×2).
+- Pattern: always starts with Latch. After every move, chooses Latch, Tackle,
+  or Lash with equal probability; it can repeat the same move.
 
-- Burning Blood heals 6 HP after each combat, so HP spent here is partly
-  refunded and HP spent on the last fight before a rest is not.
-- Corpse Slugs and Rats deal small, single-instance damage that the Burning
-  Blood heal roughly covers over a fight.
-- Living Fog: Smoggy carries the damage. Ironclad's Skill supply is the limit
-  on how much of it can be blocked in a turn.
-- Cultists: Calcified has the lower HP and the slower Ritual; Damp's Dark
-  Strike compounds at Ritual +5 per turn.
-- Punch Construct's first turn is a block turn that deals nothing, and its T3
-  Strong Punch lands while Frail is active.
-- Haunted Ship: Dazed dilutes the draw pile for the rest of the fight, and
-  Haunt's Weak cuts your output while it lasts.
-- Sewer Clam: Pressurize turns deal no damage, and Jet scales +4 per cycle.
-- Gremlin Merc steals 20 Gold per attack, opens with Gimme for 14, and on
-  death splits into two minions - one flees with the money, the Fat Gremlin
-  carries it back if killed.
-- Fossil Stalker gains +3 Strength for every unblocked hit.
-- Toadpole's Thorns triggers per damage instance, not per point.
+#### Notes/Interactions [wiki-driven]
+
+- Source: [Slay the Spire 2: Fossil Stalker](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Fossil_Stalker).
+- Suck is triggered by unblocked attack damage, including an unblocked part of
+  a multi-hit attack. The page explicitly gives no no-repeat restriction.
+- Effect reference: [Frail](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Frail).
+
+### Toadpole — 21–25 HP (A8: 22–26)
+
+- Thorns 2 — when hit by an Attack, deals 2 damage back (value may vary by
+  encounter data).
+- Whirl (Attack) — 7 damage (A9: 8).
+- Spiken (Buff) — gains 2 Thorns.
+- Spike Spit (Attack · Buff) — 3×3 damage (A9: 4×3), then loses 2 Thorns.
+- Pattern: Whirl, Spiken, Spike Spit, then repeat. In the Toadpoles (Weak)
+  encounter, the front Toadpole starts on Spiken.
+
+#### Notes/Interactions [wiki-driven]
+
+- Source: [Slay the Spire 2: Toadpole](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Toadpole).
+- Thorns triggers when the Toadpole is hit by an Attack; Spike Spit removes
+  its two self-gained Thorns after dealing its damage.
+- Effect reference: [Thorns](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Thorns).
+
+### Sludge Spinner — 37–39 HP (A8: 41–42)
+
+- Oil Spray (Attack · Debuff) — 8 damage (A9: 9), then applies 1 Weak.
+- Slam (Attack) — 11 damage (A9: 12).
+- Rage (Attack · Buff) — 6 damage (A9: 7), then gains 3 Strength.
+- Pattern: Oil Spray first. Each later turn randomly chooses Oil Spray, Slam,
+  or Rage, with no consecutive repeat.
+
+#### Notes/Interactions [wiki-driven]
+
+- Source: [Slay the Spire 2: Sludge Spinner](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Sludge_Spinner).
+- Rage is an attack and a Strength gain in the same move; later damage uses
+  the accumulated Strength. Oil Spray's Weak affects Attack damage from the
+  player for its duration.
+- Effect reference: [Weak](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Weak).
+
+## Neutral calculations and adaptive reading
+
+- For a multi-hit intent, calculate each hit separately before final rounding.
+  This matters for Thorns, Suck, Weak, and the eight hits in Unleash the
+  Hounds (in the Overgrowth Raider pool).
+- A Status card shuffled into the discard pile can still be drawn after the
+  deck reshuffles; the exact card text controls whether it is playable,
+  Ethereal, or unplayable.
+- The source pages may include beta content. When a page, the installed build,
+  and a generated encounter disagree, record the disagreement and prefer the
+  live intent for the current room.

@@ -77,7 +77,7 @@ export function reachable(state) {
   const parts = [bound.length ? `bound buttons: ${bound.slice(0, 8).join(', ')}` : '', gates.length ? `screen reports ${gates.join(', ')}` : ''].filter(Boolean);
   return parts.length ? `; ${parts.join('; ')}` : '';
 }
-import { indexNotes } from './retrieval.mjs';
+import { indexNotes, MAX_NOTE_IN_CONTEXT } from './retrieval.mjs';
 
 // Reversible ways out of something that is holding focus, cheapest first.
 const ESCAPES = ['b', 'x', 'left'];
@@ -85,7 +85,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DIRECTIONS, isCardPlay, isCombat, leftMap, noteProblem, planIdentity, progressId, ready, settleAnimation, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
 
-export const MAX_NOTE = 16000;
+export const MAX_NOTE = MAX_NOTE_IN_CONTEXT;
 
 /** Files under learned/ outlive the room, so the player can see what it already wrote. */
 export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item => item.path).sort(); }
@@ -101,14 +101,13 @@ const MAX_RESCENES = 12;
 const QUIESCE_MS = 150;
 const QUIESCE_READS = 10;
 
-// Every note the player writes lands here as a proposal, in the room's skill
-// copy, so it rides the end-of-room commit into the library's history where a
-// human can read it. Nothing under this file is ever retrieved or inherited.
+// Factual correction proposals are kept for human review. They are neither
+// retrieved as knowledge nor copied into a later room.
 export const SCRATCHPAD_NOTE = 'scratchpad.md';
-export const REFLECTION_HEADER = ['# Run reflection', '',
-  'What this run learned, written as it happened and closed with the team\'s own',
-  'reflection. NOT part of the library: nothing here is retrieved, inherited or',
-  'trusted by a later room. A human reads it and decides what is worth keeping.', '', '---', ''].join('\n');
+export const PROPOSALS_HEADER = ['# Proposed factual corrections', '',
+  'Unreviewed, seed-invariant mechanics and interface observations only.',
+  'Not retrieved or inherited. No run diary, draft/routing verdicts, or advice',
+  'for the next seed. A human verifies sources before curating library notes.', '', '---', ''].join('\n');
 
 export class Executor {
   constructor({ call, record = () => {}, signal, skillDir = null }) {
@@ -139,7 +138,7 @@ export class Executor {
       const file = path.join(path.resolve(this.skillDir), SCRATCHPAD_NOTE);
       const entry = [`## ${action.path}`, '', `- proposed: ${new Date().toISOString()}`, `- message: ${action.message}`, '',
         action.content.trim(), '', '---', ''].join('\n');
-      fs.appendFileSync(file, (fs.existsSync(file) ? '' : REFLECTION_HEADER) + entry);
+      fs.appendFileSync(file, (fs.existsSync(file) ? '' : PROPOSALS_HEADER) + entry);
       const response = await this.call({ op: 'skill-commit', message: action.message });
       return {
         action, verified: true, staged: SCRATCHPAD_NOTE, proposed_path: action.path,
@@ -706,7 +705,69 @@ export class Executor {
    * would deselect it. That is not knowable up front - no selected list - so it
    * is handled by watching can_confirm fall and pressing again.
    */
+  // SimpleSelect moves chosen cards out of the candidate list and renumbers
+  // the remaining cards. Resolve the original request to physical identities
+  // before pressing anything; the selected tray is a separate set of controls.
+  async chooseHandCards(action, before) {
+    const cardsIn = (value, type) => (value.ui?.elements || []).filter(item =>
+      item.type === type && item.reference?.kind === 'card' && item.visible !== false);
+    const selected = value => cardsIn(value, 'NSelectedHandCardHolder').map(item => item.reference.instance_id);
+    const available = cardsIn(before, 'NHandCardHolder');
+    const availableIds = new Set(available.map(item => item.reference.instance_id));
+    const hand = (before.player?.hand || []).filter(card => availableIds.has(card.instance_id));
+    const candidates = before.hand_select.cards || [];
+    if (hand.length !== candidates.length || available.length !== candidates.length ||
+        hand.some((card, index) => card.id !== candidates[index].id || card.name !== candidates[index].name)) {
+      throw new Error('cannot map hand-selection candidates to unique physical cards');
+    }
+    const wanted = action.cards.map(index => {
+      const offset = candidates.findIndex(card => card.index === index);
+      if (offset < 0) throw new Error(`no card at index ${index}`);
+      return hand[offset].instance_id;
+    });
+    if (new Set(wanted).size !== wanted.length) throw new Error('hand-selection identities are not unique');
+    let state = before;
+    const toggle = async (identity, selecting) => {
+      const type = selecting ? 'NHandCardHolder' : 'NSelectedHandCardHolder';
+      const matches = cardsIn(state, type).filter(item => item.reference.instance_id === identity);
+      if (matches.length !== 1) throw new Error('intended selection card is missing or ambiguous');
+      const target = matches[0];
+      if (state.ui?.focused_element !== target.id) {
+        state = await this.navigateElement({ type: 'navigate', target: target.id, scene: state.ui?.scene_id }, state);
+      }
+      const focused = (state.ui?.elements || []).find(item => item.id === state.ui?.focused_element);
+      if (focused?.reference?.instance_id !== identity || focused.type !== type) {
+        throw new Error('could not verify focus on the intended selection card');
+      }
+      await this.button('a');
+      for (let attempt = 0; attempt < 10; attempt++) {
+        state = await this.observe();
+        if (!state.hand_select) throw new Error('hand-selection screen closed before confirmation');
+        if (selected(state).includes(identity) === selecting) return;
+        await this.sleep(100);
+      }
+      throw new Error('selection did not move the intended card; stopping before further input');
+    };
+    // choose.cards is the final requested selection, including on incident
+    // recovery where a previous partial attempt left cards in the tray.
+    for (const identity of selected(state)) if (!wanted.includes(identity)) await toggle(identity, false);
+    for (const identity of wanted) if (!selected(state).includes(identity)) await toggle(identity, true);
+    const actual = selected(state);
+    if (actual.length !== wanted.length || actual.some(identity => !wanted.includes(identity)) || state.hand_select.can_confirm !== true) {
+      throw new Error('hand-selection tray does not match the requested cards or cannot confirm');
+    }
+    await this.button('y');
+    state = await this.settled();
+    if (state.hand_select) throw new Error('confirming with y left the hand-selection screen open');
+    this.record({ type: 'cards_chosen', cards: action.cards, instances: wanted, confirmed: 'y' });
+    return state;
+  }
+
   async chooseCards(action, before) {
+    if (before.hand_select?.mode === 'simple_select' &&
+        (before.ui?.elements || []).some(item => ['NHandCardHolder', 'NSelectedHandCardHolder'].includes(item.type))) {
+      return this.chooseHandCards(action, before);
+    }
     const screenOf = value => value?.hand_select || value?.card_select || null;
     let state = before;
     if (!screenOf(state)) throw new Error('no card-selection screen is open');

@@ -15,6 +15,7 @@ import { execFile } from 'node:child_process';
 const RUN_STATE = new Set(['scratchpad', '.git', '.objectives']);
 // The one path a room may add to the library: notes it proposes for review.
 export const STAGED_NOTES = 'scratchpad.md';
+const TEMPLATE_PATHS = '.template-paths.json';
 const AUTHOR = 'steambench library <library@steambench.local>';
 const MAX_DIFF = 200000;
 
@@ -47,16 +48,16 @@ function listNotes(dir) {
 }
 
 /** Copy a tree, skipping per-run state and git metadata. */
-function copyKnowledge(from, to, { overwrite = true } = {}) {
+function copyKnowledge(from, to, { overwrite = true, includeProposals = true } = {}) {
   const copied = [];
   const walk = (relative) => {
     const source = path.join(from, relative);
     for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
-      if (RUN_STATE.has(entry.name) || (!relative && ['learned', 'controls', 'wiki'].includes(entry.name))) continue;
+      if (RUN_STATE.has(entry.name) || entry.name === TEMPLATE_PATHS || (!relative && ['learned', 'controls', 'wiki'].includes(entry.name))) continue;
       const next = path.join(relative, entry.name);
       const target = path.join(to, next);
       if (entry.isDirectory()) { fs.mkdirSync(target, { recursive: true }); walk(next); continue; }
-      if (!entry.isFile() || DIARY_PATH.test(next)) continue;
+      if (!entry.isFile() || DIARY_PATH.test(next) || (!includeProposals && next === STAGED_NOTES)) continue;
       if (!overwrite && fs.existsSync(target)) continue;
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.copyFileSync(path.join(from, next), target);
@@ -80,14 +81,14 @@ function copyKnowledge(from, to, { overwrite = true } = {}) {
  * what it no longer serves.
  *
  * Exempt: the room's staged proposals, migration markers and other dotfiles,
- * per-run diary notes, and the legacy `learned`/`controls`/`wiki` trees that
+ * and the legacy `learned`/`controls`/`wiki` trees that
  * `copyKnowledge` deliberately never writes - pruning those would delete notes
  * the template was never asked to provide.
  */
 const PRESERVED = new Set([STAGED_NOTES]);
 function preserved(file) {
   const [top] = file.split(path.sep);
-  return PRESERVED.has(file) || top.startsWith('.') || ['learned', 'controls', 'wiki'].includes(top) || DIARY_PATH.test(file);
+  return PRESERVED.has(file) || top.startsWith('.') || ['learned', 'controls', 'wiki'].includes(top);
 }
 
 /** Drop directories the prune emptied, deepest first, never the repository. */
@@ -130,12 +131,22 @@ export async function ensureSkill(cfg, skill, templateDir) {
   const seeded = !fs.existsSync(target);
   if (skill === 'sts2') migrateStrategy(root, skill);
   const before = new Set(listNotes(target));
+  // Only paths previously supplied by the template can become stale template
+  // files. A curated factual note outside that set must survive a refresh.
+  // Older libraries have no manifest; their first refresh retains the previous
+  // pruning behavior, then subsequent refreshes have explicit ownership.
+  let previouslyShipped = before;
+  try {
+    const saved = JSON.parse(fs.readFileSync(path.join(target, TEMPLATE_PATHS), 'utf8'));
+    if (Array.isArray(saved) && saved.every(file => typeof file === 'string')) previouslyShipped = new Set(saved);
+  } catch { }
   const copied = fs.existsSync(templateDir) ? copyKnowledge(templateDir, target) : [];
   const added = copied.filter(file => !before.has(file));
   const shipped = new Set(copied);
-  const dropped = [...before].filter(file => !shipped.has(file) && !preserved(file));
+  const dropped = [...before].filter(file => previouslyShipped.has(file) && !shipped.has(file) && !preserved(file));
   for (const file of dropped) fs.rmSync(path.join(target, file), { force: true });
   if (dropped.length) pruneEmptyDirs(target);
+  fs.writeFileSync(path.join(target, TEMPLATE_PATHS), JSON.stringify([...shipped].sort(), null, 2) + '\n');
   const message = seeded ? `Seed ${skill} from the image template`
     : `Sync ${skill} with the image template (${added.length} added, ${copied.length - added.length} refreshed, ${dropped.length} dropped)`;
   const commit = await commit_(root, message, { skill });
@@ -166,7 +177,7 @@ async function renameLegacy(root, skill) {
 export function checkoutInto(cfg, skill, targetDir) {
   const source = path.join(libraryDir(cfg), skill);
   if (!fs.existsSync(source)) throw new Error(`skill library ${skill} has not been created yet`);
-  const copied = copyKnowledge(source, targetDir);
+  const copied = copyKnowledge(source, targetDir, { includeProposals: false });
   return copied;
 }
 

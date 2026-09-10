@@ -700,3 +700,97 @@ test('a potion goes anywhere in the turn, and the runtime stops after it', () =>
     /one potion per plan/,
   );
 });
+
+// Gambling Chip removes each chosen card from the indexed candidates. Its
+// selected tray has its own holders, and focused hand cards grow/reposition.
+function handSelectionFixture({ picked = [], failNavigation = false, ignoreToggle = false } = {}) {
+  const hand = ['Neow', 'Strike', 'Pommel', 'Guilty', 'Strike'].map((name, index) => ({
+    name, id: name.toUpperCase(), instance_id: 119 - index,
+  }));
+  const selected = new Set(picked);
+  let open = true;
+  let focused = 117;
+  const presses = [];
+  const read = () => ({
+    state_type: open ? 'hand_select' : 'combat', player: { hand },
+    ...(open ? { hand_select: { mode: 'simple_select', can_confirm: true,
+      cards: hand.filter(card => !selected.has(card.instance_id)).map((card, index) => ({ ...card, index })),
+      selected_cards: [...selected].map((identity, index) => ({ index, name: hand.find(card => card.instance_id === identity).name })),
+    } } : {}),
+    ui: { scene_id: `selected-${[...selected].join('-')}`, focused_element: `holder-${focused}-${selected.has(focused)}`,
+      elements: hand.toReversed().map((card, index) => ({
+        id: `holder-${card.instance_id}-${selected.has(card.instance_id)}`,
+        type: selected.has(card.instance_id) ? 'NSelectedHandCardHolder' : 'NHandCardHolder',
+        reference: { kind: 'card', instance_id: card.instance_id },
+        visible: true, enabled: true,
+        bounds: [100 + index * 150, card.instance_id === focused ? 350 : 700, 600, 700],
+      })),
+    },
+  });
+  const executor = Object.create(Executor.prototype);
+  executor.navigateElement = async action => {
+    if (failNavigation) throw new Error('fixture navigation failed');
+    focused = read().ui.elements.find(item => item.id === action.target).reference.instance_id;
+    return read();
+  };
+  executor.button = async button => {
+    presses.push([button, focused]);
+    if (button === 'a' && !ignoreToggle) selected.has(focused) ? selected.delete(focused) : selected.add(focused);
+    if (button === 'y') open = false;
+  };
+  executor.observe = executor.settled = async () => read();
+  executor.sleep = async () => {};
+  executor.record = () => {};
+  return { executor, read, selected, presses };
+}
+
+test('hand selection keeps original physical cards as candidates shrink and duplicate Strikes move', async () => {
+  const f = handSelectionFixture();
+  const after = await f.executor.chooseCards({ cards: [0, 1, 3, 4] }, f.read());
+  assert.equal(after.hand_select, undefined);
+  assert.deepEqual([...f.selected].sort(), [115, 116, 118, 119]);
+  assert.deepEqual(f.presses.filter(([button]) => button === 'a').map(([, identity]) => identity), [119, 118, 116, 115]);
+  assert.equal(f.presses.at(-1)[0], 'y');
+});
+
+test('hand selection replaces the partial tray after an incident using current candidate indices', async () => {
+  const f = handSelectionFixture({ picked: [118] });
+  await f.executor.chooseCards({ cards: [0, 2, 3] }, f.read());
+  assert.deepEqual([...f.selected].sort(), [115, 116, 119]);
+  assert.deepEqual(f.presses[0], ['a', 118], 'clear previous selected Strike by identity');
+});
+
+test('choosing no hand cards clears the partial tray then confirms', async () => {
+  const f = handSelectionFixture({ picked: [118] });
+  await f.executor.chooseCards({ cards: [] }, f.read());
+  assert.equal(f.selected.size, 0);
+  assert.deepEqual(f.presses.map(([button]) => button), ['a', 'y']);
+});
+
+test('selection navigation failure never falls through to pressing the wrong card', async () => {
+  const f = handSelectionFixture({ failNavigation: true });
+  await assert.rejects(() => f.executor.chooseCards({ cards: [0] }, f.read()), /navigation failed/);
+  assert.deepEqual(f.presses, []);
+});
+
+test('selection without an observed tray change stops without retrying the toggle or confirming', async () => {
+  const f = handSelectionFixture({ ignoreToggle: true });
+  await assert.rejects(() => f.executor.chooseCards({ cards: [0] }, f.read()), /did not move/);
+  assert.deepEqual(f.presses.map(([button]) => button), ['a']);
+});
+
+test('ambiguous hand candidate mapping is refused before input', async () => {
+  const f = handSelectionFixture();
+  const state = f.read();
+  state.hand_select.cards.reverse();
+  await assert.rejects(() => f.executor.chooseCards({ cards: [0] }, state), /cannot map/);
+  assert.deepEqual(f.presses, []);
+});
+
+
+test('an entirely selected hand still uses tray verification when choosing no cards', async () => {
+  const f = handSelectionFixture({ picked: [115, 116, 117, 118, 119] });
+  await f.executor.chooseCards({ cards: [] }, f.read());
+  assert.equal(f.selected.size, 0);
+  assert.deepEqual(f.presses.map(([button]) => button), ['a', 'a', 'a', 'a', 'a', 'y']);
+});

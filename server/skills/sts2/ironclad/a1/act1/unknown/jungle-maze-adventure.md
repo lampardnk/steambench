@@ -1,29 +1,27 @@
 ---
-description: Jungle Maze Adventure — Overgrowth. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: Jungle Maze Adventure — exact wiki outcomes and multiplayer gate.
 character: ironclad
 act: 1
 category: unknown
 ascension: a1
-keys: [jungle maze adventure, event, unknown, act1, overgrowth, gold, hp loss]
+keys: [jungle maze adventure, event, act1, overgrowth, gold, hp, multiplayer]
 sources: [slaythespire.wiki.gg]
 ---
 
 # Jungle Maze Adventure
 
-**Pool:** Overgrowth  
-**Appears when:** no condition in singleplayer
+**Biome:** Overgrowth.
 
 ## Options
 
 | Option | Exact outcome |
 |---|---|
-| **[Solo Quest]** | Gain 135–165 Gold. Lose 18 HP. |
+| **[Solo Quest]** | Gain 135–165 Gold; lose 18 HP. |
 | **[Join Forces]** | Gain 35–65 Gold. |
 
-## What each option costs and buys
+**[wiki-driven] Multiplayer condition:** The event can appear only when every
+player has more than 18 HP. This condition does not apply in single-player.
+No event-specific ascension variant is listed. Compare the fixed HP and Gold
+changes with the current live state.
 
-- The difference is about 100 Gold for 18 HP — a worse rate than The Sunken Statue's dive, and 18 HP is a large fraction of an Act 1 pool.
-- Join Forces is free money; the only cost of taking it is the gold you did not take.
-- The extra gold only matters if a shop or a gold-gated event lies ahead on your route.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Jungle_Maze_Adventure

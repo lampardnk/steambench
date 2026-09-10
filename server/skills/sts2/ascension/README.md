@@ -1,54 +1,32 @@
 ---
-description: The A1-A10 Ascension modifiers and what each one changes, so the A3+/A6+/A8+/A9+ notation used across the guide resolves to something concrete.
+description: Ascension modifiers 1-10 for Slay the Spire 2, with the installed run's live ascension taking precedence.
 character: any
 act: any
 category: ascension
-keys: [ascension, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, difficulty, modifiers, swarming elites, poverty, inflation, tough enemies, deadly enemies, ascender's bane, double boss]
-sources: [slaythespire.wiki.gg]
+keys: [ascension, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, difficulty, modifiers, swarming elites, weary traveler, poverty, tight belt, ascender's bane, inflation, scarcity, tough enemies, deadly enemies, double boss]
+sources: [https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension]
 ---
 
 # Ascension modifiers
 
-Reserved cross-character reference: Ascension is not Ironclad-specific, so it
-sits at the skill root rather than under `ironclad/a1/`.
+This is a cross-character reference. Levels are cumulative: a run at level N
+has the modifiers at levels 1 through N. The exact installed modifier and live
+numbers outrank this table.
 
-Modifiers are **cumulative** — each level includes every level below it. The
-maximum is 10. Each character unlocks its own levels independently.
-
-| Level | Name | Effect |
+| Level | Name | Wiki-described effect |
 |---|---|---|
-| 1 | Swarming Elites | ~60% more Elites spawn |
-| 2 | Weary Traveler | Ancients heal only 80% of missing HP, **Neow included** |
-| 3 | Poverty | Enemies **and Treasure Chests** drop 25% less Gold |
-| 4 | Tight Belt | One fewer potion slot (3 → 2) |
-| 5 | Ascender's Bane | Start with Ascender's Bane — Unplayable, Ethereal, **Eternal**, so it can never be removed |
-| 6 | Inflation | Shop removal starts at 100 Gold instead of 75, and rises 50 per removal instead of 25 |
-| 7 | Scarcity | Rare and Upgraded cards appear half as often, in combat rewards **and** in the Merchant's stock |
-| 8 | Tough Enemies | All enemies have more HP |
-| 9 | Deadly Enemies | All enemies deal more damage |
-| 10 | Double Boss | Two bosses at the end of Act 3 |
+| 1 | Swarming Elites | Approximately 60% more Elites spawn. |
+| 2 | Weary Traveler | Ancients heal only 80% of missing HP, including Neow. |
+| 3 | Poverty | Enemies and Treasure Chests drop 25% less Gold. |
+| 4 | Tight Belt | Start each run with one fewer potion slot. |
+| 5 | Ascender's Bane | Start each run with Ascender's Bane. Read its live card text. |
+| 6 | Inflation | Card removal at The Merchant starts at 100 Gold instead of 75; each subsequent removal costs 50 Gold more instead of 25. |
+| 7 | Scarcity | Rare and Upgraded cards appear half as often in enemy rewards and The Merchant's stock. |
+| 8 | Tough Enemies | All Enemies have more HP. |
+| 9 | Deadly Enemies | All Enemies deal more damage. |
+| 10 | Double Boss | Fight two Bosses at the end of Act 3. |
 
-## What this means at A1, which is what this guide is written for
-
-**Only Swarming Elites applies.** Everything else on that list is off.
-
-- Enemy HP and damage in the encounter files are **base values**. The `(A8+: …)`
-  and `(A9+: …)` figures quoted throughout are there so the notes stay correct
-  if the ascension is raised — they are not your numbers.
-- Gold is at full rate, so the shop and gold-gated events are more reachable
-  than the A3+ figures suggest.
-- You have 3 potion slots, not 2.
-- You carry no Ascender's Bane, so your starting deck is clean.
-- Shop removal starts at 75 Gold and rises by 25.
-- The one thing that *is* harder: roughly 60% more elite nodes on the map than
-  at Ascension 0. That is where the "5 → 8 elites" figure in
-  `meta_strategy/map/README.md` comes from, and it is why routing around or
-  through elites is the main Act 1 decision rather than an afterthought.
-
-## Where the levels bite, if this is ever raised
-
-- **A2** removes the full Neow heal, which changes how much HP you can spend
-  early.
-- **A6** roughly doubles the lifetime cost of deck thinning.
-- **A8/A9** are the two that invalidate every damage calculation in the
-  encounter files; read the parenthesised values from that point on.
+Source: [Slay the Spire 2: Ascension](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension).
+The page is a community reference and does not establish the installed build's
+exact numeric enemy values. At Ascension 1, only Swarming Elites applies from
+this table; read the run's `ascension` field and live rewards.

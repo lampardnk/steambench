@@ -1,73 +1,73 @@
 ---
 title: Buffs
-description: >-
-  Ironclad buff sources from observed card/relic data. Strategic interactions are inference unless source-cited.
+description: Wiki-linked definitions and stack behaviour for buffs that appear in Ironclad encounters.
 character: Ironclad
 act: any
 tags: [buffs, mechanics, combat]
 topic: buffs
 sources:
-  - slaythespire2.net beta v0.111.0
-  - slaythespire.wiki.gg Keywords/Mechanics pages
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords
 ---
 
-# Buffs — Ironclad Reference
+# Buffs
 
-**Note**: Buff mechanics (stacking rules, duration, interaction) should be verified against the installed build. The guide below lists sources of known buffs for Ironclad and flags all strategic evaluations as inference.
+The [STS2 Buffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs)
+is a community glossary. It warns that the terms Intensity, Duration, Counter
+and Does not stack are wiki classifications, not labels used by the game. Read
+the live power description and amount when they differ.
 
-## Buffs from Ironclad Cards & Relics (Sourced)
+## Stack and turn behaviour
 
-Source: slaythespire2.net card/relic database (beta v0.111.0, extracted 2026-06-18)
-
-| Buff | Known Sources (sourced) | Effects from card text |
-|---|---|---|
-| **Strength** | Inflame (+2, +3 upgraded), **Demon Form (+3/turn, +4 upgraded)**, Rupture (+1 per HP loss, +2 upgraded), Brand (+1, +2 upgraded), Fight Me! (+3, enemy +1), Dominate (+1 per Vulnerable on the enemy), and relics: Ruined Helmet, Vajra, Shuriken, Girya, Brimstone, Red Skull | Intensity, **permanent for the combat**. Increases attack damage by X — per hit, so multi-hit cards gain most. |
-| **Vigor** | Akabeko relic; Prep Time; Terror Eel uses it too | Intensity, **conserved**: "Your next Attack deals X additional damage." Spent by one attack. Setup Strike is NOT Vigor — it grants **3 Strength (4 upgraded) until end of turn**, which is a different mechanic that multiplies across every hit of a multi-hit card. |
-| **Block** | Shrug It Off (8), Impervious (30, Exhaust), Blood Wall (lose 2 HP, 16), Flame Barrier (12 + Thorns), Second Wind (5 per non-Attack exhausted, 7 upgraded), Feel No Pain (3 per exhaust, 4 upgraded), Unmovable (doubles the first Block gain from a card each turn), **Colossus (4, 7 upgraded)**, Iron Wave (5 Block + 5 dmg), True Grit (7), Taunt (6), Evil Eye (8, +8 more if you exhausted a card this turn), Expect a Fight (15, +5 per Strength), Rage (3 Block per Attack played this turn), Crimson Mantle (7/turn for 1 HP), Barricade (Block is not removed at the start of your turn) | Block values per card text from slaythespire2.net. |
-| **Plating** | Stone Armor, Gorget | Read the live power description for timing and amount. Do not model it as per-hit damage reduction. |
-| **Thorns** | Bronze Scales relic (3), Flame Barrier (4, one turn) | Retaliate damage on hit. Source: slaythespire2.net relic/card data. |
-| **Intangible** | rare; Soul Fysh uses it against you | Duration: "Reduce all damage taken and HP loss to 1. Lasts for X turns." **Removed at the end of the enemy turn**, so a stack granted on the enemy's turn protects it for only one of your turns. |
-
-## Enemy Buffs — Source-Bounded Notes
-
-The wiki.gg keywords page documents buffs that exist in the game engine. Which specific enemies apply each is determined by the monster data files — consult the installed build or encounter guide files in act1/act2/act3/ for exact enemy-specific buff patterns.
-
-| Buff | Sourced mechanic (wiki.gg) |
+| Classification | Wiki meaning |
 |---|---|
-| **Strength** | Increases enemy damage per hit. Some enemies self-buff. |
-| **Thorns** | Damages attacker when hit. Prefer single large hits over multi-hit when facing. |
-| **Plating** | Read the current power description and its timing; it is not a generic per-hit damage reduction rule. |
-| **Minion** | Fatal will not trigger on kills. Minion deaths do not trigger Fatal.|
+| **Intensity** | The effect becomes stronger as stacks increase. |
+| **Duration** | Stacks represent turns; one stack is decremented at end of turn. |
+| **Counter** | An event triggers the effect and commonly removes one stack. |
+| **Does not stack** | The effect is present or absent, commonly for the combat's duration. |
+| **Permanent** | Not removed by normal passage of turns. |
+| **Conserved** | Unchanged when the turn passes, though another effect can remove or decrement it. |
+| **Decremented** | Loses one stack as the turn passes. |
+| **Removed** | Loses all stacks as the turn passes. |
+| **Consumed** | Loses its stacks when its next-turn trigger fires. |
+| **Reset** | A counter returns to its initial value at the next turn. |
 
-## Stack types — the framework that makes the rest predictable
+## Buff definitions used by the local notes
 
-Source: slaythespire.wiki.gg (Buffs / Debuffs pages). Every status behaves one of
-these ways, and knowing which tells you whether waiting a turn helps.
+| Buff | Wiki-described effect |
+|---|---|
+| **Strength** | Increases Attack damage by X. Negative applications are debuffs. |
+| **Dexterity** | Increases Block gained from cards by X. Negative applications are debuffs. |
+| **Artifact** | Negates X debuffs. |
+| **Block Next Turn** | Grants X Block at the start of the next turn; Block modifiers can affect it. |
+| **Blur** | Block is not removed at the start of the next X turns. |
+| **Draw Cards Next Turn** | Draws X additional cards at the start of the next turn. |
+| **Energy Next Turn** | Grants X additional Energy next turn. |
+| **Intangible** | Reduces damage taken and HP loss to 1 for X turns; the wiki says it is removed at the end of the enemy turn. |
+| **Plating** | Grants X Block at end of turn and loses 1 at the start of the next turn; on enemies it decreases by 1 per player per turn. |
+| **Retain Hand** | Retains the Hand for the next X turns. |
+| **Thorns** | Deals X damage back when hit by an Attack. |
+| **Vigor** | Adds X damage to the next Attack and stays until an Attack spends it. |
+| **Buffer** | Prevents the next X instances of HP loss. |
+| **Clarity** | Draws one additional card at the start of each of the next X turns. |
+| **Duplication** | The next X cards are played an extra time. |
+| **Gigantification** | The next X Attacks deal triple damage. |
+| **Regen** | Heals X HP at end of turn, then loses one Regen. |
+| **Ritual** | An enemy gains X Strength at the end of its turn. The wiki notes that an enemy-applied Ritual skips its first end-of-turn trigger. |
 
-| Stack type | Meaning | Between turns |
-|---|---|---|
-| **Intensity** | more stacks = stronger effect | usually *permanent* for the combat |
-| **Duration** | lasts as many turns as it has stacks | *decremented* by 1 at end of turn |
-| **Counter** | triggers on an event, losing a stack each time | *conserved* until spent |
-| **Does not stack** | on/off, usually from a Power card | lasts the whole combat |
+The page also defines card-created Ironclad powers such as Barricade,
+Corruption, Dark Embrace, Demon Form, Feel No Pain, Flame Barrier, Inferno,
+Juggernaut, Rage, Rupture, Self-Forming Clay, Unmovable and Vicious. Follow the
+exact [Buffs table](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs)
+for their current text; the live card and power amount remain authoritative.
 
-So Strength and Thorns never wear off, while Vulnerable, Weak and Frail always
-do — which means a debuff on you is a timer you can sometimes simply outlast,
-and Strength on an enemy is not.
+## Enemy powers
 
-**Ritual has a quirk worth knowing**: "At the end of its turn, gains X Strength"
-— but it *skips the first end-of-turn trigger when applied by an enemy*. So a
-cultist that casts Ritual on turn 1 does not gain Strength that turn; the first
-tick lands at the end of its second turn.
+Enemy-specific powers are defined in the encounter notes and the wiki's power
+table. When one is present, retrieve the matching act encounter entry and this
+glossary, then read its live amount. This file deliberately records definitions
+without telling the player which enemy to prioritize or which card to choose.
 
-## Buff Interaction Notes (Strategic Inference)
-
-- Strength + multi-hit attacks (per card text, each hit benefits from Strength).
-- Vulnerable increases damage from Attacks by 50%, not all damage sources. Paper Phrog modifies the multiplier; use its current relic text.
-- {strategic inference} Intangible interactions with multi-hit (all hits reduced to 1 regardless of count) — verify against installed build.
-
-## Source Attribution
-
-- Card/relic text from slaythespire2.net (beta v0.111.0 game data, extracted 2026-06-18).
-- Buff definitions from slaythespire.wiki.gg (Slay the Spire 2:Keywords, revision 52813; Slay the Spire 2:Buffs page).
-- **All notes labeled `{strategic inference}` are unsourced gameplay reasoning, not verified facts.**
+Useful exact references are [Buffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs),
+[Debuffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs), and
+[Keywords](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords).

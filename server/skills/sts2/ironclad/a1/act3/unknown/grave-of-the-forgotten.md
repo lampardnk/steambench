@@ -1,53 +1,26 @@
 ---
-description: Grave of the Forgotten — Act 3. Exact outcomes for every option, with the trade-offs left open.
+description: Grave of the Forgotten — exact wiki outcomes, enchantment, and gate.
 character: ironclad
 act: 3
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, grave of the forgotten, act 3]
-sources: [slaythespire2.net]
+keys: [grave of the forgotten, event, act3, glory, forgotten soul, decay, exhaust]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Grave of the Forgotten
 
-**Pool:** Act 3  
-**Pages:** 3
+**Biome:** Glory only. **Condition:** at least 1 card that can receive the
+Soul's Power enchantment.
 
-## What the screen says
+## Options
 
-There is a single grave with a roiling blue flame...
+| Option | Exact outcome |
+|---|---|
+| **[Accept the Forgotten Soul]** | Obtain **Forgotten Soul**, an Event Relic. Whenever you Exhaust a card, deal 1 damage to a random enemy. |
+| **[Confront with Truth]** | Add **Decay** (curse) to your Deck; enchant a card that Exhausts with **Soul's Power**. Soul's Power makes that card lose Exhaust. Decay is unplayable and deals 2 damage at end of turn when in your Hand. |
 
-A prideful warrior died in battle but its soul is restless. It wants to keep
-fighting, you feel it begging to journey with you.
+No event-specific ascension variant is listed. Compare the relic with the
+curse/enchantment pair using the current deck.
 
-But perhaps it's better for it to face the truth?
-
-## Options — page `INITIAL`
-
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Confront with Truth]** | Add **Decay** (add Decay curse to deck); Enchant chosen card (enchant 1 chosen deck card with SoulsPower enchantment) — screen text: "Add ? to your **Deck**. **Enchant** a card that **Exhausts** with ?." | CONFRONT |
-| **[Accept the **Forgotten Soul**]** | Obtain **a relic** — screen text: "Obtain **Forgotten Soul**." | ACCEPT |
-
-## Options — page `CONFRONT`
-
-You place your hand on the grave and whisper...  "Your fight is over..."  In
-response, the soul crashes into yours and a SOUL FIGHT ensues! Stunned by the
-countless battles you have endured, it concedes.
-
-This page presents no standard options.
-
-## Options — page `ACCEPT`
-
-You place your hand on the grave and whisper...  "Ascend with me..."  In
-response, the flames draw out from the grave and coalesce into a burning soul
-and hover around you loyally. It knows what you are, and wishes to escort you
-to your final destination.
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Grave_of_the_Forgotten

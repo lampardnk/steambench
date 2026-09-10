@@ -295,7 +295,7 @@ export function transientUpstream(message) {
 
 export function plannerGuidance(message) {
   if (OUT_OF_BUDGET.test(message || '')) {
-    return 'You ran out of budget while reasoning and sent nothing, so the scene is unchanged. There is nothing to fix in the plan - the plan never arrived, and reasoning harder is what just failed. Answer the SAME observation immediately with the line you had already settled on, and stop there: no second option weighed, no simulation of later turns, no draw you have not seen, and drop strategy and lesson from the JSON this time. A good-enough plan sent now beats a better one that never gets sent, and the next observation is where you correct anything this one gets slightly wrong.';
+    return 'The previous response ran out of budget before a plan arrived. No gameplay input was sent. Answer from the SAME observation with a concise valid plan; optional commentary may be omitted. Calculate the consequences and uncertainty relevant to this decision. If the available evidence is insufficient to act, report the issue instead of guessing.';
   }
   return 'The plan was rejected before any input was sent, so the scene is unchanged. Fix exactly what this message names and answer again from the same observation.';
 }

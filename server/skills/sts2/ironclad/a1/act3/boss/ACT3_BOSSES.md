@@ -43,7 +43,14 @@ Encountered as: Aeonglass.
 ### Queen — 400 HP (ascension: 419)
 Encountered as: Queen, Torch Head Amalgam.
 
-- Puppet Strings (Debuff) — Chains Of Binding 3 (player)
+- Puppet Strings (Debuff) — Chains of Binding 3 (player). Chains of Binding: the
+  first X cards drawn each turn are Afflicted with Bound. Bound: only 1 Bound
+  card can be played each turn, and cards are un-Bound at end of turn.
+  - After a Bound card is played, no other Bound card can be played that turn,
+    including via Sly or a Duplicator. Copies made by Music Box or Dual Wield are
+    also Bound. Transforming a Bound card in battle removes Bound from it. Bound
+    cards un-Bind at end of turn even when Retained. A Bound card played once and
+    returned to hand still cannot be played again that turn. [wiki.gg]
 - You Are Mine (Debuff) — Weak 99 (player), Frail 99 (player), Vulnerable 99 (player)
 - Burn Bright for Me (Buff · Block) — 20 block, Strength (amount not published) (self)
 - Off with Your Head (Attack) — 3×5 (A9+: 4×5) dmg

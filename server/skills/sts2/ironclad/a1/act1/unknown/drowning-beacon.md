@@ -1,33 +1,29 @@
 ---
-description: Drowning Beacon — Underdocks. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: Drowning Beacon — exact wiki outcomes and reward effects.
 character: ironclad
 act: 1
 category: unknown
 ascension: a1
-keys: [drowning beacon, event, unknown, act1, underdocks, glowwater potion, fresnel lens, max hp, block, nimble]
+keys: [drowning beacon, event, act1, underdocks, fresnel lens, glowwater]
 sources: [slaythespire.wiki.gg]
 ---
 
 # Drowning Beacon
 
-**Pool:** Underdocks  
-**Appears when:** no condition
+**Biome:** Underdocks only.
 
 ## Options
 
 | Option | Exact outcome |
 |---|---|
-| **[Bottle]** | Procure 1 **Glowwater Potion** (Exhaust your Hand. Draw 10 cards). |
-| **[Climb]** | Lose **13 Max HP**. Obtain **Fresnel Lens** (relic: whenever you add a card that gains Block to your deck, Enchant it with Nimble 2). |
+| **[Bottle]** | Procure 1 **Glowwater Potion**. It exhausts your Hand and draws 10 cards. |
+| **[Climb]** | Lose 13 Max HP; obtain **Fresnel Lens**. Whenever you add a card that gains Block to your Deck, enchant it with **Nimble 2**. |
 
-## Mechanics
+Fresnel Lens is an Event Relic for any character. The wiki marks further relic
+details as future content. No additional condition or event-specific ascension
+variant is listed.
 
-- Fresnel Lens applies only to Block cards added *after* you take it — it does not enchant the deck you already own.
+Compare the permanent Max HP loss with the potion or relic effect and follow
+the live option text if it differs.
 
-## What each option costs and buys
-
-- 13 Max HP is one of the largest permanent costs in Act 1, paid up front.
-- Fresnel Lens pays only if you keep drafting Block cards for the rest of the run, and pays nothing for the Defends you already hold — it is a bet on your future drafting, not your current deck.
-- Glowwater Potion is a single enormous draw turn, which can win one specific fight and does nothing after.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Drowning_Beacon

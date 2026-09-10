@@ -1,34 +1,32 @@
 ---
-description: Dense Vegetation — Overgrowth. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: Dense Vegetation — exact wiki outcomes, multiplayer gate, and interactions.
 character: ironclad
 act: 1
 category: unknown
 ascension: a1
-keys: [dense vegetation, event, unknown, act1, overgrowth, wriggler, rest, gold, combat event]
+keys: [dense vegetation, event, act1, overgrowth, rest, wrigglers, gold, hp]
 sources: [slaythespire.wiki.gg]
 ---
 
 # Dense Vegetation
 
-**Pool:** Overgrowth  
-**Appears when:** no condition in singleplayer
+**Biome:** Overgrowth.
 
 ## Options
 
 | Option | Exact outcome |
 |---|---|
-| **[Trudge On]** | Gain 61–99 Gold. Lose 8 HP. |
-| **[Rest]** | Heal as if at a Rest Site, then fight **4 Wrigglers**. |
+| **[Trudge On]** | Gain 61–99 Gold; lose 8 HP. |
+| **[Rest]** | Heal the HP amount used by a Rest Site, then fight 4 Wrigglers. |
 
-## Mechanics
+## Notes [wiki-driven]
 
-- The Rest counts as a genuine Rest Site rest for Dream Catcher, Regal Pillow, Stone Humidifier and Tiny Mailbox.
-- The Wriggler fight counts as a normal combat — it drops normal combat rewards and counts for effects like Prayer Wheel.
+- In multiplayer, the event can appear only when every player has more than 8 HP; this gate does not apply in single-player.
+- **[Rest]** counts as a regular Rest Site rest for Dream Catcher, Regal Pillow, Stone Humidifier, and Tiny Mailbox.
+- The 4-Wriggler fight counts as a normal combat encounter and gives normal combat rewards, including effects such as Prayer Wheel.
 
-## What each option costs and buys
+The wiki lists no event-specific ascension variant. Compare the current HP and
+the value of an extra combat with the fixed alternatives; follow live options if
+they differ.
 
-- Rest is a heal plus an extra combat's worth of rewards, paid for by fighting four enemies at whatever HP the heal leaves you.
-- Trudge On is gold now at a fixed 8 HP, with no fight and no time spent.
-- The heal resolves before the fight, so Rest is least risky when you are damaged and most risky when the extra combat is the thing that could kill you.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Dense_Vegetation

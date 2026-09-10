@@ -97,6 +97,26 @@ export default function RoomPage() {
 
   const send = (obj: object) => wsRef.current?.readyState === WebSocket.OPEN && wsRef.current.send(JSON.stringify(obj))
 
+  const reply = async (message: string) => {
+    if (!room) return false
+    setError('')
+    try {
+      if (room.attention) {
+        await api(settings, `/api/rooms/${room.id}/player/resume`, {
+          method: 'POST',
+          body: JSON.stringify({ issueId: room.attention.id, message }),
+        })
+      } else {
+        if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error('Disconnected; your message has not been sent.')
+        send({ type: 'chat', message })
+      }
+      return true
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error))
+      return false
+    }
+  }
+
   const remove = async () => {
     if (!room || !confirm('Delete this room? Its history is archived first.')) return
     await api(settings, `/api/rooms/${room.id}`, { method: 'DELETE' })
@@ -172,7 +192,7 @@ export default function RoomPage() {
                 <ChatBox
                   attention={Boolean(room.attention)}
                   disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'}
-                  onSend={(m) => send({ type: 'chat', message: m })}
+                  onSend={reply}
                 />
               </section>
 
@@ -297,17 +317,22 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
   )
 }
 
-function ChatBox({ disabled, attention, onSend }: { disabled: boolean; attention: boolean; onSend: (m: string) => void }) {
+function ChatBox({ disabled, attention, onSend }: { disabled: boolean; attention: boolean; onSend: (m: string) => Promise<boolean> }) {
   const [text, setText] = useState('')
-  const submit = () => {
-    if (!text.trim()) return
-    onSend(text.trim())
-    setText('')
+  const [sending, setSending] = useState(false)
+  const submit = async () => {
+    if (!text.trim() || disabled || sending) return
+    setSending(true)
+    try {
+      if (await onSend(text.trim())) setText('')
+    } finally {
+      setSending(false)
+    }
   }
   return (
     <div className="mt-2 flex w-full gap-2">
       <input
-        disabled={disabled}
+        disabled={disabled || sending}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
@@ -320,7 +345,7 @@ function ChatBox({ disabled, attention, onSend }: { disabled: boolean; attention
         }
         className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm disabled:opacity-50"
       />
-      <button disabled={disabled} onClick={submit} className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">
+      <button disabled={disabled || sending} onClick={submit} className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">
         {attention ? 'reply and resume' : 'send'}
       </button>
     </div>

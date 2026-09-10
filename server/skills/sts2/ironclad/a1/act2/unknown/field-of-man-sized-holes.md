@@ -1,53 +1,26 @@
 ---
-description: Field of Man-Sized Holes — Act 2. Exact outcomes for every option, with the trade-offs left open.
+description: Field of Man-Sized Holes — exact wiki outcomes, curse effects, and gate.
 character: ironclad
 act: 2
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, field of man sized holes, field of man-sized holes, act 2]
-sources: [slaythespire2.net]
+keys: [field of man sized holes, event, act2, hive, perfect fit, normality, enchant]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Field of Man-Sized Holes
 
-**Pool:** Act 2  
-**Pages:** 3
+**Biome:** Hive only. **Condition:** at least 1 card that can be enchanted with
+Perfect Fit.
 
-## What the screen says
+## Options
 
-The sudden sight of a massive field, gouged with large outlines of bodies,
-stops you in your tracks.
+| Option | Exact outcome |
+|---|---|
+| **[Enter Your Hole]** | Enchant a card with **Perfect Fit**. Whenever that card would be shuffled into your Draw Pile, place it on top instead. |
+| **[Resist]** | Remove 2 cards from your Deck; add **Normality** (curse). Normality is unplayable and prevents playing more than 3 cards that turn. |
 
-One of these outlines matches your own.
+No event-specific ascension variant is listed. Compare the enchantment with the
+two removals plus curse using current deck state.
 
-It's perfect...
-
-## Options — page `INITIAL`
-
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Resist]** | Remove chosen card; Add **Normality** (adds the Normality curse to deck) — screen text: "Remove 2 cards from your **Deck**. Add ? to your **Deck**." | RESIST |
-| **[Enter Your Hole]** | Enchant chosen card (enchant 1 chosen card with the PerfectFit enchantment) — screen text: "**Enchant** a card with ?." | ENTER_YOUR_HOLE |
-
-## Options — page `RESIST`
-
-You walk past all the holes, even the one carved perfectly in your shape...
-Why didn't I go inside? What would have happened? Have I been in that hole
-before? Who made these holes?  What is... who... where?
-
-This page presents no standard options.
-
-## Options — page `ENTER_YOUR_HOLE`
-
-It's a snug fit, but you squeeze yourself into the hole...  The further you
-go, the darker it becomes. Eventually, you see a **faint light** grow brighter
-and reveal the other side.  You step out unchanged, but now understand the
-intimate secrets of life.
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Field_of_Man-Sized_Holes
