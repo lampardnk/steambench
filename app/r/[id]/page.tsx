@@ -303,7 +303,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Player</span>
           <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs">
-            {meta?.builtinPlayer.name || 'STS2-Pi-OrcaRouter'} · {meta?.builtinPlayer.model || 'z-ai/glm-5.3-flash-free'}
+            {meta ? `${meta.builtinPlayer.name} · ${meta.builtinPlayer.model}` : 'loading player identity…'}
           </div>
         </label>
       </div>
