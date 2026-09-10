@@ -5,7 +5,7 @@ act: 3
 category: normal
 ascension: a1
 keys: [ironclad, act3, normal, axebot, cubex construct, fabricator, frog knight, globe head, owl magistrate, punch construct, scroll of biting, slimed berserker, the forgotten, the lost]
-sources: [slaythespire2.net]
+sources: [slaythespire2.net, slaythespire.wiki.gg]
 ---
 
 # Act 3 — normal encounters
@@ -27,6 +27,22 @@ guessing.
   conditions, so it tells you what to EXPECT, never what will happen.
 - No tactics are prescribed here. HP, damage and cycle are facts; what to do
   with them is the encounter's own decision.
+
+## Published page references
+
+These exact wiki pages identify the corresponding encounters. The numeric values below remain from the beta dataset and may differ from the current page; live intents take precedence.
+
+- [Axebot](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Axebot)
+- [Cubex Construct](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cubex_Construct)
+- [Fabricator](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Fabricator)
+- [Frog Knight](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Frog_Knight)
+- [Globe Head](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Globe_Head)
+- [Owl Magistrate](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Owl_Magistrate)
+- [Punch Construct](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Punch_Construct)
+- [Scroll of Biting](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Scroll_of_Biting)
+- [Slimed Berserker](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Slimed_Berserker)
+- [The Forgotten](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:The_Lost_and_Forgotten#The_Forgotten)
+- [The Lost](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:The_Lost_and_Forgotten#The_Lost)
 
 ## Roster
 

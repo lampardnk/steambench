@@ -12,8 +12,9 @@ sources:
 
 # Debuffs
 
-Definitions below paraphrase the [STS2 Debuffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs).
-The page uses the same wiki classifications as [Buffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs);
+Definitions below paraphrase the [STS2 Debuffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs#Debuffs_List).
+That page is marked under construction; its information may be wrong or incomplete.
+The page uses the same wiki classifications as [Buffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs#Attributes);
 the live status amount and description take precedence.
 
 ## Common player debuffs
@@ -23,12 +24,12 @@ the live status amount and description take precedence.
 | **Vulnerable** | Receive 50% more damage from Attacks for X turns. |
 | **Weak** | Attacks deal 25% less damage for X turns. |
 | **Frail** | Gain 25% less Block from cards for X turns. |
-| **Poison** | At the end of the player's turn, the poisoned creature loses X HP; Poison decreases by 1 after it triggers. |
+| **Poison** | At the start of its turn, the poisoned creature loses X HP; Poison decreases by 1 after it triggers. |
 | **Strength down** | Decreases Attack damage by X. |
 | **Dexterity down** | Decreases Block gained from cards by X. |
 | **Focus down** | Decreases Orb effectiveness by X; this is relevant to a cross-character reference. |
 | **Confused** | Randomizes card costs on draw from 0 to 3 for the affected player. |
-| **Shrink** | Reduces Attack damage by 30% for the stated duration or until its source is removed, as described by the live effect. |
+| **Shrink** | Attacks deal 30% less damage; the wiki lists removal when the applier dies or after 3 turns. The page's rendered row combines Duration/Does not stack and Decremented/Conserved classifications; treat the live effect as authoritative. |
 
 ## Encounter-specific debuffs and restrictions
 
@@ -39,7 +40,7 @@ Smoggy, Tangled and Waste Away. They can change card availability, Energy,
 damage, draw or timing. Read the exact live text and current amount; do not
 substitute a similarly named Slay the Spire 1 effect.
 
-The [Debuffs table](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs)
+The [Debuffs table](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs#Debuffs_List)
 also records whether a debuff is Intensity, Duration, Counter or Does not stack,
 and whether it is permanent, conserved, decremented, removed, consumed or reset.
 
@@ -47,6 +48,6 @@ and whether it is permanent, conserved, decremented, removed, consumed or reset.
 
 The [Ironclad page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ironclad)
 and [Cards List](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List)
-are the catalog for which cards can apply a debuff. Do not infer a card's
-current amount or upgrade from its name: use the live card description, then
-record a precise source if a durable note is proposed.
+are [wiki-driven] catalog facts for which cards can apply a debuff, not rankings.
+Do not infer a card's current amount or upgrade from its name: use the live card
+description, then record a precise source if a durable note is proposed.

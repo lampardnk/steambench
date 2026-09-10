@@ -5,7 +5,7 @@ act: 3
 category: elite
 ascension: a1
 keys: [ironclad, act3, elite, flail knight, magi knight, mecha knight, soul nexus, spectral knight]
-sources: [slaythespire2.net]
+sources: [slaythespire2.net, slaythespire.wiki.gg]
 ---
 
 # Act 3 — elites
@@ -27,6 +27,16 @@ guessing.
   conditions, so it tells you what to EXPECT, never what will happen.
 - No tactics are prescribed here. HP, damage and cycle are facts; what to do
   with them is the encounter's own decision.
+
+## Published page references
+
+These exact wiki pages identify the corresponding encounters. The numeric values above remain from the beta dataset and may differ from the current page; live intents take precedence.
+
+- [Knight Gang — Flail Knight](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Knight_Gang#Flail_Knight)
+- [Knight Gang — Magi Knight](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Knight_Gang#Magi_Knight)
+- [Knight Gang — Spectral Knight](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Knight_Gang#Spectral_Knight)
+- [Mecha Knight](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Mecha_Knight)
+- [Soul Nexus](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Soul_Nexus)
 
 ## Roster
 

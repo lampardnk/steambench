@@ -5,7 +5,7 @@ act: 3
 category: boss
 ascension: a1
 keys: [ironclad, act3, boss, aeonglass, queen, test subject, torch head amalgam]
-sources: [slaythespire2.net]
+sources: [slaythespire2.net, slaythespire.wiki.gg]
 ---
 
 # Act 3 — bosses
@@ -27,6 +27,15 @@ guessing.
   conditions, so it tells you what to EXPECT, never what will happen.
 - No tactics are prescribed here. HP, damage and cycle are facts; what to do
   with them is the encounter's own decision.
+
+## Published page references
+
+These exact wiki pages identify the corresponding encounters. The numeric values above remain from the beta dataset and may differ from the current page; live intents take precedence.
+
+- [Aeonglass](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Aeonglass)
+- [Queen](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Queen)
+- [Test Subject](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Test_Subject)
+- [Queen — Torch Head Amalgam](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Queen#Torch_Head_Amalgam)
 
 ## Roster
 

@@ -12,10 +12,11 @@ sources:
 
 # Buffs
 
-The [STS2 Buffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs)
-is a community glossary. It warns that the terms Intensity, Duration, Counter
-and Does not stack are wiki classifications, not labels used by the game. Read
-the live power description and amount when they differ.
+The [STS2 Buffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs#Attributes)
+is a community glossary and is marked under construction; its terms may be
+incomplete or wrong. It warns that Intensity, Duration, Counter and Does not
+stack are wiki classifications, not labels used by the game. Read the live
+power description and amount when they differ.
 
 ## Stack and turn behaviour
 
@@ -32,13 +33,16 @@ the live power description and amount when they differ.
 | **Consumed** | Loses its stacks when its next-turn trigger fires. |
 | **Reset** | A counter returns to its initial value at the next turn. |
 
+These are [wiki-driven] classifications from the [Buffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs#Attributes), not fixed game terminology.
+
 ## Buff definitions used by the local notes
+
 
 | Buff | Wiki-described effect |
 |---|---|
 | **Strength** | Increases Attack damage by X. Negative applications are debuffs. |
 | **Dexterity** | Increases Block gained from cards by X. Negative applications are debuffs. |
-| **Artifact** | Negates X debuffs. |
+| **Artifact** | Negates the next X debuffs received. |
 | **Block Next Turn** | Grants X Block at the start of the next turn; Block modifiers can affect it. |
 | **Blur** | Block is not removed at the start of the next X turns. |
 | **Draw Cards Next Turn** | Draws X additional cards at the start of the next turn. |
@@ -53,13 +57,14 @@ the live power description and amount when they differ.
 | **Duplication** | The next X cards are played an extra time. |
 | **Gigantification** | The next X Attacks deal triple damage. |
 | **Regen** | Heals X HP at end of turn, then loses one Regen. |
-| **Ritual** | An enemy gains X Strength at the end of its turn. The wiki notes that an enemy-applied Ritual skips its first end-of-turn trigger. |
+| **Ritual** | At the end of its turn, an enemy gains X Strength. The wiki notes that an enemy-applied Ritual skips its first end-of-turn trigger. |
 
 The page also defines card-created Ironclad powers such as Barricade,
 Corruption, Dark Embrace, Demon Form, Feel No Pain, Flame Barrier, Inferno,
-Juggernaut, Rage, Rupture, Self-Forming Clay, Unmovable and Vicious. Follow the
-exact [Buffs table](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs)
-for their current text; the live card and power amount remain authoritative.
+Juggernaut, Rage, Rupture, Self-Forming Clay, Unmovable and Vicious. These are
+[wiki-driven] paraphrases of the [Buffs table](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs#Buffs);
+follow the exact table for current text, while the live card and power amount
+remain authoritative.
 
 ## Enemy powers
 
@@ -68,6 +73,6 @@ table. When one is present, retrieve the matching act encounter entry and this
 glossary, then read its live amount. This file deliberately records definitions
 without telling the player which enemy to prioritize or which card to choose.
 
-Useful exact references are [Buffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs),
-[Debuffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs), and
-[Keywords](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords).
+Exact references are [Buffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs#Buffs),
+[Debuffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs#Debuffs_List), and
+[Keywords](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords#Card_Keywords).
