@@ -252,10 +252,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from '../client/learning/agents.mjs';
 import { Actuator, commandElement, matchElement, normalizeLabel, resolveIntent } from '../client/learning/actuator.mjs';
+import { controlManual, indexNotes, retrieve } from '../client/learning/retrieval.mjs';
 import { EncounterScratchpad } from '../client/learning/encounter.mjs';
-import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, encounterOver, splitNotes, strategistContext, strategistState } from '../client/learning/context.mjs';
+import { actuatorContext, actuatorElements, briefing, combatState, encounterKind, encounterOver, strategistContext, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS, focusIdentity, planIdentity, ready, settleAnimation, situationId, stallReason, stateId, unbuiltMenu, validatePlan } from '../client/learning/state.mjs';
 import { Executor, reachable, selectionGate } from '../client/learning/executor.mjs';
 import { PiAgent } from '../server/lib/agent.js';
@@ -420,14 +423,23 @@ test('the briefing is built from live state, so opening a fight costs no model c
   assert.deepEqual(brief.relics, [{ id: 'BURNING_BLOOD', name: 'Burning Blood', description: undefined, counter: undefined }]);
 });
 
-test('control notes go to the actuator and play notes go to whoever is playing', () => {
-  const notes = [
-    { path: 'ironclad/a1/controls/rewards.md', content: 'Y proceeds.' },
-    { path: 'ironclad/a1/act1/normal/fogmog.md', content: 'Fogmog alternates.' },
-  ];
-  const { control, play } = splitNotes(notes);
-  assert.deepEqual(control.map(note => note.path), ['ironclad/a1/controls/rewards.md']);
-  assert.deepEqual(play.map(note => note.path), ['ironclad/a1/act1/normal/fogmog.md']);
+test('a control note never reaches a play agent, so it cannot spend their budget', () => {
+  // retrieve() decides a note's destination by leaving control notes out
+  // entirely: controlManual() delivers them to the actuator, and a play agent
+  // cannot press anything anyway. This replaced splitNotes(), which filtered
+  // them back out only after retrieval had already paid for them.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-controls-'));
+  fs.mkdirSync(path.join(dir, 'ironclad/a1/controls'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'ironclad/a1/act1/normal'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'ironclad/a1/controls/rewards.md'), '---\ndescription: Working the reward screen\nkeys: [rewards, proceeds]\n---\nY proceeds.\n');
+  fs.writeFileSync(path.join(dir, 'ironclad/a1/act1/normal/fogmog.md'), '---\ndescription: Fogmog intent constraints\nkeys: [fogmog, rewards]\n---\nFogmog alternates.\n');
+  const index = indexNotes(dir);
+  const screen = { state_type: 'rewards', run: { character: 'The Ironclad', ascension: 1 }, battle: { enemies: [{ name: 'Fogmog' }] } };
+  assert.deepEqual(retrieve(dir, index, screen, null).map(note => note.path), ['ironclad/a1/act1/normal/fogmog.md'],
+    'the screen note is retrieved and the control note is not');
+  assert.deepEqual(controlManual(dir, index).map(note => note.path), ['ironclad/a1/controls/rewards.md'],
+    'the manual is where the actuator gets it');
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('the dashboard files each member\'s words under that member', () => {

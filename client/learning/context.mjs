@@ -175,11 +175,10 @@ export function actuatorContext(state, intent, { notes = [], controlNotes = [], 
   };
 }
 
-/** Notes matching the screen, split by who they are for. */
-export function splitNotes(retrieved) {
-  const control = retrieved.filter(note => /(?:^|\/)controls\//.test(note.path));
-  return { control, play: retrieved.filter(note => !control.includes(note)) };
-}
+// A note's destination is decided where it is chosen, not here: retrieve()
+// never returns a control note, because every control note already reaches the
+// actuator through controlManual(). A split that could only ever produce an
+// empty control list was a second place for the same rule to be wrong.
 
 export function strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1, counters, freshRunVerified }) {
   const mapUnchanged = Boolean(strategy && lastResult?.after?.map_id && lastResult.after.map_id === mapId(state));
@@ -198,7 +197,7 @@ export function strategistContext({ state, task, ladder, objectiveCheck, retriev
     strategy,
     ...ladder,
     objective_check: objectiveCheck,
-    retrieved_notes: splitNotes(retrieved).play,
+    retrieved_notes: retrieved,
     last_encounter: lastEncounter,
     act1_timer: act1,
     accepted_lessons: accepted,
@@ -215,7 +214,7 @@ export function combatContext({ state, briefing, scratchpad, retrieved, lastResu
     observation_id: stateId(state),
     state: combatState(state),
     encounter_scratchpad: scratchpad,
-    retrieved_notes: splitNotes(retrieved).play,
+    retrieved_notes: retrieved,
     known_notes: notes.filter(path => /\/(?:normal|elite|boss|ancient|potion)\//.test(path) || /meta_strategy\/(?:buffs|debuffs|mechanics|keywords|cards|relics)\//.test(path)).slice(0, 40),
     last_result: lastResult,
     user_instructions: instructions.slice(-2),

@@ -6,7 +6,7 @@ import { EncounterScratchpad } from '../client/learning/encounter.mjs';
 import { budgetNotice, parsePlanText } from '../client/learning/planner.mjs';
 import { Act1Timer, ACT1_TARGET_MS } from '../client/learning/pacing.mjs';
 import { focusTargets, navigationPath, pressableElement, targetElement } from '../client/learning/navigation.mjs';
-import { indexNotes, parseNote, retrieve } from '../client/learning/retrieval.mjs';
+import { controlManual, indexNotes, parseNote, retrieve } from '../client/learning/retrieval.mjs';
 import { stateId } from '../client/learning/state.mjs';
 import { energyCost, plannerGuidance, stateDiff, transientUpstream, validatePlan } from '../client/learning/state.mjs';
 
@@ -195,27 +195,32 @@ try {
   fs.writeFileSync(path.join(directory, 'README.md'), '# Navigation only\n');
   fs.mkdirSync(path.join(directory, 'scratchpad'));
   fs.writeFileSync(path.join(directory, 'scratchpad', 'private.md'), '# Fogmog\n');
-  // A control note outranks a strategy note that scores higher on relevance:
-  // how to work the screen is what stops every room re-deriving the same UI.
+  // A control note never competes for a retrieval slot, on a screen or in a
+  // fight. It reaches the actuator through controlManual() on every call, so
+  // ranking it here only spent play agents' budget on a file that was already
+  // being delivered and would be dropped again before they saw it.
   const control = 'ironclad/a1/controls/fogmog-overlay.md';
   fs.mkdirSync(path.dirname(path.join(directory, control)), { recursive: true });
   fs.writeFileSync(path.join(directory, control), '---\ndescription: Closing the Fogmog inspect overlay\nkeys: [fogmog, overlay, controls]\n---\n# Overlay\nB closes it.\n');
-  // On a screen, how to work the UI comes first - ahead of a strategy note that
-  // scores higher on relevance, because re-deriving the screen is what costs runs.
   const screenNote = 'ironclad/a1/controls/rewards.md';
   fs.writeFileSync(path.join(directory, screenNote), '---\ndescription: Working the reward screen\nkeys: [rewards, fogmog, controls]\n---\n# Rewards\nY proceeds.\n');
+  // The strategy note about the same screen, which is what should take the slot.
+  const screenGuide = 'ironclad/a1/meta_strategy/rewards/README.md';
+  fs.mkdirSync(path.dirname(path.join(directory, screenGuide)), { recursive: true });
+  fs.writeFileSync(path.join(directory, screenGuide), '---\ndescription: Reading a card reward\nkeys: [rewards, card reward]\n---\n# Rewards\nTake the card that helps the deck you are building.\n');
   const onScreen = retrieve(directory, indexNotes(directory), { state_type: 'rewards', run: { character: 'The Ironclad', ascension: 1 }, battle: { enemies: [{ name: 'Fogmog' }] } }, null);
-  assert.equal(onScreen[0].path, screenNote);
+  assert.ok(!onScreen.some(note => note.path === screenNote), 'a control note does not take a retrieval slot, even outscoring the field');
+  assert.ok(onScreen.some(note => note.path === screenGuide), 'the strategy note about the screen does');
+  assert.deepEqual(controlManual(directory, indexNotes(directory)).map(note => note.path).sort(), [screenNote, control].sort(),
+    'the manual is delivered whole, which is why the retrieval slot is unnecessary');
   fs.rmSync(path.join(directory, screenNote));
+  fs.rmSync(path.join(directory, screenGuide));
 
-  // In a FIGHT it does not. Promoting control notes unconditionally handed every
-  // slot to the UI, because a control note carries the character and ascension in
-  // its keys and those match any decision at all: during a floor 7 elite fight the
-  // five notes retrieved were about Neow bundles, the reward screen and the main
-  // menu, and the note for the elite being fought never appeared.
-  // Faithful to the real corpus: every note in a one-character library carries
-  // the character and ascension in its keys, which is exactly what made them
-  // worthless as a signal.
+
+  // And it does not sneak in during a fight either. Control notes carry the
+  // character and ascension in their keys, which match any decision at all: in
+  // the corpus every note in a one-character library did, which is what made
+  // them worthless as a signal.
   const menu = 'ironclad/a1/controls/startup.md';
   fs.writeFileSync(path.join(directory, menu), '---\ndescription: Starting a run on Ironclad ascension 1\nkeys: [ironclad, ascension-1, startup, main menu]\n---\n# Startup\nA opens Singleplayer.\n');
   const neow = 'ironclad/a1/controls/neow-bundle-select.md';
@@ -230,8 +235,8 @@ try {
   assert.ok(!inFight.some(note => note.path === menu), 'the main menu is not part of a fight');
   assert.ok(!inFight.some(note => note.path === neow), 'nor is the Neow bundle screen');
   assert.ok(inFight.some(note => note.path === guide), 'and what the fight is about is retrieved');
-  // A control note still competes on merit: this one is about the enemy on screen.
-  assert.ok(inFight.some(note => note.path === control));
+  // The manual still carries every control note, including the two added since.
+  assert.deepEqual(controlManual(directory, indexNotes(directory)).map(note => note.path).sort(), [control, menu, neow].sort());
   fs.rmSync(path.join(directory, menu));
   fs.rmSync(path.join(directory, neow));
   fs.rmSync(path.join(directory, control));
@@ -245,4 +250,4 @@ try {
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }
-console.log(JSON.stringify({ result: 'passed', verified: ['fresh exhausted piles and powers', 'encounter reset', 'pacing checkpoint and act completion', 'bounded focus paths', 'a captured reward screen has no route to Skip and a bound button instead', 'control notes lead on a screen and never inside a fight', 'a replan is told exactly what moved', 'a string card cost is still budgeted against the turn', 'a busy provider is retried, not refined', 'a plan wrapped in prose is still a plan', 'an exhausted deadline or output budget is told to answer, not to fix', 'substantive README retrieval and folded descriptions'] }));
+console.log(JSON.stringify({ result: 'passed', verified: ['fresh exhausted piles and powers', 'encounter reset', 'pacing checkpoint and act completion', 'bounded focus paths', 'a captured reward screen has no route to Skip and a bound button instead', 'a control note never takes a retrieval slot, on a screen or in a fight', 'a replan is told exactly what moved', 'a string card cost is still budgeted against the turn', 'a busy provider is retried, not refined', 'a plan wrapped in prose is still a plan', 'an exhausted deadline or output budget is told to answer, not to fix', 'substantive README retrieval and folded descriptions'] }));

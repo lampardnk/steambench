@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Curriculum, situation } from '../client/learning/curriculum.mjs';
-import { MAX_NOTE_IN_CONTEXT, controlManual, focusNote, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
+import { MAX_NOTE_IN_CONTEXT, RETRIEVAL_BUDGET, controlManual, focusNote, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-curriculum-'));
 const skillDir = path.join(root, 'skills', 'sts2');
@@ -344,15 +344,19 @@ console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion
   assert.match(found, /Shared source list/);
 }
 
-// A factual entry larger than the previous indexing/retrieval thresholds is
-// still indexed and delivered, including its final Notes/Interactions marker.
+// A note too long for one decision's budget is cut to fit and says so, rather
+// than being indexed away or spending the whole budget on itself. The old
+// contract let a source run past 64KB because the budget was derived from a
+// 1M-token context window; the budget is now a fixed cost ceiling, so the
+// truncation is the guarantee that matters.
 {
   const body = 'A verified mechanic and its conditions.\n'.repeat(1700) + '[wiki-driven] END_OF_LONG_SOURCE';
   note('effects/long-source.md', `---\ndescription: Comprehensive Sandpit effects\nkeys: sandpit\n---\n${body}`);
   const found = retrieve(skillDir, indexNotes(skillDir), { player: { status: [{ name: 'Sandpit' }] } }, null);
   const long = found.find(item => item.path === 'effects/long-source.md');
-  assert.ok(long, 'a source exceeding 64KB is indexed');
-  assert.ok(long.content.length > 60000);
-  assert.match(long.content, /END_OF_LONG_SOURCE/);
-  assert.equal(long.truncated, false);
+  assert.ok(long, 'a source larger than one note may carry is still indexed');
+  assert.ok(long.content.length <= MAX_NOTE_IN_CONTEXT, `it is cut to the per-note ceiling, not the whole page: ${long.content.length}`);
+  assert.equal(long.truncated, true, 'and it is marked as cut so the model knows there is more');
+  assert.ok(found.reduce((total, item) => total + item.content.length, 0) <= RETRIEVAL_BUDGET,
+    'the whole decision stays inside the retrieval budget');
 }

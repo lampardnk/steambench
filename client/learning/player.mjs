@@ -10,7 +10,7 @@ import { Executor, learnedFiles } from './executor.mjs';
 import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { Actuator } from './actuator.mjs';
-import { briefing, combatContext, encounterKind, encounterOver, splitNotes, strategistContext } from './context.mjs';
+import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
 import { Curriculum } from './curriculum.mjs';
 import { controlManual, indexNotes, retrieve } from './retrieval.mjs';
@@ -408,11 +408,11 @@ async function run(task) {
       // Skill retrieval: the notes this exact situation is about, read for the
       // agent instead of waiting for it to spend a decision recalling them.
       const retrieved = retrieve(skillDir, noteIndex, state, ladder.objective);
-      // The actuator's manual, always - not whatever retrieval happened to
-      // score. Anything retrieval did surface is already the same file.
-      const manual = controlManual(skillDir, noteIndex);
-      const seenControl = new Set(manual.map(note => note.path));
-      const controlNotes = [...manual, ...splitNotes(retrieved).control.filter(note => !seenControl.has(note.path))];
+      // The actuator's manual, always - and the only place control notes enter
+      // the decision. retrieve() leaves them out on purpose: they are delivered
+      // here in full, so ranking them there spent the play agents' budget on a
+      // second copy of the same file.
+      const controlNotes = controlManual(skillDir, noteIndex);
       lastResult = laneResults[lane] || null;
 
       const counters = { consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet, consecutive_probes_without_acting: probes };
@@ -424,10 +424,26 @@ async function run(task) {
       objectiveCheck = null;
       if (context) {
         record({ type: 'decision_context', agent: lane, role, characters: JSON.stringify(context).length, acceptedMemoryHash: digest(accepted), objective: ladder.objective?.text || null, retrieved: retrieved.map(note => note.path) });
-        // Keep source bodies under the larger model budget. If a smaller
-        // profile is selected, remove the lowest-ranked bodies one at a time
-        // with an explicit marker instead of silently dropping every fact at 60KB.
-        const contextBudget = Math.max(20000, (PROFILE.contextWindow - PROFILE.maxTokens) * 2);
+        // Shed the lowest-ranked note bodies until the decision fits, and
+        // refuse rather than send a silently gutted one.
+        //
+        // The old ceiling was derived from the window - (contextWindow -
+        // maxTokens) * 2, which at a 1M-token window is 1,966,080 characters.
+        // No decision ever came near it, so this loop never ran and the guard
+        // never fired: decisions went out at whatever retrieval produced, which
+        // on the live run reached 126,155 characters - 31,500 tokens - for one
+        // combat decision. A ceiling has to be a number a real decision can
+        // reach, or it is decoration.
+        //
+        // 48,000 is set from the parts rather than a percentile: the retrieval
+        // budget (16,000 characters of note bodies, ~17,600 once JSON-encoded),
+        // plus the largest state any recorded decision carried (18,751 for a
+        // card select that lists the whole deck), plus the standing task and
+        // counters. The largest context measured under this configuration is
+        // 37,814, so the guard sits a third above every real decision and still
+        // stops a structural runaway - a note set that ignored its budget, or a
+        // state that grew without bound - instead of shipping it.
+        const contextBudget = 48000;
         for (let i = context.retrieved_notes.length - 1; i >= 0 && JSON.stringify(context).length > contextBudget; i--) {
           const { content, ...metadata } = context.retrieved_notes[i];
           context.retrieved_notes[i] = { ...metadata, truncated: true, omitted_for_context_budget: true };
