@@ -1,56 +1,31 @@
 ---
-description: Amalgamator — Act 2. Exact outcomes for every option, with the trade-offs left open.
+description: Amalgamator — exact wiki outcomes, card values, and requirements.
 character: ironclad
 act: 2
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, amalgamator, act 2]
-sources: [slaythespire2.net]
+keys: [amalgamator, event, act2, hive, strikes, defends, ultimate strike, ultimate defend]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Amalgamator
 
-**Pool:** Act 2  
-**Pages:** 3
+**Biome:** Hive only. **Condition:** at least 2 Strike cards and 2 Defend cards
+that can be removed.
 
-## What the screen says
+## Options
 
-CLANG! CLANG!!!
+| Option | Exact outcome |
+|---|---|
+| **[Combine Strikes]** | Remove 2 Strikes; add **Ultimate Strike**. The card is a 1-energy Uncommon Colorless Attack that deals 14 damage (20 when upgraded). |
+| **[Combine Defends]** | Remove 2 Defends; add **Ultimate Defend**. The card is a 1-energy Uncommon Colorless Skill that gains 11 Block (15 when upgraded). |
 
-You hear the echoes of metal upon metal on the otherside of a wall...
+## Notes [wiki-driven]
 
-As you press your head against the wall to listen in—the wall opens up,
-revealing a hulking six-armed figure toiling away.
+Nutritious Soup from Tezcatara makes Strikes Eternal and therefore can prevent
+this event's removal requirement. The wiki lists no separate event ascension
+variant; parenthesized values are upgraded-card values.
 
-Its "face" is a swirling vortex of glowing sigils that shift about.
+Compare the two permanent removals and resulting card with the current deck.
 
-"One with an Ascending Spirit has found my workshop? Let's get COMBINING!"
-
-## Options — page `INITIAL`
-
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Combine Strikes]** | Remove chosen card (remove 2 Basic Strike cards); Add **Ultimate Strike** — screen text: "Remove 2 **Strikes**. Add **?** to your **Deck**." | COMBINE_STRIKES |
-| **[Combine Defends]** | Remove chosen card (remove 2 Basic Defend cards); Add **Ultimate Defend** — screen text: "Remove 2 **Defends**. Add **?** to your **Deck**." | COMBINE_DEFENDS |
-
-## Options — page `COMBINE_STRIKES`
-
-CLANG! CLANG!!!  The Amalgamator strikes its Bone Anvil.  Memories of combat,
-attacking, and offensive strategies sharpen with each blow. Your most ultimate
-technique returns to you.
-
-This page presents no standard options.
-
-## Options — page `COMBINE_DEFENDS`
-
-CLANG! CLANG!!!  The Amalgamator strikes its Bone Anvil.  Memories of combat,
-protecting, and defensive strategies sharpen with each blow. Your most
-ultimate technique returns to you.
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Amalgamator

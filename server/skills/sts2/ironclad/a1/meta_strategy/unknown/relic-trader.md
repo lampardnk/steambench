@@ -1,46 +1,37 @@
 ---
-description: Relic Trader — Any act. Exact outcomes for every option, with the trade-offs left open.
+description: Relic Trader — exact wiki requirements, trade shape, and filter.
 character: ironclad
 act: any
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, relic trader, any act]
-sources: [slaythespire2.net]
+keys: [relic trader, event, act2, act3, relic, tradeable]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Relic Trader
 
-**Pool:** Any act  
-**Pages:** 2
+**Biomes:** Hive and Glory. **Acts:** 2 and 3 only. **Condition:** at least 5
+tradable Relics.
 
-## What the screen says
+## Options
 
-You turn a corner and suddenly, a shadowy figure is just standing there. He
-pivots to face you.
+| Option | Exact outcome |
+|---|---|
+| **[Take the Top One]** | Trade the specified Relic for the specified Relic. |
+| **[Take the Middle One]** | Trade the specified Relic for the specified Relic. |
+| **[Take the Bottom One]** | Trade the specified Relic for the specified Relic. |
 
-"Welcome! What're ya trading?"
+The three offers and their named relics are generated for the current run.
 
-The figure inquires as he flares open his cloak to reveal a slew of suspicious
-wares.
+## Notes [wiki-driven]
 
-## Options — page `INITIAL`
+Tradeable relics exclude used-up relics (for example Maw Bank after spending
+Gold), relics with an “on pickup” effect (for example Potion Belt), fully
+melted Toy Box relics, pet-spawning relics (currently Byrdpip), Starter
+Relics, Ancient Relics, and Event Relics. Relics taken by the trader cannot
+reappear for the rest of the run.
 
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Take the Top One]** | Lose a relic (remove owned relic slot 0 (random tradable relic)); Obtain **a relic** (gain new relic slot 0 (pulled from relic pool front)) — screen text: "Trade **?** for **?**." | DONE |
-| **[Take the Middle One]** | Lose a relic (remove owned relic slot 1 (random tradable relic)); Obtain **a relic** (gain new relic slot 1 (pulled from relic pool front)) — screen text: "Trade **?** for **?**." | DONE |
-| **[Take the Bottom One]** | Lose a relic (remove owned relic slot 2 (random tradable relic)); Obtain **a relic** (gain new relic slot 2 (pulled from relic pool front)) — screen text: "Trade **?** for **?**." | DONE |
+No separate event ascension variant is listed. Compare each generated offer
+with the current relic inventory.
 
-**Engine note:** Up to 3 offers shown depending on how many tradable relics you own (>=1 shows TOP, >=2 MIDDLE, >=3 BOTTOM). Each offer trades one of your randomly-chosen owned relics for one new relic pulled from the front of the relic pool. If no options qualify, a generic PROCEED option (key 'PROCEED', not in this event's options) leads to DONE.
-
-## Options — page `DONE`
-
-"Hehehe Heh... Thank you!"
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Relic_Trader

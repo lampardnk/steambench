@@ -31,8 +31,8 @@ export class PiAgent extends EventEmitter {
     this.transcript = [];
     this.pending = new Map();
     this.nextId = 1;
-    // The roster the player publishes: who is on the team, what each of them is
-    // for, and which encounters have opened and closed. The dashboard renders
+    // The roster the player publishes: who is on the team, what each of them
+    // is for, and which encounters have opened and closed. The dashboard renders
     // this list, so it must survive a player with nothing to say yet.
     this.agents = DEFAULT_AGENTS;
     // Streaming text, per lane. Two members never speak at once today, but a
@@ -42,8 +42,9 @@ export class PiAgent extends EventEmitter {
     this.exitInfo = null;
     this.stderrTail = '';
     this.attention = null;
-  }
+    this.requiresResume = false;
 
+  }
   start() {
     const args = ['-i', '--rm', '--name', this.name, '--add-host', 'host.docker.internal:host-gateway'];
     for (const [k, v] of Object.entries(this.env)) {
@@ -104,10 +105,19 @@ export class PiAgent extends EventEmitter {
   /** Send a user message; steers if the agent is mid-run. */
   async prompt(message, { from = 'user' } = {}) {
     const running = this.status === 'running';
-    this._push({ kind: 'user', text: message, from, queued: running, agent: DEFAULT_LANE });
-    const res = await this.send(running ? { type: 'steer', message } : { type: 'prompt', message });
-    if (res && res.success === false) throw new Error(res.error || 'prompt rejected');
-    return res;
+    try {
+      const res = await this.send(running ? { type: 'steer', message } : { type: 'prompt', message });
+      if (res && res.success === false) throw new Error(res.error || 'prompt rejected');
+      // Do not present rejected ordinary chat as delivered speech. A running
+      // prompt keeps its queued marker only after the RPC accepts it.
+      this._push({ kind: 'user', text: message, from, queued: running, agent: DEFAULT_LANE });
+      return res;
+    } catch (error) {
+      if (!(error instanceof Error && /rejected\/not delivered/.test(error.message))) {
+        this._system(`prompt rejected/not delivered: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      throw error;
+    }
   }
 
   abort() { return this.send({ type: 'abort' }); }
@@ -122,13 +132,19 @@ export class PiAgent extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     this.emit('status', this.status);
+    this.requiresResume = false;
   }
 
   _onMessage(msg) {
     if (msg.type === 'response') {
       const p = msg.id && this.pending.get(msg.id);
+      if (msg.command === 'get_state' && msg.success && msg.data && typeof msg.data.requiresResume === 'boolean') {
+        this.requiresResume = msg.data.requiresResume;
+      } else if (msg.command === 'resume' && msg.success) {
+        this.requiresResume = false;
+      }
       if (p) { this.pending.delete(msg.id); p.resolve(msg); }
-      if (msg.success === false && msg.command !== 'get_state') this._system(`${msg.command} failed: ${msg.error || 'unknown error'}`);
+      if (msg.success === false && msg.command !== 'get_state') this._system(`${msg.command} rejected/not delivered: ${msg.error || 'unknown error'}`);
       return;
     }
     const lane = msg.agent || DEFAULT_LANE;
@@ -138,7 +154,10 @@ export class PiAgent extends EventEmitter {
         break;
       case 'steambench_attention':
         this.attention = msg.attention || null;
-        if (this.attention) this._system(`Supervisor required [${this.attention.id}]: ${String(this.attention.error || '').slice(0, 1200)}`);
+        if (this.attention) {
+          this.requiresResume = true;
+          this._system(`Supervisor required [${this.attention.id}]: ${String(this.attention.error || '').slice(0, 1200)}`);
+        }
         this.emit('attention', this.attention);
         break;
       case 'agent_start':

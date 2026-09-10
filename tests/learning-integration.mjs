@@ -26,7 +26,7 @@ const baseState = {
   // The focused control carries no label, which is what keeps the screenshot
   // path in play for the stale_image scenario.
   ui: {
-    sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod',
+    sensor_version: 6, game_build: 'fixture-game', mod_build: 'fixture-mod',
     scene_id: 'scene-menu', focus_path: null, focused_element: 'element-menu',
     elements: [{ id: 'element-menu', type: 'Control', visible: true, enabled: true, selectable: true, focus_mode: 'all', activation: 'a', neighbors: {} }],
   },
@@ -38,12 +38,12 @@ const fightState = {
   state_type: 'monster', run: { floor: 2, act: 1, ascension: 1 },
   player: { character: 'The Ironclad', hp: 70, max_hp: 80, energy: 3, gold: 99, relics: [], potions: [], hand: [{ instance_id: 1, index: 0, name: 'Defend', type: 'Skill', cost: '1', can_play: true, target_type: 'Self', description: 'Gain 5 Block.' }] },
   battle: { round: 1, turn: 'player', is_play_phase: true, enemies: [{ entity_id: 'ENEMY_0', combat_id: 'c0', name: 'Fogmog', hp: 20, intents: [{ name: 'Attack', damage: 9 }] }] },
-  ui: { sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-fight', hand_mode: 'Play', in_card_play: false, focused_card: 1, focus_path: '/Fight/NHandCardHolder-CARD_DEFEND', focused_element: null, elements: [] },
+  ui: { sensor_version: 6, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-fight', hand_mode: 'Play', in_card_play: false, focused_card: 1, focus_path: '/Fight/NHandCardHolder-CARD_DEFEND', focused_element: null, elements: [] },
 };
 const afterFightState = {
   state_type: 'rewards', run: { floor: 2, act: 1, ascension: 1 },
   player: { character: 'The Ironclad', hp: 63, max_hp: 80, gold: 110, relics: [], potions: [] },
-  ui: { sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-rewards', focus_path: '/Rewards/LeaveButton', focused_element: 'element-leave', elements: [{ id: 'element-leave', label: 'Leave', type: 'Button', visible: true, enabled: true, selectable: true, activation: 'a', ambiguous: false, focus_mode: 'all', neighbors: {} }] },
+  ui: { sensor_version: 6, game_build: 'fixture-game', mod_build: 'fixture-mod', scene_id: 'scene-rewards', focus_path: '/Rewards/LeaveButton', focused_element: 'element-leave', elements: [{ id: 'element-leave', label: 'Leave', type: 'Button', visible: true, enabled: true, selectable: true, activation: 'a', ambiguous: false, focus_mode: 'all', neighbors: {} }] },
 };
 // A screen with a named control on it, so the strategist can state a goal and the
 // actuator answer it from the label without a second model call.
@@ -51,7 +51,7 @@ const eventState = {
   state_type: 'event', run: { floor: 1, act: 1 }, player: { hp: 80 },
   event: { name: 'Fixture Event', options: [{ text: 'Leave' }] },
   ui: {
-    sensor_version: 5, game_build: 'fixture-game', mod_build: 'fixture-mod',
+    sensor_version: 6, game_build: 'fixture-game', mod_build: 'fixture-mod',
     scene_id: 'scene-event', focus_path: '/Event/LeaveButton', focused_element: 'element-leave',
     elements: [{ id: 'element-leave', label: 'Leave', type: 'Button', visible: true, enabled: true, selectable: true, activation: 'a', ambiguous: false, focus_mode: 'all', neighbors: {} }],
   },
@@ -71,6 +71,11 @@ async function scenario(mode) {
       version: 1,
       objectives: [{ id: 'obj-old', text: 'From the floor-4 card reward, reach the next fight', done_when: 'a reward screen is visible', area: 'strategy', status: 'active', attempts: 0, critiques: [], opened: { room: 'aaaa1111', decision: 12, floor: 4 } }],
     }));
+  }
+  if (mode === 'delegated_goal') {
+    fs.writeFileSync(path.join(path.dirname(directory), 'fixture-reference.md'),
+      '---\ndescription: Fixture Event factual mechanics\nkeys: fixture, event\n---\n' +
+      'A factual fixture condition.\n'.repeat(2600) + 'END_OF_REFERENCE');
   }
   const callsFile = path.join(directory, 'calls.txt');
   const inputs = [];
@@ -151,6 +156,8 @@ async function scenario(mode) {
     assert.ok(attention?.id);
     const incident = JSON.parse(fs.readFileSync(path.join(directory, attention.path)));
     assert.ok(incident.before);
+    assert.ok(!fs.existsSync(path.join(directory, 'run.md')), 'no narrative run diary is generated');
+    if (mode !== 'notes_only') assert.ok(!fs.existsSync(path.join(path.dirname(directory), 'scratchpad.md')), 'encounters and failures do not write inherited reflections');
     assert.ok(incident.after);
     assert.ok(fs.existsSync(path.join(path.dirname(path.join(directory, attention.path)), 'after.jpg')));
     const checkpoint = JSON.parse(fs.readFileSync(path.join(directory, 'checkpoint.json')));
@@ -196,6 +203,7 @@ async function scenario(mode) {
       // label answered it outright, so the pad moved on ONE model call: the
       // whole point of resolving a goal before asking anyone.
       assert.deepEqual(roles, ['strategist'], 'the actuator was not asked; the label already answered');
+      assert.equal(fs.readFileSync(`${callsFile}.references`, 'utf8'), 'complete', 'large source bodies reach the model beyond the old 60KB context cutoff');
       const events = fs.readFileSync(path.join(directory, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
       const asked = events.find(event => event.type === 'decision_context');
       assert.equal(asked.role, 'strategist');

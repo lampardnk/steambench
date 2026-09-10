@@ -1,48 +1,31 @@
 ---
-description: The Lantern Key — Act 2. Exact outcomes for every option, with the trade-offs left open.
+description: The Lantern Key — exact wiki outcomes, combat follow-up, and quest effect.
 character: ironclad
 act: 2
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, the lantern key, act 2]
-sources: [slaythespire2.net]
+keys: [lantern key, event, act2, hive, mysterious knight, quest, war historian]
+sources: [slaythespire.wiki.gg]
 ---
 
 # The Lantern Key
 
-**Pool:** Act 2  
-**Pages:** 3
+**Biome:** Hive only. This is a combat event.
 
-## What the screen says
+## Options
 
-You come upon a faintly glowing key and go to pick it up.
+| Option | Exact outcome |
+|---|---|
+| **[Return the Key]** | Gain 100 Gold. |
+| **[Keep the Key]** | Fight a Mysterious Knight; on the event's reward path obtain **Lantern Key**, an unplayable Quest card that unlocks a special event in the next Act. |
 
-"Been looking all over for that key! Now if you don't mind..."
+## Notes [wiki-driven]
 
-This person looks like bad news but maybe it's not good to be judgy.
+The Mysterious Knight combat counts as a normal combat encounter for effects
+such as Prayer Wheel and gives normal combat rewards in addition to Lantern
+Key. The key is used by **War Historian, Repy** in Act 3. No separate event
+ascension variant is listed.
 
-## Options — page `INITIAL`
+Compare the fixed Gold with the combat and the quest card using live state.
 
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Return the Key]** | Gain 100 Gold — screen text: "Gain 100 **Gold**." | DONE |
-| **[Keep the Key]** | Fight to obtain the Key. | KEEP_THE_KEY |
-
-## Options — page `DONE`
-
-This page presents no standard options. terminal page after returning the key; its text comes from option key DONE.RETURN_THE_KEY (no separate pages.DONE entry)
-
-## Options — page `KEEP_THE_KEY`
-
-The stranger looks at you menacingly. It seems like only one of you is making
-it out of here with the key.
-
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Fight]** | Fight (does not resume event afterward); Add **Lantern Key** (special card reward for the combat) | ends |
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:The_Lantern_Key

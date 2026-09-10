@@ -15,7 +15,7 @@ type WsMessage =
   | { type: 'item'; item: TranscriptItem }
   | { type: 'agents'; agents: AgentInfo[] }
   | { type: 'delta'; id: string; kind: string; agent?: string; delta: string }
-  | { type: 'agent_status'; status: string }
+  | { type: 'agent_status'; status: string; requiresResume?: boolean; attention?: RoomSummary['attention'] }
   | { type: 'pad'; event: PadEvent }
   | { type: 'room'; room: RoomSummary }
   | { type: 'log'; line: string }
@@ -58,6 +58,8 @@ export default function RoomPage() {
           setLog(msg.log)
         } else if (msg.type === 'agents') {
           setAgents(msg.agents || [])
+        } else if (msg.type === 'agent_status') {
+          setRoom((prev) => prev ? { ...prev, agentStatus: msg.status, requiresResume: msg.requiresResume, attention: msg.attention } : prev)
         } else if (msg.type === 'item') {
           setItems((prev) => {
             const i = prev.findIndex((x) => x.id === msg.item.id)
@@ -96,6 +98,26 @@ export default function RoomPage() {
   }, [loaded, configured, id, settings])
 
   const send = (obj: object) => wsRef.current?.readyState === WebSocket.OPEN && wsRef.current.send(JSON.stringify(obj))
+
+  const reply = async (message: string) => {
+    if (!room) return false
+    setError('')
+    try {
+      if (room.attention || room.requiresResume) {
+        await api(settings, `/api/rooms/${room.id}/player/resume`, {
+          method: 'POST',
+          body: JSON.stringify({ issueId: room.attention?.id, message }),
+        })
+      } else {
+        if (wsRef.current?.readyState !== WebSocket.OPEN) throw new Error('Disconnected; your message has not been sent.')
+        send({ type: 'chat', message })
+      }
+      return true
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error))
+      return false
+    }
+  }
 
   const remove = async () => {
     if (!room || !confirm('Delete this room? Its history is archived first.')) return
@@ -170,9 +192,9 @@ export default function RoomPage() {
                 )}
                 <Transcript items={items} agents={agents} />
                 <ChatBox
-                  attention={Boolean(room.attention)}
-                  disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped'}
-                  onSend={(m) => send({ type: 'chat', message: m })}
+                  attention={Boolean(room.attention || room.requiresResume)}
+                  disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped' || (Boolean(room.attention || room.requiresResume) && room.agentStatus !== 'idle')}
+                  onSend={reply}
                 />
               </section>
 
@@ -281,7 +303,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Player</span>
           <div className="rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs">
-            {meta?.builtinPlayer.name || 'STS2-Pi-OrcaRouter'} · {meta?.builtinPlayer.model || 'z-ai/glm-5.3-flash-free'}
+            {meta ? `${meta.builtinPlayer.name} · ${meta.builtinPlayer.model}` : 'loading player identity…'}
           </div>
         </label>
       </div>
@@ -297,17 +319,22 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
   )
 }
 
-function ChatBox({ disabled, attention, onSend }: { disabled: boolean; attention: boolean; onSend: (m: string) => void }) {
+function ChatBox({ disabled, attention, onSend }: { disabled: boolean; attention: boolean; onSend: (m: string) => Promise<boolean> }) {
   const [text, setText] = useState('')
-  const submit = () => {
-    if (!text.trim()) return
-    onSend(text.trim())
-    setText('')
+  const [sending, setSending] = useState(false)
+  const submit = async () => {
+    if (!text.trim() || disabled || sending) return
+    setSending(true)
+    try {
+      if (await onSend(text.trim())) setText('')
+    } finally {
+      setSending(false)
+    }
   }
   return (
     <div className="mt-2 flex w-full gap-2">
       <input
-        disabled={disabled}
+        disabled={disabled || sending}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
@@ -320,7 +347,7 @@ function ChatBox({ disabled, attention, onSend }: { disabled: boolean; attention
         }
         className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm disabled:opacity-50"
       />
-      <button disabled={disabled} onClick={submit} className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">
+      <button disabled={disabled || sending} onClick={submit} className="shrink-0 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50">
         {attention ? 'reply and resume' : 'send'}
       </button>
     </div>

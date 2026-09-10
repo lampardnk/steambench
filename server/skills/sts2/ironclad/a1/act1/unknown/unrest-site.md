@@ -1,33 +1,25 @@
 ---
-description: Unrest Site — Overgrowth. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: Unrest Site — exact wiki outcomes and HP gate.
 character: ironclad
 act: 1
 category: unknown
 ascension: a1
-keys: [unrest site, event, unknown, act1, overgrowth, poor sleep, curse, heal, relic, max hp]
+keys: [unrest site, event, act1, overgrowth, hp, max hp, poor sleep]
 sources: [slaythespire.wiki.gg]
 ---
 
 # Unrest Site
 
-**Pool:** Overgrowth  
-**Appears when:** your HP is at or below 70% of Max HP
+**Biome:** Overgrowth only. **Condition:** HP at or below 70% of Max HP.
 
 ## Options
 
 | Option | Exact outcome |
 |---|---|
-| **[Rest Anyways]** | Heal to **full** HP. Receive **Poor Sleep** (Unplayable, Retain curse). |
-| **[Kill the Trees]** | Lose 8 Max HP. Obtain a random Relic. |
+| **[Rest Anyways]** | Heal to full HP; receive **Poor Sleep** (curse). Poor Sleep is unplayable and Retain. |
+| **[Kill the Trees]** | Lose 8 Max HP; obtain a random Relic. |
 
-## Mechanics
+No event-specific ascension variant is listed. Compare a full heal plus curse
+with the permanent Max HP loss using current state.
 
-- Poor Sleep has Retain, so it stays in your hand between turns instead of cycling away — it permanently shrinks your working hand until removed.
-
-## What each option costs and buys
-
-- A full heal is worth more the further below the 70% threshold you are, and the event cannot appear at all unless you are already hurt.
-- Poor Sleep is one of the more damaging curses precisely because Retain means it does not go away at end of turn; removing it later costs a shop slot or a removal event.
-- 8 Max HP is permanent and paid up front for an unknown relic.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Unrest_Site

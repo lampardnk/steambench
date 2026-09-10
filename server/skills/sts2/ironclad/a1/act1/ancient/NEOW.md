@@ -1,179 +1,88 @@
 ---
-description: Neow Act 1 Ancient choice — scout the map, let the boss name the biome, study its elites, then pick against this run's named problems. No tier lists.
+description: Neow — exact wiki relic pools, conditional offers, and probabilities.
 character: ironclad
 act: 1
 category: ancient
 ascension: a1
-keys: [ironclad, act1, ancient, neow, relic, choice, boss, biome, overgrowth, underdocks, route, scouting, elite, transform, variance, booming conch, winged boots, lava rock]
-sources: [slaythespire2.net, slaythespire.wiki.gg]
+keys: [ironclad, act1, ancient, neow, relic, curse pool, positive pool, multiplayer, probability]
+sources: [slaythespire.wiki.gg]
 ---
 
-# Neow — Act 1 Ancient choice
+# Neow
 
-First room of Act 1. An Ancient heals to full (A2+ restores 80% of missing HP).
-Three relics: two free, then one priced. Retrieval cuts this note at 2500
-characters — `recall` this path for the full pools, costs and probabilities.
+Neow is the Act 1 Ancient. She is unlocked after the first run on a save file
+and then appears at the start of every new run, offering 3 relics. One relic is
+selected from the Curse pool first; the Positive pool is adjusted around it, and
+2 Positive-pool relics are offered with it.
 
-## The short version
+The wiki page lists no separate ascension-specific pool effects. Its
+single-player and multiplayer probabilities are separate and are reproduced
+below.
 
-1. Scout `map` at Neow — it needs no UI navigation and no input.
-2. The boss names the biome: Overgrowth or Underdocks.
-3. Read that biome's elite and boss notes *before* choosing.
-4. Name the two or three problems this run must actually solve.
-5. No tier lists. Pros, cons, and say plainly when a pick is high-variance.
-6. Plan a route, then re-decide it at every map screen.
-7. Make the route the run's first objective — only one runs at a time.
+## Curse pool — 1 relic offered
 
-## Decision framework
+| Relic | Exact effect |
+|---|---|
+| **Cursed Pearl** | Upon pickup, receive **Greed** and gain 333 Gold. |
+| **Dowsing Rod** | Upon pickup, add 1 **Dowsing** to your Deck. Dowsing is an unplayable Quest card that transforms into Abundance after entering 5 more ? rooms. |
+| **Hefty Tablet** | Choose 1 of 3 Rare cards to add to your Deck; add 1 **Injury**. |
+| **Large Capsule** | Obtain 2 random Relics; add an additional Strike and Defend to your Deck. |
+| **Leafy Poultice** | Transform 1 Strike and 1 Defend; lose 12 Max HP. |
+| **Neow's Bones** | Gain 2 random Neow Relics; add 1 random Curse to your Deck. |
+| **Neow's Sacrifice** | Procure 1 **Ambergris** and 1 **Guilty**. Ambergris heals 50% of Max HP and, if used in combat, gives an extra turn; Guilty is removed after 5 combats. |
+| **Precarious Shears** | Remove 2 cards from your Deck; take 16 damage. |
+| **Silken Tress** | Lose all Gold; enchant every card in your first card reward with **Glam**. |
+| **Silver Crucible** | The first 3 card rewards are Upgraded; the first Treasure Chest is empty. This relic is not offered in multiplayer. |
 
-### 1. Scout before choosing
-The mod exposes `map` at Neow with no UI navigation and no input:
-- `map.boss.name` / `map.boss.id` — the act's boss, knowable right now.
-- `map.nodes[].type` — count Elite, Rest Site, Merchant, Treasure, Event.
-- `map.next_options[].leads_to` — one-level lookahead per reachable node.
+## Positive pool
 
-Read the live `type` strings rather than assuming their spelling.
+These relics are adjusted by the selected Curse-pool relic as stated.
 
-### 2. The boss names the biome
-Act 1 boss pools are disjoint, so the boss identifies the biome:
+| Relic | Exact effect / availability |
+|---|---|
+| **Booming Conch** | At the start of Elite combats, draw 2 additional cards and gain 1 Energy. |
+| **Fishing Rod** | Every 3 normal combats, upgrade a random card in your Deck. |
+| **Kaleidoscope** | Upon pickup, obtain 2 card rewards from other characters. |
+| **Lead Paperweight** | Upon pickup, choose 1 of 2 Colorless cards to add to your Deck. |
+| **Neow's Torment** | Upon pickup, add **Neow's Fury**. It costs 1, deals 10 damage (14 when upgraded), returns up to 2 (3 when upgraded) chosen cards from the Discard Pile to Hand, then Exhausts. |
+| **Scroll Boxes** | Choose 1 of 2 packs of cards to add to your Deck. |
+| **Golden Pearl** | Gain 150 Gold; added if Cursed Pearl was not selected. |
+| **Arcane Scroll** | Obtain a random Rare card; added if Hefty Tablet was not selected. |
+| **New Leaf** | Transform 1 card; added if Leafy Poultice was not selected. |
+| **Precise Scissors** | Remove 1 card from your Deck; added if Precarious Shears was not selected. |
+| **Massive Scroll** | In multiplayer only, choose 1 of 3 Multiplayer cards to add to your Deck. |
+| **Winged Boots** | Ignore paths when choosing the next rooms 3 times; not offered in multiplayer. |
+| **Phial Holster** | Gain 1 potion slot and procure 2 random Potions; both this and Lost Coffer are added if Neow's Sacrifice was not selected. |
+| **Lost Coffer** | Gain 1 card reward and procure 1 random Potion; both this and Phial Holster are added if Neow's Sacrifice was not selected. |
+| **Lava Rock** / **Small Capsule** | If Large Capsule was not selected, one is added: Lava Rock makes the Act 1 Boss drop 2 Relics; Small Capsule gives a random Relic. |
+| **Nutritious Oyster** / **Stone Humidifier** | One is added: Nutritious Oyster raises Max HP by 11; Stone Humidifier raises Max HP by 5 whenever you Rest at a Rest Site. |
+| **Neow's Talisman** / **Pomander** | One is added: Neow's Talisman upgrades 1 Strike and 1 Defend; Pomander upgrades a card. |
 
-- **Overgrowth** — Ceremonial Beast, The Kin, Vantom.
-- **Underdocks** — Lagavulin Matriarch, Soul Fysh, Waterfall Giant.
+## Effective probabilities [wiki-driven]
 
-If `map.boss` carries no name the biome is **unknown, not guessable**: pick a
-relic that is fine in both and settle it at the first fight, where one enemy
-name resolves it (the normal rosters are disjoint too).
+### Single-player
 
-### 3. Study that biome's elites and boss now, not after
-- Overgrowth → `act1/elite/OVERGROWTH_ELITES.md`, `act1/boss/OVERGROWTH_BOSSES.md`
-- Underdocks → `act1/elite/UNDERDOCKS_ELITES.md`, `act1/boss/UNDERDOCKS_BOSSES.md`
+- Each Curse-pool relic: 10%.
+- Lava Rock and Small Capsule: 5.9% each.
+- Nutritious Oyster, Stone Humidifier, Neow's Talisman, and Pomander: 6.5% each.
+- Phial Holster and Lost Coffer: 11.7% each.
+- Arcane Scroll, Golden Pearl, New Leaf, and Precise Scissors: 11.8% each.
+- All other Positive-pool relics: 13.1% each.
+- Massive Scroll is not offered.
 
-### 4. Name the problems this run must solve
-Two or three, written down, drawn from the entries you read in step 3 — not
-from a summary here. The mob, elite and boss notes carry the nuance; read the
-biome's threats out of them and name what this run has to answer.
+### Multiplayer
 
-A relic is good *here* because it answers one of those problems.
+- Each Curse-pool relic except Silver Crucible: 11.1%.
+- Lava Rock and Small Capsule: 5.8% each.
+- Nutritious Oyster, Stone Humidifier, Neow's Talisman, and Pomander: 6.6% each.
+- Phial Holster and Lost Coffer: 11.6% each.
+- Arcane Scroll, Golden Pearl, New Leaf, and Precise Scissors: 11.7% each.
+- All other Positive-pool relics: 13.2% each.
+- Silver Crucible and Winged Boots are not offered; Massive Scroll is added as the multiplayer-only Positive option.
 
-### 5. No tier lists
-Do not rank relics and do not import a ranking. The reference site serves
-`/card-tier-list/<character>`; it is an opinion formed on other seeds and decks,
-and it does not know your route, biome or deck. State pros and cons, and say
-plainly when a pick is high-variance. "High risk, high reward" is a real answer
-— take it deliberately rather than dressing it up as a rating.
+The exact offer is run-specific. Compare the listed costs, pool conditions, and
+effects with current route and live state rather than assuming an offer order.
 
-### 6. Plan a route, commit to a direction, not to a path
-Choose the route now so the relic choice has something to serve, then keep it
-revisable: re-read `map.next_options` at every map screen and change the plan
-when the run changes — damage taken, a relic that shifts what you survive, a
-deck that did not come together. A route fixed at floor 1 and followed to the
-boss is worse than one re-decided six times. Take a calculated risk when the
-downside is known and survivable.
-
-### 7. Make the route your first objective
-The runtime holds **one active objective at a time**, so route planning cannot
-run beside another goal. Open it first — scout, name the biome and the problems,
-choose the line — then close it before any combat or bestiary objective. A relic
-chosen before the route is known is a guess.
-
-## Relic pros and cons
-
-Effects and costs are in the pool tables below; this is only the trade-off.
-Nothing here is a ranking — read it against the problems you named.
-
-| Relic | Pro | Con / when it is wrong |
-|---|---|---|
-| Lost Coffer | card + potion, free | no help if the deck needs one specific answer |
-| Phial Holster | slot + 2 potions; potions burst HP checks | dead weight if you hoard them |
-| Booming Conch | draw 2 + energy, elite fights only | worthless on a route that skips elites |
-| Neow's Talisman | upgrades Strike + Defend; helps every combat | low ceiling; wins no fight alone |
-| Precise Scissors | removes a card you choose | slowest payoff; weak on a thin deck |
-| Lava Rock | Act 1 boss drops 2 relics | pays only if you beat that boss |
-| Golden Pearl | 150 gold, no curse | worth only the shop your route reaches |
-| Winged Boots | ignores path restrictions 3× — route flexibility | worth least on an open map |
-| Lead Paperweight | 1 of 2 Colorless, flexible | filler if neither answers a named problem |
-| Neow's Torment | Neow's Fury is a strong attack | adds a card; Exhaust makes it one-shot |
-| Arcane Scroll | a free random Rare | **high variance** — may answer nothing |
-| Small Capsule | a free random relic | **high variance** — same |
-| Neow's Bones | 2 random Neow relics | **highest variance** — two rolls plus a Curse |
-| Large Capsule | 2 random relics | dilutes the deck with +1 Strike +1 Defend |
-| Cursed Pearl | 333 gold, a lot of removal | Greed is unplayable and Eternal — every hand, all run |
-| Leafy Poultice | transforms 2 basics | −12 Max HP bites on a route short of rest sites |
-| Precarious Shears | removes 2 chosen cards — strongest thinning | −16 HP now; **high risk, high reward** |
-| Silken Tress | Glam on the first card reward | loses all gold — check for a shop first |
-| Silver Crucible | first 3 card rewards Upgraded | first Treasure Chest empty (guaranteed at midpoint) |
-
-## No fixed transform outcome
-Transform (New Leaf, Leafy Poultice) produces a random card of any rarity. You
-cannot predict or target the result. The transform preview animation re-rolls
-~once per second but does NOT determine the result (see controls/CONTROLS.md:
-"confirm immediately with y. It is not a timing challenge."). Choose transform
-only when the worst-case outcome is acceptable.
-
-## Choice structure
-
-Each visit offers **3 relics**: one from the Curse (cost) pool, then two from
-the Positive (no-cost) pool. wiki.gg gives the order of resolution — the Curse
-relic is picked first, the Positive pool is then adjusted around it, and all
-three are offered together. The priced relic's weaker twin is removed from the
-Positive pool, so you never see both a priced relic and its unpriced twin in the
-same offer.
-
-[Which on-screen slot the priced relic occupies is UNCONFIRMED — the sources
-describe selection order, not display order. Read the live offer rather than
-assuming it is third.]
-
-## Positive (no-cost) pool — 2 offered
-
-| Relic | Effect | Notes |
-|---|---|---|
-| Arcane Scroll | Obtain a random Rare card | only if Hefty Tablet not selected |
-| Booming Conch | Elite combat: draw 2 + gain 1 energy | strong for elite fights |
-| Fishing Rod | Every 3 normal combats, Upgrade a random card | slow value |
-| Golden Pearl | Gain 150 Gold | only if Cursed Pearl not selected |
-| Kaleidoscope | Obtain 2 card rewards from other characters | cross-character cards |
-| Lead Paperweight | Choose 1 of 2 Colorless cards | flexible |
-| Lost Coffer | 1 card reward + 1 random potion | only if Neow's Sacrifice not selected |
-| Massive Scroll | Choose 1 of 3 Multiplayer cards | multiplayer only |
-| Neow's Torment | Add 1 Neow's Fury (10 dmg, 2 discard→hand, Exhaust, 1 cost) to deck | strong attack |
-| New Leaf | Transform 1 card | only if Leafy Poultice not selected |
-| Phial Holster | +1 potion slot + 2 random potions | only if Neow's Sacrifice not selected |
-| Precise Scissors | Remove 1 card from deck | only if Precarious Shears not selected |
-| Scroll Boxes | Choose 1 of 2 card packs | deck-building |
-| Winged Boots | Ignore path restrictions 3 times | non-multiplayer only |
-
-**Either/or pairs (one is added):**
-- Lava Rock (Act 1 boss drops 2 relics) OR Small Capsule (random relic) —
-  only if Large Capsule not selected
-- Nutritious Oyster (+11 Max HP) OR Stone Humidifier (+5 Max HP per rest)
-- Neow's Talisman (Upgrade 1 Strike + 1 Defend) OR Pomander (Upgrade a card)
-
-## Curse (cost) pool — 1 offered
-
-| Relic | Effect | Cost |
-|---|---|---|
-| Cursed Pearl | Gain 333 Gold | Greed curse (unplayable, Eternal) |
-| Dowsing Rod | Add 1 Dowsing (quest card) to deck | [wiki.gg] quest card burden |
-| Hefty Tablet | Choose 1 of 3 Rare cards | Injury curse (unplayable) |
-| Large Capsule | 2 random relics | +1 Strike +1 Defend to deck |
-| Leafy Poultice | Transform 1 Strike + 1 Defend | Lose 12 Max HP |
-| Neow's Bones | 2 random Neow relics | +1 random Curse |
-| Neow's Sacrifice | 1 Ambergris + 1 Guilty curse | [wiki.gg] |
-| Precarious Shears | Remove 2 cards | Lose 16 HP |
-| Silken Tress | Enchant first card reward with Glam | Lose all Gold |
-| Silver Crucible | First 3 card rewards Upgraded | first Treasure Chest empty (non-MP only) |
-
-## Graded pairs
-
-Each priced relic has a weaker unpriced twin, and only one appears: Cursed
-Pearl/Golden Pearl, Hefty Tablet/Arcane Scroll, Leafy Poultice/New Leaf,
-Precarious Shears/Precise Scissors. The Notes columns above mark each pair.
-
-## Probabilities (non-multiplayer, from wiki.gg)
-
-- All Curse pool relics: 10% each
-- Lava Rock / Small Capsule: 5.9%
-- Nutritious Oyster / Stone Humidifier / Neow's Talisman / Pomander: 6.5%
-- Phial Holster / Lost Coffer: 11.7%
-- Arcane Scroll / Golden Pearl / New Leaf / Precise Scissors: 11.8%
-- All other Positive pool relics: 13.1%
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Neow
+**[wiki-driven] Linked card:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Neow%27s_Fury
+**[wiki-driven] Linked quest:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Dowsing

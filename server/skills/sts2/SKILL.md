@@ -1,38 +1,76 @@
 ---
 name: sts2
-description: Reusable STS2 Ironclad Ascension 1 playbook — prepare for the act, resolve live encounters, navigate verified controls, and retain strategies across seeds.
+description: Source-linked Slay the Spire 2 Ironclad reference and safe play contract for Ascension 1.
 ---
 
-# STS2 strategy guide
+# Slay the Spire 2 reference
 
-Read live state first. Card text, enemy powers, piles, intents and available options outrank reference predictions. The planner returns semantic actions to the local executor; it does not directly run host commands.
+Read the live sensor first. Current card text, can-play state, enemy intents and
+effects, pile membership, focus controls and available options outrank every
+reference. The strategist returns semantic intents; the actuator owns the pad.
 
 ## Find the relevant guide
 
-All Ironclad A1 paths below are under `ironclad/a1/`:
+Ironclad Ascension 1 material lives under `ironclad/a1/`:
 
-- `controls/`: read before input, especially focus navigation, card confirmation and selection barriers.
-- `debugging/`: when a sensor, focus, input or planner failure occurs; preserve evidence and await explicit reviewed resume.
-- `meta_strategy/map/` and `act1/normal/`: before Neow or irreversible routing, read the live map and act encounter pools.
-- `meta_strategy/playbook/`, `cards/`, `relics/`, `deck_archetypes/`: evaluate what problems the current deck must solve, not fixed rankings or predetermined transform outcomes.
-- `meta_strategy/buffs/`, `debuffs/`, `mechanics/`, `keywords/`: when live text changes damage, block, card availability or timing.
-- `meta_strategy/restsite/`, `merchant/`, `rewards/`: make the corresponding choice promptly using current risks and resources.
-- `act1/normal/`, `elite/`, `boss/`: match the observed encounter; distinguish possible pool members from actual enemies.
-- `act1/unknown/`, `ancient/`, `potion/`: event classes, ancient tradeoffs and consumable decisions.
-- `act2/` and `act3/`: later-act orientation and sourced encounter references.
+- `controls/CONTROLS.md` — verified interface and input contract; read before
+  any input.
+- `debugging/README.md` — incident evidence and explicit resume procedure.
+- `meta_strategy/map/`, `merchant/`, `restsite/`, `rewards/` — map, shop, rest
+  and reward facts plus a generic decision worksheet.
+- `meta_strategy/cards/`, `deck_archetypes/`, `playbook/` — card text and
+  neutral comparison questions; these contain no fixed tier list.
+- `meta_strategy/buffs/`, `debuffs/`, `effects/`, `keywords/`, `mechanics/` —
+  named effects, statuses, keywords, timing and card-state mechanics.
+- `meta_strategy/relics/`, `potion/` — relic and potion catalog references.
+- `act1/`, `act2/`, `act3/` — encounter and event references. Match the live
+  encounter; a possible pool member is not an observed enemy.
+- `REFERENCE.md` — source precedence, version uncertainty and lookup limits.
 
-Two roots sit outside the Ironclad A1 tree because they are not character-specific: `ascension/` holds the A1-A10 modifier table that the A3+/A6+/A8+/A9+ notation in these notes refers to, and `characters/` is reserved and currently empty. `scratchpad/` is ephemeral: current run state and an encounter summary refreshed from observations, never a strategy inherited by another room.
+Cross-character references live at the skill root: `ascension/` contains the
+Ascension table and `characters/` contains character facts. `scratchpad/` is
+run-local state and evidence; it is never durable game knowledge.
 
-## Prepare, play, generalize
+## Source-linked facts
 
-1. Before Neow, scout reachable routes, likely fights, elites and boss demands. Consult the guide and allowed wiki if a material question remains. Choose the bundle that answers those problems; transforms and appropriate targets depend on the current deck and seed.
-2. During combat, use fresh hand/draw/discard/exhaust membership and powers. An exhausted card is unavailable unless a live mechanic explicitly recovers it. Recalculate when observations invalidate a hypothesis.
-3. Batch only deterministic actions whose intermediate effects are locally verified. A lone draw or setup card is valid; draw, randomness, new selections or changed targets require fresh planning.
-4. Aim to clear Ironclad A1 Act 1 within 60 minutes. Use the runtime timer, concise hypotheses and text focus queries. The target never overrides safety or makes victory guaranteed.
-5. Retain a note only if useful in an unseen seed: trigger, observed rule, decision criteria, counterexamples and source uncertainty. Encounter intent graphs and recurring tactical/route problems belong here; particular offers, floor sequences and roll outcomes belong only in scratchpad.
+The allowed web references are the [STS2 wiki main page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Main),
+[Keywords](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords),
+[Buffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs),
+[Debuffs](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs),
+[Mechanics](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Mechanics),
+[Cards](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards),
+[Cards List](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List),
+[Relics](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Relics),
+[Relics List](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Relics_List),
+[Potions](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Potions),
+[Potions List](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Potions_List),
+[Map Locations](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Map_Locations),
+[The Merchant](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:The_Merchant),
+[Rest Sites](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Rest_Sites),
+[Ascension](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension),
+[Enchantments](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Enchantments),
+and [Afflictions](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Afflictions).
+The beta data site is [slaythespire2.net](https://slaythespire2.net/?v=beta).
 
-## Sources and safety
+Use a precise page link for every copied fact. Wiki Notes and Interactions are
+community-selected observations: keep them only when the page was inspected,
+mark them `[wiki-driven]`, and link the exact page and section. A wiki page can
+lag the installed build; if live state conflicts with it, keep the discrepancy
+and follow live state. Missing facts remain unknown.
 
-Use only [slaythespire2.net beta](https://slaythespire2.net/?v=beta) and [STS2 wiki.gg](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Main). Pages can lag the installed build; cite the precise page and label strategic inference separately from source facts. Missing facts remain unknown, not invented mechanics.
+## Play and learning contract
 
-The first execution failure stops further input and preserves an incident. Ordinary chat cannot acknowledge it. Do not retry blindly, alter game settings, or modify the mod during a run. Finish only from verified game outcome evidence.
+Calculate damage, Block, Energy, draw access, timing and risk/reward from the
+current state. A generic comparison or an adaptive question is allowed; a fixed
+card ranking, route prescription, purchase verdict or matchup rule is not.
+
+Batch only deterministic actions whose intermediate state remains verified. A
+draw, random result, selection screen, changed target, changed hand or room
+transition requires a fresh decision. Durable notes describe reusable mechanics,
+conditions, timings, source uncertainty or enemy intent graphs. Offers, floors,
+rounds, HP, maps, hands and outcomes from one seed remain in the scratchpad.
+
+The first planner, provider or executor failure pauses input, releases the pad,
+and preserves incident evidence. Do not retry blindly, change settings or alter
+the game. An unresolved incident is acknowledged only through the explicit
+supervisor resume procedure in `debugging/README.md`.

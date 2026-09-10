@@ -73,7 +73,7 @@ assert.ok(!fs.existsSync(curated), 'a note deleted while a room ran stays delete
 // staging file exists to keep out of the next room.
 const roomThree = path.join(root, 'room-three', 'skills', 'sts2');
 library.checkoutInto(cfg, 'sts2', roomThree);
-assert.ok(fs.existsSync(path.join(roomThree, 'scratchpad.md')), 'the file is there to append to');
+assert.ok(!fs.existsSync(path.join(roomThree, 'scratchpad.md')), 'unreviewed proposals and old run reflections are never inherited');
 assert.deepEqual(learnedFiles(roomThree), ['SKILL.md', 'ironclad/a1/controls/CONTROLS.md', 'ironclad/a1/controls/rewards.md']);
 
 // --- history reads like git ----------------------------------------------
@@ -116,15 +116,16 @@ fs.writeFileSync(path.join(template, 'act1', 'unknown', 'tea-master.md'), 'take 
 fs.writeFileSync(path.join(template, 'act1', 'unknown', 'floor-3.md'), 'a diary note\n');
 await library.ensureSkill(cfg, 'sts2', template);
 assert.ok(fs.existsSync(path.join(first.dir, 'act1', 'unknown', 'tea-master.md')), 'shipped, so present');
+assert.ok(!fs.existsSync(path.join(first.dir, 'act1', 'unknown', 'floor-3.md')), 'a template diary is not copied even on its first sync');
 
 fs.rmSync(path.join(template, 'act1'), { recursive: true });
 fs.mkdirSync(path.join(template, 'meta_strategy', 'unknown'), { recursive: true });
 fs.writeFileSync(path.join(template, 'meta_strategy', 'unknown', 'tea-master.md'), 'the tea costs 40 gold\n');
 const moved = await library.ensureSkill(cfg, 'sts2', template);
-assert.deepEqual(moved.dropped, ['act1/unknown/tea-master.md'], 'only the dropped note, and the diary note is exempt');
+assert.deepEqual(moved.dropped, ['act1/unknown/tea-master.md'], 'only the factual note was shipped; diary notes are excluded at copy time');
 assert.ok(!fs.existsSync(path.join(first.dir, 'act1', 'unknown', 'tea-master.md')), 'the pre-move copy is gone');
 assert.ok(fs.existsSync(path.join(first.dir, 'meta_strategy', 'unknown', 'tea-master.md')), 'and the new path is served');
-assert.ok(fs.existsSync(path.join(first.dir, 'act1', 'unknown', 'floor-3.md')), 'a diary note the template stopped shipping is not a curation decision');
+assert.ok(!fs.existsSync(path.join(first.dir, 'act1', 'unknown', 'floor-3.md')), 'seed-specific diary files never enter the durable library');
 // What the sync must never prune: the room's staged proposals and the marker
 // files migration writes, neither of which the template ever ships.
 assert.match(fs.readFileSync(path.join(first.dir, 'scratchpad.md'), 'utf8'), /Empower then Strategic/);

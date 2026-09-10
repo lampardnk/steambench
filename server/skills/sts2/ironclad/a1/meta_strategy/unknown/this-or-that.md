@@ -1,33 +1,25 @@
 ---
-description: This or That? — Any act. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: This or That? — exact wiki outcomes and curse effect.
 character: ironclad
 act: any
 category: unknown
 ascension: a1
-keys: [this or that, event, unknown, any act, gold, relic, curse, clumsy, all acts]
+keys: [this or that, event, any act, gold, hp, clumsy, relic]
 sources: [slaythespire.wiki.gg]
 ---
 
 # This or That?
 
-**Pool:** Any act  
-**Appears when:** no condition
+**Acts:** Any Act.
 
 ## Options
 
 | Option | Exact outcome |
 |---|---|
-| **[This]** | Lose 6 HP. Gain 57 Gold. |
-| **[That]** | Add **Clumsy** (Unplayable, Ethereal curse) to your deck. Obtain a random Relic. |
+| **[This]** | Lose 6 HP; gain 57 Gold. |
+| **[That]** | Add **Clumsy** (curse) to your Deck; obtain a random Relic. Clumsy is unplayable and Ethereal. |
 
-## Mechanics
+No additional condition or event-specific ascension variant is listed. Compare
+the fixed HP/Gold result with the random relic and curse using current state.
 
-- Clumsy is Ethereal, so it leaves your hand at end of turn rather than clogging it permanently — unlike an Eternal curse, it can also be removed later.
-
-## What each option costs and buys
-
-- 57 Gold for 6 HP is a fixed rate; whether it is good depends on whether a shop is on your route.
-- A random relic is the larger swing in both directions, and the curse is the mildest kind: Ethereal, and removable at a shop or a removal event.
-- Deck size matters — Clumsy dilutes your draws until you remove it.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:This_or_That%3F

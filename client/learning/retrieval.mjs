@@ -17,17 +17,15 @@
 // deterministic, so the same screen always retrieves the same notes.
 import fs from 'node:fs';
 import path from 'node:path';
+import { PROFILE } from './profile.mjs';
 
 export const STAGED_NOTES = 'scratchpad.md';
-const MAX_RETRIEVED = 5;
-const RETRIEVAL_BUDGET = 32000;
-// A note arrives the same size whether it was retrieved for the situation or
-// recalled by name, so this matches executor's MAX_NOTE. The number comes from
-// the corpus rather than a round guess: the act rosters a biome decision has to
-// read whole are the largest notes there are (~12k), and they grow as entries
-// are added. It stays at half the budget above, so one note still cannot fill
-// the decision context on its own.
-export const MAX_NOTE_IN_CONTEXT = 16000;
+const MAX_RETRIEVED = 24;
+// Character budgets scale with the configured model's context window, with
+// ample space left for observations, prompts and output. The larger wiki must
+// not be silently limited to the former five 16KB excerpts.
+const RETRIEVAL_BUDGET = Math.min(512000, Math.floor(PROFILE.contextWindow / 2));
+export const MAX_NOTE_IN_CONTEXT = Math.min(128000, Math.floor(RETRIEVAL_BUDGET / 2));
 const STOP = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'at', 'for', 'with', 'is', 'it', 'this', 'that', 'md', 'readme', 'learned', 'note', 'notes']);
 
 const words = (text) => String(text || '').toLowerCase().match(/[a-z0-9][a-z0-9'-]{1,}/g) || [];
@@ -100,7 +98,7 @@ export function indexNotes(skillDir) {
       if (!entry.isFile() || !next.endsWith('.md') || MOMENT_IN_PATH.test(next)) continue;
       try {
         const stat = fs.statSync(path.join(base, next));
-        if (stat.size > 64000) continue;
+        if (stat.size > 1024 * 1024) continue;
         const note = parseNote(next, fs.readFileSync(path.join(base, next), 'utf8'));
         if (/(^|\/)README\.md$/.test(next) && !note.hasFrontMatter) continue;
         index.push({ ...note, bytes: stat.size });
@@ -129,8 +127,17 @@ export function situationTerms(state, objective) {
   const add = (weight, text) => {
     for (const term of terms(text)) weights.set(term, Math.max(weights.get(term) || 0, weight));
   };
-  for (const enemy of state?.battle?.enemies || []) { add(8, enemy.name); for (const power of enemy.powers || []) add(5, `${power.name} ${power.description || ''}`); }
-  for (const power of state?.player?.powers || []) add(5, `${power.name} ${power.description || ''}`);
+  const effects = entity => ['status', 'powers', 'buffs', 'debuffs'].flatMap(key => Array.isArray(entity?.[key]) ? entity[key] : []);
+  for (const enemy of state?.battle?.enemies || []) {
+    add(8, enemy.name);
+    for (const effect of effects(enemy)) add(5, effect.name || effect.id);
+  }
+  for (const effect of effects(state?.player)) add(5, effect.name || effect.id);
+  if (state?.battle) add(SETUP, 'combat');
+  for (const selection of [state?.hand_select, state?.card_select]) {
+    if (selection) add(SETUP, 'card selection');
+    for (const card of selection?.cards || []) add(SUBJECT, card.name);
+  }
   if (/neow/i.test(state?.event?.name || '')) add(SUBJECT + 2, 'neow');
   add(SUBJECT, state?.event?.name || state?.event?.event_name);
   const character = state?.run?.character || state?.player?.character;
@@ -142,8 +149,9 @@ export function situationTerms(state, objective) {
   if (ascension != null) weights.set(`ascension-${ascension}`, SETUP);
   add(SETUP, state?.state_type);
   add(SETUP, state?.menu_screen);
-  for (const relic of (state?.relics || []).slice(0, 12)) add(CONTEXT, relic.name);
-  for (const card of (state?.player?.hand || []).slice(0, 12)) add(CONTEXT, card.name);
+  for (const relic of state?.player?.relics || state?.relics || []) add(SETUP, relic.name);
+  for (const potion of state?.player?.potions || []) add(SETUP, potion.name);
+  for (const card of state?.player?.hand || []) add(SETUP, card.name);
   add(CONTEXT, objective?.text);
   return { weights, area: objective?.area || null };
 }
@@ -232,12 +240,19 @@ export function focusNote(content, subjects) {
     const words = new Set(terms(heading));
     return [...subjects].some(subject => terms(subject).every(word => words.has(word)));
   };
+  const levels = parts.filter((_, i) => i % 2).map(heading => /^#+/.exec(heading)[0].length);
+  const entryLevel = Math.min(...levels.filter(level => level >= 3));
   let kept = false;
+  let keepEntry = true;
   const out = [parts[0]];
   for (let i = 1; i < parts.length; i += 2) {
     const heading = parts[i];
-    const entry = /^#{3,}/.test(heading);
-    if (!entry || matches(heading)) { out.push(heading, parts[i + 1] ?? ''); if (entry) kept = true; }
+    const level = /^#+/.exec(heading)[0].length;
+    if (level < entryLevel) keepEntry = true;
+    else if (level === entryLevel) { keepEntry = matches(heading); if (keepEntry) kept = true; }
+    // Notes/Interactions nested under a matched enemy are part of its entry.
+    // They must not be discarded just because their headings omit its name.
+    if (keepEntry) out.push(heading, parts[i + 1] ?? '');
   }
   return kept ? out.join('') : content;
 }

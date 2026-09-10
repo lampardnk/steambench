@@ -262,3 +262,54 @@ fs.rmSync(root, { recursive: true, force: true });
 }
 
 console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'the controls manual reaches the pad even when retrieval scores it zero', 'a roster note is cut to the enemies actually present'] }));
+
+// Live effects are named under status, not powers. Selection cards, carried
+// relics and potions are also subjects whose mechanics must be discoverable.
+{
+  const actual = {
+    state_type: 'hand_select',
+    battle: { enemies: [{ name: 'Exoskeleton', status: [{ name: 'Hard to Kill' }] }] },
+    player: { status: [{ name: 'Sandpit' }], hand: [{ name: 'Frantic Escape' }],
+      relics: [{ name: 'Gambling Chip' }], potions: [{ name: 'Colorless Potion' }] },
+    hand_select: { cards: [{ name: 'Bound' }] },
+  };
+  const { weights } = situationTerms(actual, null);
+  assert.equal(weights.get('sandpit'), 5);
+  assert.equal(weights.get('hard'), 5);
+  assert.equal(weights.get('bound'), 4);
+  assert.equal(weights.get('gambling'), 2);
+  assert.equal(weights.get('colorless'), 2);
+  assert.equal(weights.get('frantic'), 2);
+  const corpus = [
+    ['effects/sandpit.md', 'Sandpit', 'sandpit'],
+    ['effects/hard-to-kill.md', 'Hard to Kill', 'hard, kill'],
+    ['effects/bound.md', 'Bound', 'bound'],
+  ].map(([file, name, keys]) => {
+    note(file, `---\ndescription: ${name} factual definition\nkeys: ${keys}\n---\n${name} source-backed mechanics.\n`);
+    return file;
+  });
+  const found = retrieve(skillDir, indexNotes(skillDir), actual, null);
+  for (const file of corpus) assert.ok(found.some(item => item.path === file), `${file} reaches the actual sensor shape`);
+}
+
+{
+  const roster = '# Enemies\n## Roster\n### Knowledge Demon\nForced choices.\n#### Notes\n[wiki-driven] Selected debuffs are not added to the deck.\n##### Interactions\nA nested source observation.\n### Queen\nBinding.\n#### Notes\nOther enemy observation.\n## Sources\nShared source list.\n';
+  const found = focusNote(roster, new Set(['knowledge', 'demon']));
+  assert.match(found, /Selected debuffs are not added/);
+  assert.match(found, /A nested source observation/);
+  assert.doesNotMatch(found, /Other enemy observation/);
+  assert.match(found, /Shared source list/);
+}
+
+// A factual entry larger than the previous indexing/retrieval thresholds is
+// still indexed and delivered, including its final Notes/Interactions marker.
+{
+  const body = 'A verified mechanic and its conditions.\n'.repeat(1700) + '[wiki-driven] END_OF_LONG_SOURCE';
+  note('effects/long-source.md', `---\ndescription: Comprehensive Sandpit effects\nkeys: sandpit\n---\n${body}`);
+  const found = retrieve(skillDir, indexNotes(skillDir), { player: { status: [{ name: 'Sandpit' }] } }, null);
+  const long = found.find(item => item.path === 'effects/long-source.md');
+  assert.ok(long, 'a source exceeding 64KB is indexed');
+  assert.ok(long.content.length > 60000);
+  assert.match(long.content, /END_OF_LONG_SOURCE/);
+  assert.equal(long.truncated, false);
+}

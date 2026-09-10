@@ -1,38 +1,36 @@
 ---
-description: The Future of Potions? — Any act. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: The Future of Potions? — exact wiki potion-to-card conversions and gate.
 character: ironclad
 act: any
 category: unknown
 ascension: a1
-keys: [future of potions, event, unknown, any act, potion, upgraded card, all acts]
+keys: [future of potions, event, any act, potion, card reward, upgraded]
 sources: [slaythespire.wiki.gg]
 ---
 
 # The Future of Potions?
 
-**Pool:** Any act  
-**Appears when:** you hold at least 2 potions
+**Acts:** Any Act. **Condition:** at least 2 Potions.
+
+The first 3 potions in the Potion slots are offered, prioritizing the leftmost
+slots; multiple potions of the same rarity can be offered. Each option randomly
+specifies the card type where the source permits several types.
 
 ## Options
 
-| Option | Exact outcome |
+| Potion inserted | Exact outcome |
 |---|---|
-| **[Insert Common Potion]** | Lose that Common potion. Gain an **Upgraded Common** card reward (Attack or Skill). |
-| **[Insert Uncommon Potion]** | Lose that Uncommon potion. Gain an **Upgraded Uncommon** card reward (Attack, Skill or Power). |
-| **[Insert Rare Potion]** | Lose that Rare potion. Gain an **Upgraded Rare** card reward. |
-| **[Insert Event Potion]** | Lose that Event potion (Foul Potion or Glowwater Potion). Gain an **Upgraded Rare** card reward. |
-| **[Insert Token Potion]** | Lose Potion-Shaped Rock. Gain an **Upgraded Common** card reward. |
+| **[Insert Common Potion]** | Lose the specified Common Potion; obtain an Upgraded Common Attack or Skill card reward. |
+| **[Insert Uncommon Potion]** | Lose the specified Uncommon Potion; obtain an Upgraded Uncommon Attack, Skill, or Power card reward. |
+| **[Insert Rare Potion]** | Lose the specified Rare Potion; obtain an Upgraded Rare Attack, Skill, or Power card reward. |
+| **[Insert Event Potion]** | Lose the specified Event Potion; obtain an Upgraded Rare Attack, Skill, or Power card reward. Event Potions are Foul Potion and Glowwater Potion. |
+| **[Insert Token Potion]** | Lose the specified Token Potion; obtain an Upgraded Common Attack or Skill card reward. The only Token Potion is Potion-Shaped Rock. |
 
-## Mechanics
+## Mechanics [wiki-driven]
 
-- Only your first 3 potion slots are offered, leftmost first. Several may share a rarity.
-- Each option independently rolls whether its reward is an Attack, a Skill or a Power.
-- Reward rarity tracks the rarity of the potion you feed it.
+The card reward rarity follows the inserted potion's rarity; the reward's card
+type is randomized from the types listed above. No separate event ascension
+variant is listed. Compare the potion loss with the generated reward and follow
+the live option text if it differs.
 
-## What each option costs and buys
-
-- This converts a one-use consumable into a permanent upgraded card, and grows your deck by one in the process.
-- A Token potion inserted costs almost nothing; a Rare potion is a real resource traded for a Rare card you do not get to pick by type.
-- Keeping the potion keeps flexibility for a fight you have not seen; inserting it commits to deck value.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:The_Future_of_Potions%3F

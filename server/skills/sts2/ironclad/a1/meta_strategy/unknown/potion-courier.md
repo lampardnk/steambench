@@ -1,49 +1,31 @@
 ---
-description: Potion Courier — Any act. Exact outcomes for every option, with the trade-offs left open.
+description: Potion Courier — exact wiki potion outcomes and interactions.
 character: ironclad
 act: any
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, potion courier, any act]
-sources: [slaythespire2.net]
+keys: [potion courier, event, hive, glory, foul potion, potion, merchant]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Potion Courier
 
-**Pool:** Any act  
-**Pages:** 3
+**Biomes:** Hive and Glory.
 
-## What the screen says
+## Options
 
-There is a sour smell in the air and shortly after, you find a Potion Courier
-collapsed on the ground.
+| Option | Exact outcome |
+|---|---|
+| **[Grab Potions]** | Procure 3 **Foul Potions**. Each deals 12 damage to **everyone** when used. |
+| **[Ransack]** | Procure 1 random Uncommon Potion. |
 
-Unmoving. Lifeless. Dead!?
+## Notes [wiki-driven]
 
-While their belongings have been ransacked, there is a batch of Foul Smelling
-Potions with a note: "Recipient: Merchant".
+Foul Potion can be thrown during combat for its damage, thrown at The Merchant
+for 100 Gold, or thrown at **The Merchant???** to initiate that combat event.
+No additional condition or event-specific ascension variant is listed.
 
-## Options — page `INITIAL`
+Compare the potion-slot result and current route; follow the live UI if it
+reports a different number.
 
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Grab Potions]** | Obtain a potion (offered FoulPotions (3) Foul Potion rewards) — screen text: "Procure 3 **Foul Potions**." | GRAB_POTIONS |
-| **[Ransack]** | Obtain a potion (offered 1 random Uncommon potion from the player's + shared potion pool) — screen text: "Procure 1 random **Uncommon Potion**." | RANSACK |
-
-## Options — page `GRAB_POTIONS`
-
-What could the Merchant want with these potions?
-
-This page presents no standard options.
-
-## Options — page `RANSACK`
-
-Only a single potion was intact.
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Potion_Courier

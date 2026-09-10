@@ -1,59 +1,68 @@
 ---
-description: Act 2 — Hive unknown-event index — the 10 events this act owns plus the 18 shared with every act, each with its own note of exact per-option outcomes.
+description: Act 2 Hive unknown-event index with wiki-backed availability and routing.
 character: ironclad
 act: 2
 category: unknown
 ascension: a1
-keys: [ironclad, act2, unknown, event, events, index, amalgamator, bugslayer, colorful philosophers, colossal flower, field of man sized holes, infested automaton, spirit grafter, the lantern key, the lost wisp, zen weaver]
-sources: [slaythespire2.net]
+keys: [ironclad, act2, unknown, event, events, hive, gates]
+sources: [slaythespire.wiki.gg]
 ---
 
-# Act 2 — Hive — Unknown events
+# Act 2 — Hive — unknown events
 
-An unknown room here draws from this act's own 10 events plus the 18
-shared with every act. Each has its own note with every option's exact outcome;
-this file only says which exist.
+The Hive Unknown pool contains the ten Act 2 events below plus the shared
+events whose wiki pages list the Hive. Individual notes give exact outcomes;
+read the live option text if the installed build differs.
 
-## This act's own events (10)
+## Hive-only events
 
-| Event | Options | Pages |
-|---|---|---|
-| [Amalgamator](amalgamator.md) | 2 | 3 |
-| [Bugslayer](bugslayer.md) | 2 | 4 |
-| [Colorful Philosophers](colorful-philosophers.md) | 6 | 2 |
-| [Colossal Flower](colossal-flower.md) | 6 | 6 |
-| [Field of Man-Sized Holes](field-of-man-sized-holes.md) | 2 | 3 |
-| [Infested Automaton](infested-automaton.md) | 2 | 3 |
-| [Spirit Grafter](spirit-grafter.md) | 2 | 3 |
-| [The Lantern Key](the-lantern-key.md) | 3 | 3 |
-| [The Lost Wisp](the-lost-wisp.md) | 2 | 3 |
-| [Zen Weaver](zen-weaver.md) | 4 | 4 |
+[Amalgamator](amalgamator.md) · [Bugslayer](bugslayer.md) ·
+[Colorful Philosophers](colorful-philosophers.md) · [Colossal Flower](colossal-flower.md) ·
+[Field of Man-Sized Holes](field-of-man-sized-holes.md) · [Infested Automaton](infested-automaton.md) ·
+[Spirit Grafter](spirit-grafter.md) · [The Lantern Key](the-lantern-key.md) ·
+[The Lost Wisp](the-lost-wisp.md) · [Zen Weaver](zen-weaver.md)
 
-## Shared with every act (18)
+## Shared events that can occur in the Hive
 
-[brain-leech](../../meta_strategy/unknown/brain-leech.md) ·
-[crystal-sphere](../../meta_strategy/unknown/crystal-sphere.md) ·
-[doll-room](../../meta_strategy/unknown/doll-room.md) ·
-[potion-courier](../../meta_strategy/unknown/potion-courier.md) ·
-[ranwid-the-elder](../../meta_strategy/unknown/ranwid-the-elder.md) ·
-[relic-trader](../../meta_strategy/unknown/relic-trader.md) ·
-[room-full-of-cheese](../../meta_strategy/unknown/room-full-of-cheese.md) ·
-[self-help-book](../../meta_strategy/unknown/self-help-book.md) ·
-[slippery-bridge](../../meta_strategy/unknown/slippery-bridge.md) ·
-[stone-of-all-time](../../meta_strategy/unknown/stone-of-all-time.md) ·
-[symbiote](../../meta_strategy/unknown/symbiote.md) ·
-[tea-master](../../meta_strategy/unknown/tea-master.md) ·
-[the-future-of-potions](../../meta_strategy/unknown/the-future-of-potions.md) ·
-[the-legends-were-true](../../meta_strategy/unknown/the-legends-were-true.md) ·
-[the-merchant](../../meta_strategy/unknown/the-merchant.md) ·
-[this-or-that](../../meta_strategy/unknown/this-or-that.md) ·
-[war-historian-repy](../../meta_strategy/unknown/war-historian-repy.md) ·
-[welcome-to-wongo-s](../../meta_strategy/unknown/welcome-to-wongo-s.md)
+[Brain Leech](../../meta_strategy/unknown/brain-leech.md) ·
+[Crystal Sphere](../../meta_strategy/unknown/crystal-sphere.md) ·
+[Doll Room](../../meta_strategy/unknown/doll-room.md) ·
+[Potion Courier](../../meta_strategy/unknown/potion-courier.md) ·
+[Ranwid the Elder](../../meta_strategy/unknown/ranwid-the-elder.md) ·
+[Relic Trader](../../meta_strategy/unknown/relic-trader.md) ·
+[Room Full of Cheese](../../meta_strategy/unknown/room-full-of-cheese.md) ·
+[Self-Help Book](../../meta_strategy/unknown/self-help-book.md) ·
+[Slippery Bridge](../../meta_strategy/unknown/slippery-bridge.md) ·
+[Stone of All Time](../../meta_strategy/unknown/stone-of-all-time.md) ·
+[Symbiote](../../meta_strategy/unknown/symbiote.md) ·
+[Tea Master](../../meta_strategy/unknown/tea-master.md) ·
+[The Future of Potions?](../../meta_strategy/unknown/the-future-of-potions.md) ·
+[The Merchant???](../../meta_strategy/unknown/the-merchant.md) ·
+[This or That?](../../meta_strategy/unknown/this-or-that.md) ·
+[Welcome to Wongo's](../../meta_strategy/unknown/welcome-to-wongo-s.md)
 
-## Reading these notes
+Brain Leech, Crystal Sphere, and the remaining shared entries above are
+included because their individual wiki pages list the Hive. Glory-only War
+Historian, Repy and Act 1-biome events are not part of this list.
 
-- An option's row gives what it does, never what it is worth.
-- Multi-page events route between pages; the `Then` column names where an
-  option leads, and `ends` closes the event.
-- Where the source publishes a formula rather than a number, the formula is
-  given as it stands.
+## Conditions listed by the wiki
+
+| Gate | Event |
+|---|---|
+| At least 2 removable Strikes and 2 removable Defends | Amalgamator |
+| More than 1 character unlocked | Colorful Philosophers |
+| At least 19 HP | Colossal Flower |
+| At least 1 Perfect Fit-enchantable card | Field of Man-Sized Holes |
+| At least 125 Gold | Zen Weaver |
+| At least 100 Gold | Crystal Sphere, Welcome to Wongo's |
+
+The table intentionally leaves shared thresholds to their event pages where
+the same page is used across acts. The Hive-only pages that list no condition
+are Bugslayer, Infested Automaton, Spirit Grafter, The Lantern Key, and The Lost
+Wisp. Crystal Sphere's page requires at least 100 Gold; its [Uncover Future]
+payment is 51–99 Gold. Ranwid the Elder, Relic Trader, The Future of Potions?,
+and Slippery Bridge carry additional inventory or floor gates on their linked
+pages.
+
+**[wiki-driven] Index source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Events_List
+**[wiki-driven] Event mechanics:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Events

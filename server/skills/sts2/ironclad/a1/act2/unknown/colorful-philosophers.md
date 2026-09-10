@@ -1,52 +1,41 @@
 ---
-description: Colorful Philosophers — Act 2. Exact outcomes for every option, with the trade-offs left open.
+description: Colorful Philosophers — exact wiki card-pool rules and interactions.
 character: ironclad
 act: 2
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, colorful philosophers, act 2]
-sources: [slaythespire2.net]
+keys: [colorful philosophers, event, act2, hive, card rewards, prismatic gem, dingy rug]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Colorful Philosophers
 
-**Pool:** Act 2  
-**Pages:** 2
+**Biome:** Hive only. **Condition:** more than 1 character is unlocked. The
+event is unlocked by the **Spire Epoch**.
 
-## What the screen says
+## Options
 
-Before you is a rather epic sight.
+Up to 3 options are shown, chosen from other characters' card pools and
+excluding the current character. Each option gives 3 card rewards from that
+character: 1 Common, 1 Uncommon, and 1 Rare.
 
-You see 3 different colored statues towering over a dais, having a heated
-debate over the philosophical implications of color.
+| Option | Exact outcome |
+|---|---|
+| **[Red]** | Obtain 3 Ironclad cards. |
+| **[Green]** | Obtain 3 Silent cards. |
+| **[Blue]** | Obtain 3 Defect cards. |
+| **[Pink]** | Obtain 3 Necrobinder cards. |
+| **[Orange]** | Obtain 3 Regent cards. |
 
-As you listen in, you get a sense that the most important question at hand is
-which color truly is THE BEST.
+## Interactions [wiki-driven]
 
-You chime in with your thoughts.
+- **Prismatic Gem:** regardless of the selected option, rewards include cards from all characters, including the current character.
+- **Dingy Rug:** rewards include Colorless cards in addition to the selected color.
+- If both are owned, the one picked up first determines the modification and the other does not apply.
+- **Driftwood** rerolls the card rewards; **Pael's Wing** lets the rewards be sacrificed for an eventual Relic; **Wing Charm** applies Swift 1 to one card in each reward.
+- Molten Egg, Toxic Egg, and Frozen Egg upgrade their respective card types as intended.
 
-## Options — page `INITIAL`
+No separate event ascension variant is listed. Compare the available pools with
+the current character unlocks and relic state.
 
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Red]** | Card reward (offers 3 card-reward choices from Ironclad pool: one Common, one Uncommon, one Rare (each choice picks 3 cards / DynamicVars.Cards)) — screen text: "Obtain 3 Ironclad cards." | DONE |
-| **[Green]** | Card reward (offers Common/Uncommon/Rare card rewards from Silent pool) — screen text: "Obtain 3 Silent cards." | DONE |
-| **[Blue]** | Card reward (offers Common/Uncommon/Rare card rewards from Defect pool) — screen text: "Obtain 3 Defect cards." | DONE |
-| **[Orange]** | Card reward (offers Common/Uncommon/Rare card rewards from Regent pool) — screen text: "Obtain 3 Regent cards." | DONE |
-| **[Pink]** | Card reward (offers Common/Uncommon/Rare card rewards from Necrobinder pool) — screen text: "Obtain 3 Necrobinder cards." | DONE |
-| **[Equality]** | other (en.json lists EQUALITY (Obtain Prismatic Shard) but the current decompiled GenerateInitialOptions does not emit it; likely unused/legacy or handled elsewhere) — screen text: "Obtain **Prismatic Shard**." | DONE |
-
-**Engine note:** Options are generated dynamically: for each other-character card pool the player has unlocked (order: NECROBINDER, IRONCLAD, REGENT, SILENT, DEFECT), an option is offered, then randomly trimmed to at most 3. The player's own character color is excluded.
-
-## Options — page `DONE`
-
-Your opinion doesn't seem welcome, and the statues resume their unending
-debate.
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Colorful_Philosophers

@@ -1,57 +1,33 @@
 ---
-description: Battleworn Dummy — Act 3. Exact outcomes for every option, with the trade-offs left open.
+description: Battleworn Dummy — exact wiki settings, rewards, and time limit.
 character: ironclad
 act: 3
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, battleworn dummy, act 3]
-sources: [slaythespire2.net]
+keys: [battleworn dummy, event, act3, glory, combat, potion, upgrade, relic]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Battleworn Dummy
 
-**Pool:** Act 3  
-**Pages:** 3
+**Biome:** Glory only. This is a combat event.
 
-## What the screen says
+## Options
 
-As you approach, it begins to rumble and fizzle and lights up brilliantly!
+| Option | Exact outcome |
+|---|---|
+| **[Setting 1]** | Fight a 75-HP dummy; on victory, procure 1 random Potion. |
+| **[Setting 2]** | Fight a 150-HP dummy; on victory, upgrade 2 random cards. |
+| **[Setting 3]** | Fight a 300-HP dummy; on victory, obtain a random Relic. |
 
-"BZZZT! TIME TO TRAIN!!! YOU HAVE 3 TURNS TO DEFEAT ME!
+You have 3 turns to defeat the dummy. Failure gives no reward.
 
-CHOOSE A SETTING OR FACE LETHAL HUMILIATION.
+## Notes [wiki-driven]
 
-Here are the options:"
+The wiki says defeating this event combat gives no card reward or Gold, but it
+can still trigger other benefits such as Burning Blood or The Scythe. No
+event-specific ascension variant is listed.
 
-After the terrifying message, the dummy carefully reads out detailed
-instructions.
+Compare the HP check and reward type with current live combat state.
 
-What do you choose?
-
-## Options — page `INITIAL`
-
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Setting 1]** | Fight (resume after combat; on victory rewards 1 random potion) — screen text: "Fight a ? HP dummy. Procure 1 random **Potion**." | VICTORY |
-| **[Setting 2]** | Fight (resume after combat; on victory upgrades 2 random upgradable deck cards) — screen text: "Fight a ? HP dummy. **Upgrade** 2 random cards." | VICTORY |
-| **[Setting 3]** | Fight (resume after combat; on victory rewards next relic from front) — screen text: "Fight a ? HP dummy. Obtain a random **Relic**." | VICTORY |
-
-## Options — page `VICTORY`
-
-"YOU PASS THE TRAINING! YOU ARE NOW EQUIPPED TO DEFEND THIS **FACTORY**
-AGAINST INTRUDERS!! BE SURE TO HYDRATE AFTER TRAINING SESSIONS!"
-
-This page presents no standard options. reached if the BattleFriend dummy is defeated in time; rewards depend on chosen setting (see option notes)
-
-## Options — page `DEFEAT`
-
-"YOU ARE WEAK!! HUMILIATION HAS BEEN ADMINISTERED!"  The dummy is silent for a
-moment and—  "Choose a lower setting next time. Have a nice day."
-
-This page presents no standard options. reached if the encounter RanOutOfTime (dummy not defeated)
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Battleworn_Dummy

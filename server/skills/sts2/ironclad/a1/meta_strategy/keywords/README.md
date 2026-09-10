@@ -1,82 +1,66 @@
 ---
 title: Keywords
-description: >-
-  Complete keyword glossary. Ironclad-relevant keywords noted. Sources from wiki.gg.
+description: Wiki-linked definitions of Slay the Spire 2 card and character keywords used by Ironclad notes.
 character: Ironclad
 act: any
 tags: [keywords, glossary, mechanics]
 topic: keywords
+sources:
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs
 ---
 
-# Keywords — Ironclad Reference
+# Keywords
 
+Definitions below are [wiki-driven] paraphrases of the [STS2 Keywords page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords#Common).
+The current card description, modifiers and `can_play` value are authoritative
+when a live card differs from a catalog entry.
 
-## Common Keywords (All Characters)
-
-Source: slaythespire.wiki.gg (Slay the Spire 2:Keywords, revision 52813)
-
-| Keyword | Definition | Ironclad Relevance |
-|---|---|---|
-| **Block** | Prevents damage until next turn. Damage hits Block before HP. | Core — Shrug It Off, Impervious, Blood Wall, Flame Barrier, Second Wind |
-| **Energy** | 3 per turn. Used to play cards. Not conserved across turns (except Ice Cream). | Bloodletting (lose 3 HP, gain 2 energy), Offering (lose 6 HP, gain 2 energy, draw 3) |
-| **Eternal** | Cannot be removed or transformed from your Deck. | Ascender's Bane (A5+) is Eternal. |
-| **Exhaust** | Card is removed from deck until end of combat. Goes to Exhaust Pile. | **Ironclad's core mechanic.** Fiend Fire, Burning Pact, Second Wind, True Grit, Havoc. Synergizes with Dark Embrace (draw 1 per exhaust), Feel No Pain (3 Block per exhaust), Evil Eye (+8 Block if you exhausted this turn), and Ashen Strike (+3 damage per card in the Exhaust pile). |
-| **Ethereal** | Card auto-Exhausts if in hand at end of turn. | Handle carefully. Can be useful with Dark Embrace for free draw. Summon Forth retrieves Sovereign Blade from Exhaust Pile (per slaythespire2.net card data). Eidolon (Necrobinder) retrieves Ethereal cards from Exhaust Pile. |
-| **Fatal** | Triggers when card kills a non-Minion enemy. | Relevant for Ironclad's heavy hitters. |
-| **Innate** | Card always appears in first hand. Replaces normal draw. If more Innate cards than starting hand size, all are drawn (free draw). | Useful for key Powers. |
-| **Retain** | Card is not discarded at end of turn. | Use only when the live card or effect actually has Retain; do not assume Brand has it. |
-| **Replay** | Card is played an additional time in a row. | Glam enchantment, Hidden Gem, Transfigure. Hidden Gem is Colorless — any character can use it. Stackable: multiple Replay sources = multiple extra plays. |
-| **Unplayable** | Cannot be played, has no Energy cost. Havoc or Distilled Chaos immediately discards instead. | Relevant if Havoc hits one. Curses and Statuses are often Unplayable. |
-
-## Character-Specific Keywords
-
-### Silent (not Ironclad, included for context)
+## Common keywords
 
 | Keyword | Definition |
 |---|---|
-| **Poison** | Lose HP at end of enemy turn. Reduced by 1 per tick. |
-| **Sly** | If discarded during player turn, plays for free. |
+| **Block** | Prevents damage until next turn; damage is applied to Block before HP. |
+| **Energy** | Pays card costs. The standard start of a turn grants 3 Energy; it is not conserved between turns except through an effect such as Ice Cream. |
+| **Eternal** | The card cannot be removed or permanently transformed from the Deck. The wiki notes that in-battle transformations and Thieving Hopper can be exceptions. |
+| **Exhaust** | Removes the card from the Deck until combat ends and places it in the Exhaust pile. Specific cards can play cards from Exhaust. |
+| **Ethereal** | Automatically Exhausts the card if it remains in hand at the end of the player's turn. |
+| **Fatal** | Triggers when the card kills a non-Minion enemy. |
+| **Innate** | Places the card in the first hand of a combat. Innate cards replace normal opening draws; if there are more Innate cards than the opening hand size, all of them are drawn. |
+| **Retain** | Keeps the card from being discarded at end of turn. A card's own effect can still discard or Exhaust it. |
+| **Replay** | Plays the card an additional time in a row. Multiple Replay sources stack. |
+| **Unplayable** | Cannot be played and has no Energy cost. An effect that attempts to play one, such as Havoc or Distilled Chaos, sends it to the Discard pile without counting it as a card play. |
 
-### Ironclad
+## Ironclad-relevant terms
 
-| Keyword | Definition | How to Use |
-|---|---|---|
-| **Strength** | +damage per hit. Intensity, permanent for the combat unless a debuff removes it. | **Core scaling.** Inflame (+2), Demon Form (+3/turn), Rupture (+1 per HP loss), Brand (+1 per exhaust), Fight Me! (+3), Dominate (+1 per Vulnerable). Every attack benefits, and multi-hit attacks (Twin Strike, Sword Boomerang, Conflagration) gain the most — but they also lose the most to Strength-down effects like Lagavulin's Soul Siphon. |
-| **Vigor** | "Your next Attack deals X additional damage." Conserved until an Attack spends it. | Akabeko and Prep Time grant it. Setup Strike is not Vigor — it grants 3 Strength until end of turn, which applies to every hit rather than one. |
-
-### Defect
-
-| Keyword | Definition |
+| Term | Definition |
 |---|---|
-| **Channel** | Put an Orb into leftmost empty slot. If full, Evoke rightmost. |
-| **Evoke** | Consume Orb for burst effect (Evokes right-to-left on multi-Evoke). |
-| **Focus** | Increases Orb effectiveness. |
-| **Orbs** | Lightning (3 passive / 8 evoke), Frost (2 Block passive / 5 Block evoke), Dark (+6 storage passive / stored damage to lowest HP enemy), Plasma (+1 next-turn energy passive / 2 energy evoke), Glass (decreasing AoE passive) |
+| **Strength** | Increases Attack damage by X. Negative Strength is treated as a debuff. |
+| **Dexterity** | Increases Block gained from cards by X. Negative Dexterity is treated as a debuff. |
+| **Vigor** | Adds X damage to the next Attack and is conserved until an Attack spends it. |
+| **Vulnerable** | The [STS2 Debuffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs#Debuffs_List) defines this as receiving 50% more damage from Attacks for X turns. |
+| **Weak** | The [STS2 Debuffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs#Debuffs_List) defines this as Attacks dealing 25% less damage for X turns. |
+| **Frail** | The [STS2 Debuffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs#Debuffs_List) defines this as gaining 25% less Block from cards for X turns. |
 
-### Regent
+The [STS2 Buffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Buffs#Attributes)
+and [Debuffs page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Debuffs#Attributes)
+classify stack behaviour using terms such as Intensity, Duration, Counter,
+permanent, conserved, decremented, removed, consumed and reset. The Buffs and
+Debuffs pages are marked under construction; those labels are wiki
+classifications rather than a replacement for the live amount and description.
 
-| Keyword | Definition |
-|---|---|
-| **Stars** | Alternative resource. Never resets, no cap. Required for some cards. |
-| **Forge** | Creates Sovereign Blade (2 cost, Retain, 10 damage) in hand first time each combat. Each Forge adds X damage to ALL Sovereign Blades across all zones. If no Blade exists, creates one. |
+## Other character keywords
 
-### Necrobinder
+The same [Keywords page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Keywords#Character-Specific_Keywords)
+defines Silent's Poison and Sly, Regent's Stars and Forge, Necrobinder's Doom
+and Summon, and Defect's Channel, Evoke, Focus and Orbs. They are included here
+only to decode a cross-character card or enemy reference; they do not change the
+Ironclad role contract.
 
-| Keyword | Definition |
-|---|---|
-| **Doom** | At end of enemy turn, if Doom >= HP, they die. Ignores Block, Slippery, Intangible. |
-| **Summon** | Summon Osty with X max HP. If alive, raises max HP by X until death. |
+## Use in a decision
 
-## Keyword Strategy Notes
-
-- Exhaust can enable Ironclad payoffs such as Dark Embrace or Feel No Pain, but losing a necessary card can still be a downside. Compare current payoff with what remains available for later turns.
-- **Ethereal cards** work well with exhaust synergy since they exhaust naturally at turn end.
-- An actual Innate card is guaranteed in the opening hand. Inflame and Crimson Mantle should not be assumed Innate without live text granting it.
-- Retain can support multi-turn timing when present; evaluate its real source and cost.
-- **Vulnerable** (while technically a debuff, it's a keyword for card text) — Ironclad is the best at applying and exploiting it.
-
-## Source Attribution
-
-- Keyword definitions from slaythespire.wiki.gg (Slay the Spire 2:Keywords, revision 52813).
-- Card/relic examples grounded in slaythespire2.net beta v0.111.0 data.
-- **Strategic notes are inference.**
+Read the live text and calculate the timing, cost, target and pile transition
+that the keyword implies. A keyword definition is a [wiki-driven] fact; whether
+an option is worth its cost depends on the current state and remains a
+run-specific hypothesis. This file contains no fixed strategy or ranking.

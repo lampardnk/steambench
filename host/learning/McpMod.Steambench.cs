@@ -18,6 +18,9 @@ using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
+using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
+using MegaCrit.Sts2.Core.Nodes.Screens.CardSelection;
+using MegaCrit.Sts2.Core.Nodes.Screens.Overlays;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace STS2_MCP;
@@ -270,12 +273,49 @@ public static partial class McpMod
         ui["elements"] = list; ui["elements_truncated"] = controls.Count == 600;
     }
 
+    /**
+     * Card-selection screens name their offers by model id and title only, and
+     * a pile-selection screen is drawn beside the player's own hand. Both sides
+     * carry reference.kind "card", so two Strikes - one in the discard pile and
+     * one in hand - were indistinguishable, and the executor refused a discard
+     * retrieval the game was offering with "cannot safely map card index 2 to a
+     * unique screen card" (incident 1789020238941-12).
+     *
+     * The state builder publishes the offers in visual order, so stamping the
+     * physical identity of the matching holder onto each entry makes the match
+     * exact instead of a guess from a name.
+     */
+    private static void AddSelectionCardIdentities(Dictionary<string, object?> result)
+    {
+        var overlay = NOverlayStack.Instance?.Peek();
+        if (!result.TryGetValue("card_select", out var selectObject)
+            || selectObject is not Dictionary<string, object?> select
+            || !select.TryGetValue("cards", out var cardsObject)
+            || cardsObject is not List<Dictionary<string, object?>> cards) return;
+        List<NGridCardHolder>? holders = overlay switch
+        {
+            NCardGridSelectionScreen grid => FindAllSortedByPosition<NGridCardHolder>(grid),
+            NChooseACardSelectionScreen choose => FindAllSortedByPosition<NGridCardHolder>(choose),
+            _ => null
+        };
+        if (holders == null) return;
+        // Same order and the same null-skip as the state builder, so index i of
+        // the published list is index i here.
+        int index = 0;
+        foreach (var holder in holders)
+        {
+            if (holder.CardModel is not CardModel card) continue;
+            if (index >= cards.Count) break;
+            cards[index]["instance_id"] = CardIdentity(card);
+            index++;
+        }
+    }
     [HarmonyPatch(typeof(McpMod), "BuildGameState")]
     private static class SteambenchObservationPatch
     {
         private static void Postfix(Dictionary<string, object?> __result)
         {
-            var observation = new Dictionary<string, object?> { ["sensor_version"] = 5 };
+            var observation = new Dictionary<string, object?> { ["sensor_version"] = 6 };
             __result["ui"] = observation;
             try
             {
@@ -364,6 +404,7 @@ public static partial class McpMod
                     for (int index = 0; index < hand.Count && index < cards.Count; index++)
                         hand[index]["instance_id"] = CardIdentity(cards[index]);
                 }
+                AddSelectionCardIdentities(__result);
             }
             catch (Exception error)
             {

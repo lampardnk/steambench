@@ -1,76 +1,50 @@
 ---
-title: Rewards
-description: >-
-  Post-combat reward structure (sourced) and card/gold decision framework (inference). Skip/tradeoff logic is strategic.
+description: Source-linked combat reward facts and live-state card, gold and Potion selection rules.
 character: Ironclad
 act: any
-tags: [rewards, card-pick, skip, gold]
-topic: rewards
+category: rewards
+keys: [rewards, card reward, card pick, skip, gold, potion, relic, ancient]
 sources:
-  - slaythespire.wiki.gg Map_Locations
-  - slaythespire2.net
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Map_Locations
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Potions
+  - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension
 ---
 
-# Rewards — Decision Framework
+# Rewards
 
-## Core Reward Rules (Sourced)
+The [STS2 Map Locations page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Map_Locations)
+describes the standard reward structure. The live reward object, item text and
+current Ascension are authoritative.
 
-Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028)
+| Encounter | Wiki-described reward |
+|---|---|
+| Normal Monster | 10–20 Gold (8–15 with Poverty), a choice of 3 cards and sometimes a Potion. |
+| Elite | 35–45 Gold (26–34 with Poverty), a choice of 3 cards with higher rare/uncommon odds, a random Relic and sometimes a Potion. |
+| Act 1/2 Boss | 100 Gold (75 with Poverty), a choice of 3 Rare cards and sometimes a random Potion; the following floor is an Ancient floor. |
+| Act 3 Boss | Run victory, according to the page's map-location description. |
 
-| Combat Type | Card Reward | Gold | Extras |
-|---|---|---|---|
-| **Normal Monster** | Choose 1 of 3 cards | 10-20 (**8-15** A3+) | Potion (sometimes) |
-| **Elite** | Choose 1 of 3 cards (higher rare/uncommon odds) | 35-45 (26-34 A3+) | Random Relic + Potion (sometimes) |
-| **Boss (Act 1/2)** | Choose 1 of 3 Rare cards | 100 (75 A3+) | Potion (sometimes), then Ancient floor |
-| **Boss (Act 3)** | Run victory | - | Unlocks next Ascension |
+The reward page also links the [Cards mechanics](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards),
+[Potions](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Potions) and
+[Ascension](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension) references.
 
-## Default Collection
+## Taking a reward
 
-Gold and relics should be taken immediately. Card rewards warrant evaluation.
+Read `rewards.items` and the current card/relic/Potion descriptions. A card
+choice is a comparison between adding that card and skipping it; calculate the
+effect against the current deck, route, resource state and visible threats. A
+random generated card, upgrade, transform or Potion result is unknown until the
+screen shows it. Gold and Relics have their live item identity and effect.
 
-## Card Skip / Take (Strategic Inference)
+Use the card-selection contract in [CONTROLS.md](../controls/CONTROLS.md) for a
+choice screen. After collecting one row, re-read focus and the remaining rows.
+Offers, selected cards, prices, floors and outcomes from one seed belong in the
+scratchpad and do not form a durable lesson.
 
-{strategic inference} General considerations for adding cards:
+## Ancient floors
 
-**Reasons to skip:**
-- The current deck already handles the upcoming fights.
-- Adding cards reduces the draw rate of key cards already in the deck.
-- The offered cards do not solve a current weakness (frontload damage, AoE, block, scaling).
-
-**Reasons to take:**
-- The card addresses a specific gap (e.g., no block cards, no AoE, no scaling).
-- The card directly supports your emerging archetype.
-- The card has high standalone value unrelated to archetype.
-
-{strategic inference} There is no universally correct "always take" or "always skip" list. Evaluate each run's current state.
-
-## Ancient Choices
-
-Source: slaythespire.wiki.gg (Slay the Spire 2:Map_Locations)
-
-**Every act *starts* by meeting an Ancient, and Act 1 always starts with Neow.**
-The floor after the Act 1 or Act 2 boss is always an Ancient floor — which is
-the same thing seen from the other side, since that floor opens the next act.
-Neow is therefore the first room of the run, not a post-boss reward.
-
-Ancients heal 100% of your **missing** HP (80% at A2+, which explicitly includes
-Neow).
-
-Ancient relic effects (sourced from slaythespire2.net relic database):
-- Downside-bearing Ancient relics include Ectoplasm (cannot gain gold), Sozu (cannot obtain new potions), Velvet Choker (card-play limit), Philosopher's Stone (enemy Strength), Snecko Eye (Confused), and Whispering Earring (Vakuu plays the first turn). Read the exact current effect before choosing.
-
-{strategic inference} Evaluate the downside relative to your build's dependency on the resource being restricted.
-
-## Potion Rewards (Sourced)
-
-Source: slaythespire2.net (62 potions in beta v0.111.0)
-
-- 3 potion slots base (2 at A4+ per Ascension table).
-- White Beast Statue relic: potions always appear in combat rewards.
-- Potion Belt relic: +2 slots.
-
-## Source Attribution
-
-- Combat reward structure from slaythespire.wiki.gg (Slay the Spire 2:Map_Locations, revision 50028, and Slay the Spire 2:Mechanics, revision 50033).
-- Gold values, relic effects, potion counts from slaythespire2.net (beta v0.111.0).
-- **All notes labeled `{strategic inference}` are unsourced gameplay reasoning.**
+The [Ancients page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ancients)
+and live Ancient screen define its options, costs and outcomes. Do not infer an
+Ancient's result from its name or from another act. At Ascension 2 and above,
+the [Ascension page](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ascension)
+defines the Weary Traveler healing change.

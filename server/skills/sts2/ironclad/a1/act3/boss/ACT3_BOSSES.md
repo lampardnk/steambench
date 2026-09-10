@@ -5,7 +5,7 @@ act: 3
 category: boss
 ascension: a1
 keys: [ironclad, act3, boss, aeonglass, queen, test subject, torch head amalgam]
-sources: [slaythespire2.net]
+sources: [slaythespire2.net, slaythespire.wiki.gg]
 ---
 
 # Act 3 — bosses
@@ -28,6 +28,15 @@ guessing.
 - No tactics are prescribed here. HP, damage and cycle are facts; what to do
   with them is the encounter's own decision.
 
+## Published page references
+
+These exact wiki pages identify the corresponding encounters. The numeric values above remain from the beta dataset and may differ from the current page; live intents take precedence.
+
+- [Aeonglass](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Aeonglass)
+- [Queen](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Queen)
+- [Test Subject](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Test_Subject)
+- [Queen — Torch Head Amalgam](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Queen#Torch_Head_Amalgam)
+
 ## Roster
 
 ### Aeonglass — 512 HP (ascension: 535)
@@ -43,7 +52,14 @@ Encountered as: Aeonglass.
 ### Queen — 400 HP (ascension: 419)
 Encountered as: Queen, Torch Head Amalgam.
 
-- Puppet Strings (Debuff) — Chains Of Binding 3 (player)
+- Puppet Strings (Debuff) — Chains of Binding 3 (player). Chains of Binding: the
+  first X cards drawn each turn are Afflicted with Bound. Bound: only 1 Bound
+  card can be played each turn, and cards are un-Bound at end of turn.
+  - After a Bound card is played, no other Bound card can be played that turn,
+    including via Sly or a Duplicator. Copies made by Music Box or Dual Wield are
+    also Bound. Transforming a Bound card in battle removes Bound from it. Bound
+    cards un-Bind at end of turn even when Retained. A Bound card played once and
+    returned to hand still cannot be played again that turn. [wiki.gg]
 - You Are Mine (Debuff) — Weak 99 (player), Frail 99 (player), Vulnerable 99 (player)
 - Burn Bright for Me (Buff · Block) — 20 block, Strength (amount not published) (self)
 - Off with Your Head (Attack) — 3×5 (A9+: 4×5) dmg

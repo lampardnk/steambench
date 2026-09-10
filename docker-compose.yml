@@ -53,6 +53,7 @@ services:
       - STEAMBENCH_TOKEN=${STEAMBENCH_TOKEN:?set STEAMBENCH_TOKEN in .env}
       - EXPLABS_API_KEY
       - ORCA_KEY
+      - OPENROUTER_API_KEY
       - STEAMBENCH_MODEL
       - WOLF_SOCKET_PATH=/etc/wolf/wolf.sock
       - WOLF_CFG_FILE=/etc/wolf/cfg/config.toml

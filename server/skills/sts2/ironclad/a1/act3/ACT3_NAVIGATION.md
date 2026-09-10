@@ -4,17 +4,40 @@ character: ironclad
 act: 3
 category: navigation
 ascension: a1
-keys: [ironclad, act3, glory, aeonglass, queen, torch head amalgam, test subject, knight gang, flail knight, magi knight, spectral knight, mecha knight, soul nexus, axebot, fabricator, frog knight, globe head, owl magistrate, scroll of biting, slimed berserker, the forgotten, the lost, devopted sculptor, turret operator, living shield]
-sources: [slaythespire2.net, slaythespire.wiki.gg]
+keys: [ironclad, act3, glory, aeonglass, queen, torch head amalgam, test subject, knight gang, flail knight, magi knight, spectral knight, mecha knight, soul nexus, axebot, cubex construct, punch construct, fabricator, frog knight, globe head, owl magistrate, scroll of biting, slimed berserker, the forgotten, the lost, devoted sculptor, turret operator, living shield]
 ---
 
 # Act 3 — Glory (navigation scope)
 
 Verified against slaythespire2.net beta (v0.111.0, display 2026-06-18).
-This file covers the encounter pool and verified boss data. Detailed per-mob
-strategy files will be added as the run encounters them. Stats are base; A8
+This file covers the encounter pool and published boss data. Stats are base; A8
 raises HP, A9 raises damage. Ascension 10 adds a second boss to the Act 3
 final fight.
+
+## Published page references
+
+These exact wiki pages identify the encounter pool and boss entries; the beta dataset values above may differ from the current page, and live intents take precedence.
+
+- [Aeonglass](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Aeonglass)
+- [Queen](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Queen)
+- [Queen — Torch Head Amalgam](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Queen#Torch_Head_Amalgam)
+- [Test Subject](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Test_Subject)
+- [Knight Gang](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Knight_Gang)
+- [Mecha Knight](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Mecha_Knight)
+- [Soul Nexus](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Soul_Nexus)
+- [Axebot](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Axebot)
+- [Cubex Construct](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cubex_Construct)
+- [Punch Construct](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Punch_Construct)
+- [Fabricator](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Fabricator)
+- [Frog Knight](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Frog_Knight)
+- [Globe Head](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Globe_Head)
+- [Owl Magistrate](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Owl_Magistrate)
+- [Scroll of Biting](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Scroll_of_Biting)
+- [Slimed Berserker](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Slimed_Berserker)
+- [The Lost and Forgotten](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:The_Lost_and_Forgotten)
+- [Devoted Sculptor](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Devoted_Sculptor)
+- [Turret Operator](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Turret_Operator)
+
 
 ## Bosses (3, one per run; A10 fights two)
 
@@ -25,11 +48,7 @@ final fight.
 - T3: Increasing Intensity — Strength +1, Wither +1 (A9+: +2)
 - Loops to Ebb.
 
-Ebb attacks for 26 AND blocks 33 — you need to punch through 33 block to deal
-damage on that turn, or save your burst for Eye Lasers (no block). Increasing
-Intensity scales Strength and Wither every cycle. [INFERENCE] Wither likely
-reduces your block or healing — verify in-game. This is a long fight (512
-HP); bring sustained scaling (Demon Form) and block.
+Ebb combines 26 damage (A9+: 32) with 33 Block; Eye Lasers has two hits. Increasing Intensity increases Strength and adds Wither to the deck as listed. Calculation question: given the live intent and current powers, what values apply to this turn? The Wither effect is not defined in this file.
 
 ### Queen — 400 HP (A8+: 419) + Torch Head Amalgam (199 HP)
 **Opening:**
@@ -44,13 +63,8 @@ HP); bring sustained scaling (Demon Form) and block.
 - T3: Enrage — Strength +2
 - Loops to Off with Your Head.
 
-You Are Mine applies Weak +99, Frail +99, Vulnerable +99 — you deal 25% less
-and take 50% more, and your block is nearly useless. This is a devastating
-opening. [INFERENCE] the debuffs may be permanent or long-duration; verify
-in-game. Kill the Torch Head Amalgam first to trigger the attack phase (Burn
-Bright for Me is defensive). Then race the Queen's attack rotation before
-Enrage stacks too much Strength. Off with Your Head is multi-hit (3×5) — Weak
-reduces it, but you're already at Weak +99.
+You Are Mine applies Weak 99, Frail 99, and Vulnerable 99. Burn Bright for Me provides 20 Block and Strength (amount not published) while the Amalgam is alive. After the Amalgam has died, the published branch is Off with Your Head → Execution → Enrage, repeating from Off with Your Head.
+Calculation question: with the current debuff, Block, Strength, and branch state, what damage and status totals result from the next published Queen or Torch Head Amalgam intent?
 
 ### Test Subject — HP not listed (revives)
 **Opening (loops):** Bite (20, A9+: 22) → Skull Bash (14, A9+: 16,
@@ -58,10 +72,8 @@ Vulnerable +1).
 **After 1st revive:** Multi-Claw (10, A9+: 11) every turn.
 **After 2+ revives:** Lacerate (10×3=30, A9+: 11×3=33) → Big Pounce (45) →
 Burning Growl (Strength +2/+3, +3 Burn/+5) → loops Lacerate.
-**Respawn trigger:** Respawns once with Nemesis +1 and Painful Stabs +1.
-Painful Stabs shuffles 1 Wound per unblocked hit. Nemesis: gains Intangible 1
-every other turn. Big Pounce (45) is a potential kill — block for it.
-
+Respawn adds Nemesis +1 and Painful Stabs +1. Painful Stabs shuffles 1 Wound per unblocked hit; Nemesis grants Intangible 1 every other turn. The post-respawn move branch is determined by the current respawn count.
+Calculation question: using the current respawn count and powers, what are the per-hit and total values for Lacerate, Big Pounce, and the next Burning Growl?
 ## Elites (3)
 - Knight Gang: 3 enemies — Flail Knight (101 HP), Magi Knight (82 HP),
   Spectral Knight (93 HP).
@@ -91,17 +103,13 @@ The Trial (2).
 ## Any-act events that can appear in Act 3
 See the Act 1 unknown file for the full 18 any-act event list.
 
-## Ironclad-relevant mechanics
+## Ironclad-relevant calculations
 
-Facts a plan may turn on. What to do with them is the encounter's call.
+The following references identify published values that can affect arithmetic;
+the current encounter state determines the result.
 
-- Act 3 normals reach 200+ HP, hit multiple times per turn, and several scale
-  themselves; fights here run longer than in earlier acts.
-- Aeonglass: Ebb gains it 33 block on the turn it is used, and its cycle is
-  Ebb, Eye Lasers, Increasing Intensity, repeating.
-- Queen: You Are Mine applies Weak, Frail and Vulnerable at 99 stacks. The
-  attack phase begins once the Amalgam dies, and Enrage stacks from there.
-- Test Subject: Big Pounce deals 45. Painful Stabs adds Wounds to the discard
-  pile. It revives, and its move set differs after the first revive and again
-  from the second.
+- Calculation question: given the live intent, current powers, and multi-hit or self-strengthening cycle, what values apply to this turn?
+- Aeonglass: Ebb gains 33 block on the turn it is used, and its cycle is Ebb, Eye Lasers, Increasing Intensity, repeating.
+- Queen: You Are Mine applies Weak, Frail and Vulnerable at 99 stacks. The attack branch begins once the Amalgam has died, and Enrage appears in that branch.
+- Test Subject: Big Pounce deals 45. Painful Stabs adds Wounds to the discard pile. It revives, and its move set differs after the first revive and again from the second.
 - On A10 the act presents two different Act 3 bosses in one run.

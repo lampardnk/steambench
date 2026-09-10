@@ -1,57 +1,36 @@
 ---
-description: Ranwid the Elder — Any act. Exact outcomes for every option, with the trade-offs left open.
+description: Ranwid the Elder — exact wiki trade outcomes, conditions, and relic filter.
 character: ironclad
 act: any
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, ranwid the elder, any act]
-sources: [slaythespire2.net]
+keys: [ranwid the elder, event, act2, act3, potion, relic, gold, trade]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Ranwid the Elder
 
-**Pool:** Any act  
-**Pages:** 4
+**Biomes:** Hive and Glory. **Acts:** 2 and 3 only. **Conditions:** at least 1
+tradable Relic, at least 100 Gold, and at least 1 Potion.
 
-## What the screen says
+## Options
 
-You are approached by the oldest person you have ever seen.
+| Option | Exact outcome |
+|---|---|
+| **[Give <specific> Potion]** | Give the specified held Potion; obtain a random Relic. |
+| **[Give 100 Gold]** | Lose 100 Gold; obtain a random Relic. |
+| **[Give <specific Relic>]** | Give the specified held Relic; obtain 2 random Relics. |
 
-"We meet once more... it's me, Ranwid!"
+## Notes [wiki-driven]
 
-You do not know this man.
+The specified Potion is selected randomly from currently held Potions. The
+specified Relic is selected from currently held Relics except Starter, Ancient,
+and Event Relics; relics with an “upon pickup” effect (such as Potion Belt and
+War Paint); fully melted Wax Relics from Toy Box; and pet-spawning relics
+(currently Byrdpip). Gnarled Hammer is the stated exception among upon-pickup
+relics. Unmelted Wax Relics can be selected.
 
-## Options — page `INITIAL`
+No separate event ascension variant is listed. Compare the permanent relic
+trade with the current Gold, Potion, and relic inventory.
 
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Give]** | Discard a potion (give a random owned potion); Obtain **a relic** (obtain next relic from front of relic pool) — screen text: "Obtain a random **Relic**." | POTION |
-| **[Locked]** | You don't have any Potions that can be given. | ends |
-| **[Give 100 Gold]** | Lose 100 Gold (spend 100 gold); Obtain **a relic** (obtain next relic from front of relic pool) — screen text: "Obtain a random **Relic**." | GOLD |
-| **[Give]** | Lose a relic (give a random tradable owned relic); Obtain **a relic** (obtain next relic from front of relic pool) — screen text: "Obtain 2 random **Relics**." | RELIC |
-| **[Locked]** | You don't have any Relics that can be given. | ends |
-
-## Options — page `POTION`
-
-"Exquisite..."  Glup glup glup  He downs the in one go.
-
-This page presents no standard options.
-
-## Options — page `GOLD`
-
-"Mag.. nificent..."  Ranwid mumbles while chewing the **gold**.
-
-This page presents no standard options.
-
-## Options — page `RELIC`
-
-"Exemplary..."  Ranwid observes the relic studiously for several minutes...
-Then eats the .
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Ranwid_the_Elder

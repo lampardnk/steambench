@@ -1,151 +1,114 @@
 ---
-description: Act 1 Overgrowth elites — Bygone Effigy, Byrdonis, Phrog Parasite. Verified HP, intents, patterns and Ironclad tactics from slaythespire2.net beta.
+description: Act 1 Overgrowth elites — wiki fact reference for every published enemy, move, effect, and encounter interaction.
 character: ironclad
 act: 1
 category: elite
 ascension: a1
-keys: [ironclad, act1, elite, overgrowth, bygone effigy, byrdonis, phrog parasite, wriggler, infection, slow, territorial, infested]
-sources: [slaythespire2.net, slaythespire.wiki.gg]
+keys: [ironclad, act1, elite, overgrowth, bygone effigy, byrdonis, phrog parasite, wriggler, slow, territorial, infested, infection]
+sources: [slaythespire.wiki.gg]
 ---
 
 # Act 1 — Overgrowth elites
 
-All stats verified from slaythespire2.net beta (v0.111.0, display 2026-06-18),
-then corrected against slaythespire.wiki.gg, which supplied the three powers
-that decide these fights and that the first source does not list.
-A8 raises HP; A9 raises damage. Installed build may differ.
+This is a source-bounded reference to the Overgrowth elite pool. HP and damage
+values use the wiki's base and displayed ascension values; the live intent is
+authoritative if the installed build differs. “A8” is the wiki's HP value at
+Ascension 8 and “A9” is its damage value at Ascension 9 unless an entry says
+otherwise.
 
-## How to read entries
+## Reading the entries
 
-- **Debuff** intents are applied TO THE PLAYER by the enemy.
-- **Buff** intents are applied TO THE ENEMY ITSELF.
-- **Status** intents put status cards into YOUR deck. Infection is one of
-  these — it is not a counter on the enemy.
-- Card names below are examples of a property, not a shortlist. The Ironclad
-  pool is ~90 cards; read it with
-  `research https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards_List?color=Ironclad`.
+- Attack, Buff, Debuff, and Status labels describe the move's effect class;
+  targets are stated where a move affects the player or another enemy.
+- A multi-hit value such as `3×4` is four separate damage instances.
+- A pattern is an encounter rule, not a prediction for a different build or a
+  replacement for the live intent.
 
-## Bygone Effigy — 127 HP (A8+: 132)
+## Roster
 
-**Gimmick:** every card you play makes it take 10% more Attack damage that
-turn, so the cheap cards you would normally skip are what set up the big one.
+### Bygone Effigy — 127 HP (A8: 132)
 
-**Power — Slow** (Intensity): "Whenever you play a card, this enemy receives
-10% more damage from Attacks this turn." It resets each turn.
+- Slow — whenever a card is played, Attack damage against it is increased by
+  10% for that turn.
+- Sleep — does nothing and is Asleep.
+- Wake (Buff) — gains 10 Strength.
+- Slashes (Attack) — 13 damage (A9: 15).
+- Pattern: Sleep, Wake, then Slashes every turn.
 
-- Only **Attack cards** benefit. Damage from Powers, Poison, Doom or similar
-  is unaffected by Slow.
-- Rounding is always **down**. A 6-damage Strike deals 6 at 0–1 Slow, 7 at 2–3,
-  8 at 4, 9 at 5–6, 10 at 7–8, 11 at 9, 12 at 10.
-- The order within a turn therefore matters: spend cheap cards first to build
-  Slow, then land the largest Attack last.
+#### Notes/Interactions [wiki-driven]
 
-**Rotation:**
-- T1: Sleep — does nothing. A free turn.
-- T2: Wake — gains **10 Strength**. No damage. A second free turn.
-- T3+: Slashes — 13 dmg (A9+: 15), plus that 10 Strength = **23 (A9+: 25)**
-  every turn, forever.
+- Source: [Slay the Spire 2: Bygone Effigy](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Bygone_Effigy).
+- Slow increases Attack-card damage only; Poison, Doom, and Power effects that
+  deal damage are unaffected. The wiki records floor rounding for Slow's
+  damage calculation and lists Slashes as effectively 23 (25 at A9) after the
+  opening 10 Strength.
+- The Sleep phase on this enemy is a move state rather than the Asleep debuff
+  used by some other enemies.
 
-It gains no further Strength after Wake, so 23 per turn is flat, not a
-snowball. That makes it a fixed damage check rather than a race: 127 HP against
-a steady 23 a turn.
+### Byrdonis — 81–84 HP (A8: 90)
 
-**Tactics**: two free turns up front is a large setup window. From T3 it is a
-flat 23 a turn, so you can choose to block it indefinitely as long as you can
-produce ~23 Block a turn — nothing gets worse over time. If you would rather
-race, Slow is the lever: a hand of cheap cards played before your heaviest
-Attack can add 50%+ to that one hit. Note that a deck built around one big
-Attack and nothing else generates little Slow and gets the least from it.
-[Rotation and damage from slaythespire2.net; Slow, its rounding and its
-Attack-only restriction from wiki.gg]
+- Territorial 1 — gains 1 Strength at the end of its turn.
+- Swoop (Attack) — 17 damage (A9: 19).
+- Peck (Attack) — 3×3 damage (A9: 4×3).
+- Pattern: alternates Swoop and Peck, beginning with Swoop.
 
-## Byrdonis — 81–84 HP (A8+: 90)
+#### Notes/Interactions [wiki-driven]
 
-**Gimmick:** it gains Strength at the end of every one of its turns, and half
-its attacks hit three times — so the damage curve bends upward fast.
+- Source: [Slay the Spire 2: Byrdonis](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Byrdonis).
+- Peck has three damage instances, so each point of Byrdonis's Strength adds
+  three total damage on a Peck turn; Swoop receives one additional damage per
+  Strength.
+- Effect reference: [Strength](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Strength).
 
-**Power — Territorial 1** (Intensity): "At the end of its turn, gains 1
-Strength." Every turn, without exception.
+### Phrog Parasite — 61–64 HP (A8: 66–68)
 
-**Rotation (loops):**
-- T1: Swoop — 17 dmg (A9+: 19). Single hit.
-- T2: Peck — 3×3 = 9 dmg (A9+: 4×3 = 12). Three hits.
-- Loops to Swoop.
+- Infested — when Phrog Parasite dies, summons 4 Wrigglers.
+- Infect (Status) — shuffles 3 Infection into the player's discard pile.
+- Lash (Attack) — 4×4 damage (A9: 5×4).
+- Pattern: alternates Infect and Lash, beginning with Infect.
 
-Because Peck hits three times, each point of Strength adds **3** to a Peck turn
-but only 1 to a Swoop turn. With Territorial ticking every turn:
+#### Notes/Interactions [wiki-driven]
 
-| Turn | Move | Strength when it acts | Damage |
-|---|---|---|---|
-| 1 | Swoop | 0 | 17 |
-| 2 | Peck | 1 | (3+1)×3 = 12 |
-| 3 | Swoop | 2 | 19 |
-| 4 | Peck | 3 | (3+3)×3 = 18 |
-| 5 | Swoop | 4 | 21 |
-| 6 | Peck | 5 | (3+5)×3 = 24 |
+- Source: [Slay the Spire 2: Phrog Parasite](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Phrog_Parasite).
+- Wrigglers summoned by Infested spend their first turn Stunned. The encounter
+  continues until all four Wrigglers are defeated.
+- The page records a timing difference: when the Parasite dies during the
+  player's turn, Wrigglers are Stunned on that turn and can act next turn;
+  when it dies during the enemy turn, the stun is delayed to the player's next
+  turn. A death caused by Poison, Doom, or reflected damage can therefore
+  produce a different visible timing than a direct Attack kill.
+- Infection deals damage during the player's turn and can trigger effects that
+  respond to unblocked damage or HP loss. Effect reference: [Infection](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Infection).
 
-**Tactics**: this is **not** a fight to take slowly — the Peck turns overtake
-the Swoop turns by turn 6 and keep climbing. Weak is unusually strong here
-because it cuts a three-hit attack, and Peck turns are where the Strength is
-being spent. At 81–84 HP it dies in 3–4 focused turns, which is the plan;
-letting it cycle six or more times is how this elite kills you.
-[Rotation and damage from slaythespire2.net; Territorial from wiki.gg]
+### Wriggler — 17–21 HP (A8: 18–22)
 
-## Phrog Parasite — 61–64 HP (A8+: 66–68)
+This summoned enemy is also listed by the Phrog Parasite page and appears in
+the Dense Vegetation event.
 
-**Gimmick:** it poisons your deck with Infection status cards, and killing it
-starts the second half of the fight rather than ending it.
+- Nasty Bite (Attack) — 6 damage (A9: 7).
+- Wriggle (Status · Buff) — shuffles 1 Infection into the player's discard
+  pile and gains 2 Strength.
+- Pattern: alternates Nasty Bite and Wriggle. In a group, odd-numbered
+  Wrigglers start on Nasty Bite and even-numbered Wrigglers start on Wriggle.
 
-**Power — Infested**: when the Phrog Parasite dies, it summons **4 Wrigglers**.
-They are Stunned and do nothing on their first turn. The fight continues until
-every Wriggler is dead.
+#### Notes/Interactions [wiki-driven]
 
-**Phrog Parasite rotation (loops):**
-- T1: Infect — shuffles **3 Infection status cards into your discard pile**.
-  No damage.
-- T2: Lash — 4×4 = 16 dmg (A9+: 5×4 = 20). Four hits.
-- Loops to Infect.
+- Source: [Slay the Spire 2: Phrog Parasite](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Phrog_Parasite),
+  which contains the Wriggler subsection.
+- Wrigglers from Infested are Stunned for their first turn; the four spawned
+  by Dense Vegetation start their pattern immediately.
+- [Infection](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Infection) is
+  an unplayable Status card; its discard-pile placement and the Wriggler's
+  Strength gain are separate effects.
 
-Infection is a card in **your** deck, not a counter on the enemy. Its damage
-lands during your turn, which means it triggers your own on-HP-loss effects
-(Rupture, Inferno) rather than only hurting you.
+## Neutral calculations and adaptive reading
 
-**Wriggler — 17–21 HP (A8+: 18–22)**, four of them:
-- Nasty Bite — 6 dmg (A9+: 7).
-- Wriggle — shuffles 1 Infection into your discard pile, and gains **2
-  Strength** (its own).
-- They alternate, and start **offset**: odd-numbered ones open on Nasty Bite,
-  even-numbered ones on Wriggle.
-
-**Timing detail worth knowing**: whether the Wrigglers are Stunned on your next
-turn depends on how the Phrog dies. Killed by an Attack, they are Stunned
-during the current turn, so they act on your next one. Killed by Poison or Doom
-— or by its own attack via Thorns — they spawn with no intent and are Stunned
-during your next turn instead, buying you a full extra turn.
-
-**Tactics**: the Phrog is only 61–64 HP, so the danger is not its damage but
-what follows. Plan the whole encounter before you kill it: four Wrigglers, each
-gaining 2 Strength on alternating turns and each adding more Infection to your
-deck. Damage to all enemies is worth far more here than single-target, and it
-is worth having that ready *before* the Phrog dies rather than drafting for it
-after. Effects that discard, exhaust or transform Infections stop them dealing
-damage at all.
-[Rotation and damage from slaythespire2.net; Infested, Infection's destination
-and the death-timing rule from wiki.gg]
-
-## What these elites ask of a deck
-
-Constraints, not requirements. Which of them your deck answers, and whether it
-is worth answering, is the run's decision.
-
-- Weak cuts each hit of a multi-hit attack by 25%, so it takes proportionally
-  more off Peck (3x3) and Lash (4x4) than off a single large hit.
-- The big single hits are Swoop 17 and Slashes 23; Impervious, Blood Wall,
-  Shrug It Off, Evil Eye and Expect a Fight all reach those numbers.
-- Ironclad's Strength sources are Inflame, Demon Form, Rupture, Brand, Fight
-  Me! and Setup Strike, the last for one turn only.
-- These three elites reward different shapes: Bygone Effigy a wide cheap hand,
-  Byrdonis speed, Phrog Parasite damage to all enemies. A deck tuned for one
-  is not tuned for the others.
-- Vulnerable on an enemy makes YOUR attacks deal 50% more to it. It does not
-  make its attacks hit you harder.
+- Slow is a per-card-turn modifier, while Slippery (on Vantom and Inklets) is
+  a per-HP-loss counter. A card's number of hits therefore interacts with the
+  two powers in different ways.
+- Phrog Parasite's death creates a second roster. Keep the four Wriggler
+  entries separate from the Parasite's HP and move cycle when calculating the
+  encounter's remaining enemy count.
+- The source pages may include beta content. When a page, the installed build,
+  and a generated encounter disagree, record the disagreement and prefer the
+  live intent for the current room.

@@ -29,6 +29,26 @@ export function parsePlanText(text) {
   throw new Error('response is valid JSON but not a plan object');
 }
 
+/**
+ * The wall-clock budget, stated to the model before it decides anything.
+ *
+ * The deadline was always enforced - a timer kills the call at `deadlineMs` -
+ * but the model was never told it existed, so the only way it ever learned was
+ * by losing the turn to it. Combat reasoning alone runs around 8,000 tokens,
+ * the longest observed combat call spent 103 of its 120 seconds, and four
+ * turns have died at exactly the limit. A call that runs out of budget emits
+ * NO plan, which is indistinguishable downstream from a provider outage and
+ * strictly worse than a plan that is merely good enough.
+ *
+ * Derived from the call's own deadline rather than a constant, because the
+ * roles do not share one: the actuator gets 30 seconds, the handoff 45, and
+ * the auxiliary roles half of the primary budget.
+ */
+export function budgetNotice(deadlineMs) {
+  const seconds = Math.round(deadlineMs / 1000);
+  return `TIME BUDGET. This call is abandoned after ${seconds} seconds of wall clock, and an unfinished answer produces NO plan at all - the turn is lost exactly as if the request had failed, which is worse than a plan that is merely good enough. Your reasoning is spent out of the same budget as your answer, so decide from the evidence you already have and then emit the JSON.`;
+}
+
 export class Planner {
   constructor({ emit, record }) {
     this.emit = emit;
@@ -49,7 +69,10 @@ export class Planner {
   ask({ role, agent = role, prompt: promptFile, context, image = null, stream = false, primary = stream, deadlineMs = PROFILE.plannerDeadlineMs }) {
     if (primary) this.lastDiagnostics = null;
     if (!process.env[PROFILE.apiKeyEnv]) throw new Error(`${PROFILE.apiKeyEnv} is required`);
-    const prompt = fs.readFileSync(new URL(`./${promptFile}`, import.meta.url), 'utf8');
+    // The budget notice rides on the system prompt, the one channel every role
+    // already reads, so no prompt file has to carry a number that changes with
+    // its caller's deadline.
+    const prompt = `${fs.readFileSync(new URL(`./${promptFile}`, import.meta.url), 'utf8').trimEnd()}\n\n${budgetNotice(deadlineMs)}`;
     return new Promise((resolve, reject) => {
       const child = spawn('pi', ['--mode', 'rpc', '--no-session', '--provider', PROFILE.provider, '--model', PROFILE.model, ...(PROFILE.reasoning && PROFILE.reasoning !== 'default' ? ['--thinking', PROFILE.reasoning] : []), '--no-tools', '--no-extensions', '--no-skills', '--no-context-files', '--no-prompt-templates', '--offline', '--system-prompt', prompt], { stdio: ['pipe', 'pipe', 'pipe'] });
       if (primary) this.child = child;

@@ -310,7 +310,7 @@ export class Room extends EventEmitter {
       sessionId: this.sessionId,
       finish: this.finish, gameReady: this.gameReady,
       lobbyId: this.lobbyId, roomContainer: this.roomContainer, roomIp: this.roomIp, playerImage: this.playerImage,
-      agentStatus: this.agent?.status || 'stopped', frames: this.reader?.frames || 0, lastFrameAt: this.reader?.latestAt || 0,
+      agentStatus: this.agent?.status || 'stopped', requiresResume: Boolean(this.agent?.requiresResume), frames: this.reader?.frames || 0, lastFrameAt: this.reader?.latestAt || 0,
       attention: this.agent?.attention || null,
       lastLibraryCommit: this.lastLibraryCommit || null,
       curriculum: this.curriculum(),
@@ -697,6 +697,7 @@ export class Room extends EventEmitter {
     agent.transcript = transcript;
     for (const ev of ['item', 'delta', 'status', 'agents']) agent.on(ev, (payload) => { if (this.agent === agent) this.emit(`agent:${ev}`, payload); });
     agent.on('attention', () => { if (this.agent === agent) { this.emit('room', this.summary()); this.m.emit('rooms'); } });
+    agent.on('status', () => { if (this.agent === agent) this.emit('room', this.summary()); });
     agent.on('status', (status) => {
       if (this.agent !== agent) return;
       this.m.emit('rooms');
@@ -715,6 +716,10 @@ export class Room extends EventEmitter {
     for (let attempt = 0; attempt < 40; attempt++) {
       if (this.destroyed) { await agent.stop(); return; }
       response = await agent.send({ type: 'get_state' }).catch(() => null);
+      if (response?.success && response.data) {
+        agent.requiresResume = Boolean(response.data.requiresResume);
+        if (response.data.attention) agent.attention = response.data.attention;
+      }
       if (response?.success) break;
       await sleep(100);
     }
@@ -727,7 +732,7 @@ export class Room extends EventEmitter {
       throw error;
     }
     const t = this.setup.task;
-    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. Play efficiently to win. Target verified Act 1 completion within one hour of the first fresh Neow decision; continue if over time. Use the strategy guide and keep supplementary learning brief. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
+    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. Use live state, the strategy guide and source-linked factual notes to make adaptive decisions. Keep learning proposals reusable and brief; do not write a run diary. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
     this.setStage('playing', `${t.character} · Ascension ${t.ascension}`);
     if (!resume) agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
     else this.setDetail('learning player reloaded; awaiting explicit supervisor resume');
@@ -967,6 +972,7 @@ export class Room extends EventEmitter {
     if (this.playerRestarting || this.stage !== 'playing' || this.agent?.status !== 'idle' || this.finish) throw new Error('learning player must be idle in an unfinished playing room');
     const response = await this.agent.send({ type: 'resume', issueId, message });
     if (response.success === false) throw new Error(response.error || 'resume rejected');
+    this.agent._push({ kind: 'user', agent: 'room', from: 'supervisor review', text: message });
     return { ok: true };
   }
 

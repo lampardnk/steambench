@@ -1,35 +1,27 @@
 ---
-description: Trash Heap — Underdocks. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: Trash Heap — exact wiki rewards, unlock, and HP gate.
 character: ironclad
 act: 1
 category: unknown
 ascension: a1
-keys: [trash heap, event, unknown, act1, underdocks, relic, gold, random card, known pool]
+keys: [trash heap, event, act1, underdocks, gold, relic, card, cultists epoch]
 sources: [slaythespire.wiki.gg]
 ---
 
 # Trash Heap
 
-**Pool:** Underdocks  
-**Appears when:** you have more than 5 HP (and the event is unlocked in the Cultists Epoch)
+**Biome:** Underdocks only. **Unlock:** the Cultists Epoch, after enough score
+to unlock the “Cultists” timeline event. **Condition:** more than 5 HP.
 
 ## Options
 
 | Option | Exact outcome |
 |---|---|
-| **[Dive In]** | Lose 8 HP. Obtain a random Relic from a known pool of 5. |
-| **[Grab Random Junk]** | Gain 100 Gold. Obtain a random card from a known pool of 10. |
+| **[Dive In]** | Lose 8 HP; obtain one random Relic, equally chosen from Darkstone Periapt, Dream Catcher, Hand Drill, Maw Bank, and The Boot. |
+| **[Grab Random Junk]** | Gain 100 Gold; obtain one random card, equally chosen from Caltrops, Distraction, Outmaneuver, Clash, Dual Wield, Entrench, Hello World, Rebound, Stack, and Rip and Tear. |
 
-## Mechanics
+**[wiki-driven] Note:** The wiki says all of these rewards appeared in the
+original *Slay the Spire*. No event-specific ascension variant is listed.
+Compare the fixed HP/Gold changes and random pools with current state.
 
-- Relic pool, equal chance each: **Darkstone Periapt**, **Dream Catcher**, **Hand Drill**, **Maw Bank**, **The Boot**.
-- Card pool, equal chance each: **Caltrops**, **Distraction**, **Outmaneuver**, **Clash**, **Dual Wield**, **Entrench**, **Hello World**, **Rebound**, **Stack**, **Rip and Tear**.
-- Unusually, both outcomes are drawn from fully enumerated pools — you can reason about the exact odds here rather than guessing.
-
-## What each option costs and buys
-
-- This is one of the few events where the randomness is bounded and known, so the decision can be made on the actual pools rather than on a hunch.
-- Dive In costs 8 HP for a 1-in-5 relic; you can check whether any of those five actually answers a problem this run has.
-- Grab Random Junk is 100 Gold with no HP cost, plus a card from a pool of off-class cards that also grows your deck by one.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Trash_Heap

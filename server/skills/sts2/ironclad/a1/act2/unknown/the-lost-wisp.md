@@ -1,55 +1,25 @@
 ---
-description: The Lost Wisp — Act 2. Exact outcomes for every option, with the trade-offs left open.
+description: The Lost Wisp — exact wiki outcomes and curse/relic effects.
 character: ironclad
 act: 2
 category: unknown
 ascension: a1
-keys: [ironclad, unknown, event, the lost wisp, act 2]
-sources: [slaythespire2.net]
+keys: [lost wisp, event, act2, hive, decay, relic, power]
+sources: [slaythespire.wiki.gg]
 ---
 
 # The Lost Wisp
 
-**Pool:** Act 2  
-**Pages:** 3
+**Biome:** Hive only.
 
-## What the screen says
+## Options
 
-In the distance is an odd sight. Mounds and mounds of deceased insects,
-surrounding what looks to be a small glowing mote.
+| Option | Exact outcome |
+|---|---|
+| **[Capture the Wisp]** | Add **Decay** (curse) to your Deck; obtain **Lost Wisp**. Lost Wisp deals 8 damage to all enemies whenever you play a Power. Decay is unplayable; at end of turn, if it is in your Hand, take 2 damage. |
+| **[Search the Nearby Area]** | Gain 45–75 Gold. |
 
-It seems to be an effective attractant for all manner of bugs but you see it
-lash out some flames!
+No additional condition or event-specific ascension variant is listed. Compare
+the relic plus curse with the Gold range using current state.
 
-You move closer to investigate.
-
-## Options — page `INITIAL`
-
-| Option | Exact outcome | Then |
-|---|---|---|
-| **[Capture the Wisp]** | Add **Decay** (add Decay curse to deck); Obtain **a relic** — screen text: "Add ? to your **Deck**. Obtain the **Lost Wisp**." | CLAIM |
-| **[Search the Nearby Area]** | Gain 60 Gold (gain 60 +/- 15 gold) — screen text: "Gain 60 **Gold**." | SEARCH |
-
-## Options — page `CLAIM`
-
-You approach the Wisp cautiously... The closer you get, the more it reacts to
-your presence.  When in arm's reach, you grasp the Wisp but it scalds you with
-a blast of hot steam and flame!  Still, you fumble and wrestle the creature
-into submission. Eventually, the Wisp concedes and recognizes you as its new
-owner.
-
-This page presents no standard options.
-
-## Options — page `SEARCH`
-
-You decide to leave the little one alone. Better play it safe!  Not much is in
-the area, but you find some **gold** scattered amongst the dead bugs. You
-don't seek an answer.
-
-This page presents no standard options.
-
-## Reading this
-
-Every outcome above is what the option does, not what it is worth. Amounts that
-the source publishes as a formula are given as the formula. Weigh them against
-this run's HP, gold, deck and remaining route; nothing here says which to take.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:The_Lost_Wisp

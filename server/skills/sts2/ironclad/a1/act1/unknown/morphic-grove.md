@@ -1,29 +1,26 @@
 ---
-description: Morphic Grove — Overgrowth. Exact outcomes for every option, with the trade-offs stated and the choice left open.
+description: Morphic Grove — exact wiki outcomes and availability gate.
 character: ironclad
 act: 1
 category: unknown
 ascension: a1
-keys: [morphic grove, event, unknown, act1, overgrowth, transform, gold, max hp]
+keys: [morphic grove, event, act1, overgrowth, gold, transform, max hp]
 sources: [slaythespire.wiki.gg]
 ---
 
 # Morphic Grove
 
-**Pool:** Overgrowth  
-**Appears when:** you have at least 100 Gold and 2 cards that can be Transformed
+**Biome:** Overgrowth only. **Condition:** at least 100 Gold and 2 cards that
+can be Transformed.
 
 ## Options
 
 | Option | Exact outcome |
 |---|---|
-| **[Group]** | Lose **ALL** of your Gold. Transform 2 cards. |
+| **[Group]** | Lose **all** of your Gold; Transform 2 cards. |
 | **[Loner]** | Gain 5 Max HP. |
 
-## What each option costs and buys
+No event-specific ascension variant is listed. Compare the all-Gold cost and
+two transforms with the permanent Max HP gain using current state.
 
-- The cost of Group is not fixed — it is whatever you are carrying, so the same choice is cheap at 100 Gold and ruinous at 400.
-- Two transforms is real deck change, but you pick only the inputs; both outputs are random.
-- Loner is small, certain and free, and leaves your gold available for a shop.
-
-Neither option is the correct one in the abstract. Weigh the exact costs above against this run's HP, max HP, gold, deck size and remaining route, and decide here.
+**[wiki-driven] Source:** https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Morphic_Grove

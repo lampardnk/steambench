@@ -77,15 +77,15 @@ export function reachable(state) {
   const parts = [bound.length ? `bound buttons: ${bound.slice(0, 8).join(', ')}` : '', gates.length ? `screen reports ${gates.join(', ')}` : ''].filter(Boolean);
   return parts.length ? `; ${parts.join('; ')}` : '';
 }
-import { indexNotes } from './retrieval.mjs';
+import { indexNotes, MAX_NOTE_IN_CONTEXT } from './retrieval.mjs';
 
 // Reversible ways out of something that is holding focus, cheapest first.
 const ESCAPES = ['b', 'x', 'left'];
 import fs from 'node:fs';
 import path from 'node:path';
-import { DIRECTIONS, isCardPlay, isCombat, leftMap, noteProblem, planIdentity, progressId, ready, settleAnimation, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
+import { DIRECTIONS, focusIdentity, isCardPlay, isCombat, leftMap, noteProblem, planIdentity, progressId, ready, settleAnimation, startupTransition, stateId, uiMatches, unbuiltMenu, uncertainCard, validatePlan } from './state.mjs';
 
-export const MAX_NOTE = 16000;
+export const MAX_NOTE = MAX_NOTE_IN_CONTEXT;
 
 /** Files under learned/ outlive the room, so the player can see what it already wrote. */
 export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item => item.path).sort(); }
@@ -101,14 +101,13 @@ const MAX_RESCENES = 12;
 const QUIESCE_MS = 150;
 const QUIESCE_READS = 10;
 
-// Every note the player writes lands here as a proposal, in the room's skill
-// copy, so it rides the end-of-room commit into the library's history where a
-// human can read it. Nothing under this file is ever retrieved or inherited.
+// Factual correction proposals are kept for human review. They are neither
+// retrieved as knowledge nor copied into a later room.
 export const SCRATCHPAD_NOTE = 'scratchpad.md';
-export const REFLECTION_HEADER = ['# Run reflection', '',
-  'What this run learned, written as it happened and closed with the team\'s own',
-  'reflection. NOT part of the library: nothing here is retrieved, inherited or',
-  'trusted by a later room. A human reads it and decides what is worth keeping.', '', '---', ''].join('\n');
+export const PROPOSALS_HEADER = ['# Proposed factual corrections', '',
+  'Unreviewed, seed-invariant mechanics and interface observations only.',
+  'Not retrieved or inherited. No run diary, draft/routing verdicts, or advice',
+  'for the next seed. A human verifies sources before curating library notes.', '', '---', ''].join('\n');
 
 export class Executor {
   constructor({ call, record = () => {}, signal, skillDir = null }) {
@@ -139,7 +138,7 @@ export class Executor {
       const file = path.join(path.resolve(this.skillDir), SCRATCHPAD_NOTE);
       const entry = [`## ${action.path}`, '', `- proposed: ${new Date().toISOString()}`, `- message: ${action.message}`, '',
         action.content.trim(), '', '---', ''].join('\n');
-      fs.appendFileSync(file, (fs.existsSync(file) ? '' : REFLECTION_HEADER) + entry);
+      fs.appendFileSync(file, (fs.existsSync(file) ? '' : PROPOSALS_HEADER) + entry);
       const response = await this.call({ op: 'skill-commit', message: action.message });
       return {
         action, verified: true, staged: SCRATCHPAD_NOTE, proposed_path: action.path,
@@ -706,27 +705,141 @@ export class Executor {
    * would deselect it. That is not knowable up front - no selected list - so it
    * is handled by watching can_confirm fall and pressing again.
    */
+  // SimpleSelect moves chosen cards out of the candidate list and renumbers
+  // the remaining cards. Resolve the original request to physical identities
+  // before pressing anything; the selected tray is a separate set of controls.
+  async chooseHandCards(action, before) {
+    const cardsIn = (value, type) => (value.ui?.elements || []).filter(item =>
+      item.type === type && item.reference?.kind === 'card' && item.visible !== false);
+    const instanceOf = item => item?.instance_id ?? item?.reference?.instance_id ?? null;
+    const selected = value => cardsIn(value, 'NSelectedHandCardHolder').map(instanceOf);
+    const available = cardsIn(before, 'NHandCardHolder');
+    const availableIds = available.map(instanceOf);
+    if (availableIds.some(id => id == null) || new Set(availableIds).size !== availableIds.length) {
+      throw new Error('cannot map hand-selection candidates to unique physical cards');
+    }
+    const allHand = before.player?.hand || [];
+    const handById = new Map(allHand.map(card => [card.instance_id, card]));
+    if (handById.size !== allHand.length || availableIds.some(identity => !handById.has(identity))) {
+      throw new Error('cannot map hand-selection candidates to unique physical cards');
+    }
+    const hand = allHand.filter(card => availableIds.includes(card.instance_id));
+    const candidates = before.hand_select.cards || [];
+    if (candidates.length !== availableIds.length || hand.length !== candidates.length) {
+      throw new Error('cannot map hand-selection candidates to unique physical cards');
+    }
+    const sameCard = (candidate, card) => {
+      const candidateId = candidate?.id ?? candidate?.card_id;
+      const cardId = card?.id ?? card?.card_id;
+      return (candidateId != null && cardId != null && candidateId === cardId)
+        || (candidateId == null && candidate?.name != null && candidate.name === card?.name);
+    };
+    const candidateIds = candidates.map((candidate, offset) => {
+      const card = hand[offset];
+      const explicit = instanceOf(candidate);
+      if (explicit != null && explicit !== card.instance_id) throw new Error('cannot map hand-selection candidates to unique physical cards');
+      if (explicit == null && !sameCard(candidate, card)) throw new Error('cannot map hand-selection candidates to unique physical cards');
+      return card.instance_id;
+    });
+    if (new Set(candidateIds).size !== candidateIds.length) {
+      throw new Error('cannot map hand-selection candidates to unique physical cards');
+    }
+    const selectedBefore = selected(before);
+    if (selectedBefore.some(identity => !handById.has(identity)) || new Set(selectedBefore).size !== selectedBefore.length) {
+      throw new Error('cannot verify selected hand cards by physical identity');
+    }
+    const wanted = action.cards.map(index => {
+      const offset = candidates.findIndex(card => card.index === index);
+      if (offset < 0) throw new Error(`no card at index ${index}`);
+      return candidateIds[offset];
+    });
+    if (new Set(wanted).size !== wanted.length) throw new Error('hand-selection identities are not unique');
+    let state = before;
+    const toggle = async (identity, selecting) => {
+      const type = selecting ? 'NHandCardHolder' : 'NSelectedHandCardHolder';
+      const matches = cardsIn(state, type).filter(item => instanceOf(item) === identity);
+      if (matches.length !== 1) throw new Error('intended selection card is missing or ambiguous');
+      const target = matches[0];
+      if (state.ui?.focused_element !== target.id) {
+        state = await this.navigateElement({ type: 'navigate', target: target.id, scene: state.ui?.scene_id }, state);
+      }
+      const focused = (state.ui?.elements || []).find(item => item.id === state.ui?.focused_element);
+      if (instanceOf(focused) !== identity || focused.type !== type) {
+        throw new Error('could not verify focus on the intended selection card');
+      }
+      await this.button('a');
+      for (let attempt = 0; attempt < 10; attempt++) {
+        state = await this.observe();
+        if (!state.hand_select) throw new Error('hand-selection screen closed before confirmation');
+        if (selected(state).includes(identity) === selecting) return;
+        await this.sleep(100);
+      }
+      throw new Error('selection did not move the intended card; stopping before further input');
+    };
+    // choose.cards is the final requested selection, including on incident
+    // recovery where a previous partial attempt left cards in the tray.
+    for (const identity of selectedBefore) if (!wanted.includes(identity)) await toggle(identity, false);
+    for (const identity of wanted) if (!selected(state).includes(identity)) await toggle(identity, true);
+    const actual = selected(state);
+    if (actual.length !== wanted.length || actual.some(identity => !wanted.includes(identity)) || state.hand_select.can_confirm !== true) {
+      throw new Error('hand-selection tray does not match the requested cards or cannot confirm');
+    }
+    await this.button('y');
+    state = await this.settled();
+    if (state.hand_select) throw new Error('confirming with y left the hand-selection screen open');
+    this.record({ type: 'cards_chosen', cards: action.cards, instances: wanted, confirmed: 'y' });
+    return state;
+  }
+
   async chooseCards(action, before) {
+    if (before.hand_select?.mode === 'simple_select' &&
+        (before.ui?.elements || []).some(item => ['NHandCardHolder', 'NSelectedHandCardHolder'].includes(item.type))) {
+      return this.chooseHandCards(action, before);
+    }
     const screenOf = value => value?.hand_select || value?.card_select || null;
     let state = before;
     if (!screenOf(state)) throw new Error('no card-selection screen is open');
     const wanted = action.cards;
-    // Cards are drawn in index order, reading rows top to bottom.
+    // Resolve each published index through its physical/reference identity.
+    // Never fall back to row[index]: sparse or reordered screens are unsafe.
+    // Only controls the pad can actually land on are candidates. A selection
+    // screen can be drawn over a live combat, and the player's hand stays on
+    // screen underneath it carrying the same `reference.kind: "card"`, so a
+    // pile screen offering a Strike beside a hand holding one matched both and
+    // the run paused with "cannot safely map card index 2 to a unique screen
+    // card" (incident 1789020238941-12). `selectable` is the sensor's own
+    // "focus_mode == all" verdict - the same notion context.mjs calls
+    // addressable - and the hand's holders are not addressable here. A
+    // hand-select screen, where the hand *is* the surface, marks its holders
+    // selectable, so this cannot disable one. The focus check below still has
+    // to confirm the target, so a sensor that omits the flag loses nothing.
+    const selectable = item => item.selectable !== false;
     const holders = value => (value.ui?.elements || [])
-      .filter(item => item.reference?.kind === 'card' && Array.isArray(item.bounds))
+      .filter(item => item.reference?.kind === 'card' && Array.isArray(item.bounds) && selectable(item))
       .sort((a, b) => (Math.abs(a.bounds[1] - b.bounds[1]) > 40 ? a.bounds[1] - b.bounds[1] : a.bounds[0] - b.bounds[0]));
-
+    const instanceOf = item => item?.instance_id ?? item?.reference?.instance_id ?? null;
+    const cardMatches = (card, holder) => {
+      const cardInstance = instanceOf(card);
+      const holderInstance = instanceOf(holder);
+      if (cardInstance != null && holderInstance != null) return cardInstance === holderInstance;
+      const cardId = card?.id ?? card?.card_id;
+      const ref = holder.reference || {};
+      return (cardId != null && [ref.id, ref.model_id, ref.card_id].includes(cardId))
+        || (card?.name != null && (holder.label === card.name || ref.name === card.name));
+    };
     for (const index of wanted) {
       const screen = screenOf(state);
       if (!screen) throw new Error('the selection screen closed before every card was picked');
       const card = (screen.cards || []).find(item => item.index === index);
       if (!card) throw new Error(`no card at index ${index}; the screen offers ${(screen.cards || []).map(item => `${item.index} (${item.name})`).join(', ')}`);
-      const row = holders(state);
-      const target = row[index];
-      if (target && state.ui?.focused_element !== target.id) {
-        const walked = await this.navigateElement({ type: 'navigate', target: target.id, scene: state.ui?.scene_id }, state).catch(() => null);
-        if (walked) state = walked;
+      const matches = holders(state).filter(holder => cardMatches(card, holder));
+      if (matches.length !== 1) throw new Error(`cannot safely map card index ${index} to a unique screen card`);
+      const target = matches[0];
+      if (state.ui?.focused_element !== target.id) {
+        state = await this.navigateElement({ type: 'navigate', target: target.id, scene: state.ui?.scene_id }, state);
       }
+      const focused = (state.ui?.elements || []).find(item => item.id === state.ui?.focused_element);
+      if (!focused || !cardMatches(card, focused)) throw new Error('could not verify focus on the intended selection card');
       const beforePress = screenOf(state)?.can_confirm === true;
       await this.button('a');
       state = await this.observe();
@@ -879,7 +992,18 @@ export class Executor {
           if (bound) {
             const fresh = await this.observe();
             const target = pressableElement(fresh, action.target);
-            if (fresh.ui?.scene_id !== action.scene || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
+            // The same comparison the executor opened with, over the window
+            // this press actually spans: the plan was written against one
+            // observation and the press is sent after a fresh read. Raw
+            // scene_id cannot answer it - the sensor builds that out of Godot
+            // instance ids that churn whenever a node is rebuilt, so a
+            // tooltip appearing or a pile count updating refused the press
+            // exactly as planIdentity used to refuse the whole plan. What has
+            // to hold is that the screen still offers what the plan named:
+            // pressableElement has already thrown if the control is gone or
+            // disabled, and the binding check below ties how it is activated
+            // to the one the plan was written for.
+            if (planIdentity(fresh) !== planIdentity(state)) throw new Error('activation target became stale');
             if (!identified(target) || (target.ambiguous && !target.reference?.kind) || target.press !== bound) throw new Error(`activation semantics are unknown; inspect screenshot and report issue${reachable(fresh)}`);
             await this.button(bound);
             state = await this.settled();
@@ -894,11 +1018,14 @@ export class Executor {
             const fresh = await this.observe();
             const target = targetElement(fresh, action.target);
             if (!identified(target) || (target.ambiguous && !target.reference?.kind) || target.activation !== 'a') throw new Error(`activation semantics are unknown; inspect screenshot and report issue${reachable(fresh)}`);
-            // Against the scene navigation actually finished on, not the one the
-            // plan was written against: a screen that settled while routing is
-            // already handled there, and the real precondition is that the
-            // intended element holds focus and nothing has happened since.
-            if (fresh.ui?.scene_id !== state.ui?.scene_id || fresh.ui.focused_element !== action.target || progressId(fresh) !== progressId(state)) throw new Error('activation target became stale');
+            // Against the screen navigation actually finished on, not the one
+            // the plan was written against: a screen that settled while routing
+            // is already handled there. What has to hold is that the intended
+            // element still holds focus (this press activates whatever is
+            // focused) and that nothing has happened since - read in stable
+            // identity, because raw scene_id moves whenever the game rebuilds
+            // a node, and that is presentation, not the screen changing.
+            if (fresh.ui.focused_element !== action.target || planIdentity(fresh) !== planIdentity(state)) throw new Error('activation target became stale');
             await this.button('a');
             state = await this.settled();
             if (stateId(state) === stateId(fresh) && !unreportedSelection(state, action.target)) throw new Error(`activating ${action.target} changed nothing${reachable(state)}`);
@@ -936,6 +1063,22 @@ export class Executor {
           completed.push({ action, verified: true });
         } else if (action.type === 'input') {
           if (action.from && !uiMatches(state, action.from)) throw new Error('UI sequence precondition changed; no sequence input sent');
+          // A press with no target acts on whatever holds focus, so it is the
+          // one kind of input that depends on focus staying where the plan saw
+          // it. Focus moves on its own often enough to matter (a card-targeting
+          // cursor drifting over a holder, a rebuilt control), and planIdentity
+          // no longer refuses a plan for that alone, because the great majority
+          // of such movements are churn that a named target does not care
+          // about. Directional presses are excluded: a single one is a probe
+          // whose whole point is to be relative, and a multi-press route is
+          // re-walked from wherever focus is.
+          // Compared against the observation the plan was written for, not
+          // against the previous action's result: every press in a plan was
+          // written against the same screen.
+          const activation = action.buttons.some(button => !DIRECTIONS.includes(button));
+          if (activation && focusIdentity(before) !== focusIdentity(observation)) {
+            throw new Error('focus moved off the control this press would activate; no input sent');
+          }
           for (const button of action.buttons) await this.button(button);
           const traveling = before.state_type === 'map' && action.buttons.join(',') === 'a';
           for (let attempt = 0; attempt < (traveling ? 40 : 6); attempt++) {
