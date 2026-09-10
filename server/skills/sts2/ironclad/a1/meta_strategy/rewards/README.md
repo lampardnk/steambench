@@ -28,14 +28,15 @@ Entering a new Act restores HP. The [Health page](https://slaythespire.wiki.gg/w
 describes HP as "replenished at Rest Sites, between acts, or with any number of
 healing effects", and the Ascension page defines the only change to it: from
 Ascension 2 the Ancients heal 80% of missing HP instead of all of it. The
-observed value at Ascension 1 on room 1810711c was 35/86 HP entering Act 2 and
-86/86 at the Ancient, a heal of 51 HP - every point that was missing.
+observed value at Ascension 1 was 35/86 HP on leaving Act 1 and 86/86 at the
+Ancient, a heal of every point that was missing. Compare the HP before the boss
+rewards and after the Ancient screen to confirm the level in force.
 
-That makes HP held above what the current act's remaining fights require worth
-nothing after the act's boss is won: it is refilled anyway. It remains fully
-live before that - the floors, Elites and the boss itself are all fought at the
-HP you actually have - so the constraint is surviving what is still in front of
-you, not banking a reserve past the boss.
+That makes HP held above what the act's remaining fights require worth nothing
+once its boss is won: it is refilled anyway. It stays fully live before that -
+the hallway fights, the Elites and the boss itself are all fought at the HP you
+actually have - so the constraint is surviving what is still in front of you,
+not banking a reserve past the boss.
 
 The reward page also links the [Cards mechanics](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards),
 [Potions](https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Potions) and
