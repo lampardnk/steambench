@@ -17,15 +17,43 @@
 // deterministic, so the same screen always retrieves the same notes.
 import fs from 'node:fs';
 import path from 'node:path';
-import { PROFILE } from './profile.mjs';
 
 export const STAGED_NOTES = 'scratchpad.md';
 const MAX_RETRIEVED = 24;
-// Character budgets scale with the configured model's context window, with
-// ample space left for observations, prompts and output. The larger wiki must
-// not be silently limited to the former five 16KB excerpts.
-const RETRIEVAL_BUDGET = Math.min(512000, Math.floor(PROFILE.contextWindow / 2));
-export const MAX_NOTE_IN_CONTEXT = Math.min(128000, Math.floor(RETRIEVAL_BUDGET / 2));
+// How much reference prose one decision may carry.
+//
+// These were derived from the context window, on the reasoning that a large
+// window should not be wasted: at 1M tokens that yielded a 512,000-character
+// retrieval budget, which is no bound at all. Every note that matched anything
+// arrived in full, and since a run's deck, relics and potions are all match
+// terms, the payload grew with the run: the live strategist's context was
+// 17,051 characters on decision 6, 79,000 by decision 130, and 95,307 by
+// decision 430, where it stayed. It averaged 20,154 characters of context per
+// call against 4,200-5,500 for every other run, and the notes were where it
+// went. A window is not a budget: tokens cost money whether or not they fit.
+//
+// 16,000 is where the budget stops buying anything. Replayed over the runaway's
+// 558 decisions at the per-note ceiling below, 8,000-12,000 characters leaves
+// 57-58% of them with a note that names the enemy or screen in front of them
+// and 16,000 takes that to 90%; past 16,000 the number never moves again,
+// however much is spent. The ceiling and the total are one decision, not two.
+export const RETRIEVAL_BUDGET = 16000;
+// One note may not spend the budget by itself. The largest note in the library
+// is a 23,000-character effect glossary, and delivered against the budget alone
+// it appeared on 48% of the runaway's decisions and took 61% of the prose on
+// average - all of it at worst - so the notes about the potions in hand, the
+// archetype being drafted and the act's navigation were the ones pushed out.
+//
+// At 4,000 a long page still arrives in useful part (the median note is 1,363
+// characters, so most are never cut at all) and the budget is spread instead of
+// sunk. At the 16,000 budget above, this ceiling takes decisions carrying a
+// note that names the enemy or screen in front of them from 54% to 90%, and it
+// is the ceiling doing it: a 48,000 budget with a 16,000 ceiling also reaches
+// 90%, but buys 2 more notes per decision for 2.9x the prose and no more
+// coverage. Every note the ceiling displaces is one the budget had made room
+// for anyway; what it lets in is the reference material.
+export const MAX_NOTE_IN_CONTEXT = 4000;
+
 const STOP = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'at', 'for', 'with', 'is', 'it', 'this', 'that', 'md', 'readme', 'learned', 'note', 'notes']);
 
 const words = (text) => String(text || '').toLowerCase().match(/[a-z0-9][a-z0-9'-]{1,}/g) || [];
@@ -187,16 +215,6 @@ function score(note, { weights, area, generic = new Set() }) {
  * bounded, so the planner reads what it knows without spending a decision on a
  * recall it has to remember to ask for.
  */
-/**
- * A control note is what stops the same screen being re-derived every run, so on
- * a screen it comes first. NOT in a fight. Promoting it unconditionally handed
- * every slot to the UI: a control note carries the character and ascension in
- * its keys, which match any decision at all, so during a floor 7 elite fight the
- * five notes retrieved were about Neow bundles, the reward screen and the main
- * menu, and the bestiary note for the elite being fought never appeared. In
- * combat the enemy is the subject and ordinary relevance decides.
- */
-const CONTROLS_NOTE = /(?:^|\/)controls\//;
 // A note about one event - an unknown room, Neow - is relevant when that event
 // is on screen and at no other time. NEOW.md is 9.6KB about floor 0 and was
 // read on 61 of 83 decisions because it mentions the map; the twenty-odd
@@ -204,20 +222,6 @@ const CONTROLS_NOTE = /(?:^|\/)controls\//;
 // not merely a word they share with the screen.
 const EVENT_NOTE = /(?:^|\/)(?:act\d|meta_strategy)\/(?:unknown|ancient)\//;
 
-/**
- * The controls notes, whatever the screen is.
- *
- * Retrieval scores a note against the terms the situation carries - enemy
- * names, the event, the character, the state type. CONTROLS.md carries none of
- * them, and it cannot: it is about the pad, not about any one screen. On the
- * Neow bundle screen the situation terms are "bundle" and "select", which
- * appear in no note's keys, so the one file describing how that screen works
- * scored zero and was never retrieved - and the actuator worked the screen
- * blind for fifty-five decisions and three supervisor pauses.
- *
- * Ranking control notes first (see retrieve) only reorders notes that already
- * matched. The pad's manual is not a match to be won; the pad always has it.
- */
 /**
  * Keep the entries a situation is actually about.
  *
@@ -257,31 +261,13 @@ export function focusNote(content, subjects) {
   return kept ? out.join('') : content;
 }
 
-export function controlManual(skillDir, index, { budget = MAX_NOTE_IN_CONTEXT } = {}) {
-  const out = [];
-  let spent = 0;
-  for (const note of index.filter(item => CONTROLS_NOTE.test(item.path))) {
-    let content;
-    try { content = fs.readFileSync(path.join(skillDir, note.path), 'utf8'); }
-    catch { continue; }
-    const room = Math.max(0, budget - spent);
-    if (room < 200) break;
-    out.push({ path: note.path, description: note.description, matched: ['controls'], relevance: 0, truncated: content.length > room, content: content.slice(0, room) });
-    spent += Math.min(content.length, room);
-  }
-  return out;
-}
-
 export function retrieve(skillDir, index, state, objective, { limit = MAX_RETRIEVED, budget = RETRIEVAL_BUDGET } = {}) {
   const wanted = situationTerms(state, objective);
   if (!wanted.weights.size) return [];
-  const fighting = Boolean(state?.battle && Array.isArray(state?.player?.hand));
-  const rank = item => (!fighting && CONTROLS_NOTE.test(item.note.path) ? 1 : 0);
   // A term carried by nearly every note identifies nothing. In a one-character
   // library every note is under ironclad/a1/ and says so in its keys, so
-  // "ironclad" and "ascension-1" matched every decision ever made: during a
-  // floor 7 elite fight the five notes retrieved were about Neow bundles, the
-  // reward screen and the main menu. Such a term still weights a note that is
+  // "ironclad" and "ascension-1" matched every decision ever made. Such a
+  // term still weights a note that is
   // relevant for some other reason; it may not qualify one on its own. Measured
   // from the corpus rather than hardcoded, so it holds for whatever is in it.
   const matches = term => index.reduce((n, note) => n + (note.keys.includes(term) || note.pathTerms.includes(term) || note.descriptionTerms.includes(term) ? 1 : 0), 0);
@@ -289,7 +275,7 @@ export function retrieve(skillDir, index, state, objective, { limit = MAX_RETRIE
   const ranked = index
     .map(note => ({ note, ...score(note, { ...wanted, generic }) }))
     .filter(item => item.total > 0)
-    .sort((a, b) => rank(b) - rank(a) || b.total - a.total || a.note.bytes - b.note.bytes)
+    .sort((a, b) => b.total - a.total || a.note.bytes - b.note.bytes)
     .slice(0, limit);
   const out = [];
   let spent = 0;

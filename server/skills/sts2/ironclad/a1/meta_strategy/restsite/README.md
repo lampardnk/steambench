@@ -9,7 +9,6 @@ sources:
   - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Rest_Sites
   - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Map_Locations
   - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Relics_List
-  - ../controls/CONTROLS.md
 ---
 
 # Rest Sites
@@ -30,11 +29,11 @@ This is a map fact, not a promise that a particular option is enabled.
 
 ## Selection
 
-Read `rest_site.options` and choose by its current index. A card chosen for a
-Smith or other service uses the selection contract in [CONTROLS.md](../controls/CONTROLS.md);
-do not infer eligibility or upgrade text from the card's base name. If the site
-has no remaining options and the sensor says it can proceed, use the live
-proceed control.
+Read `rest_site.options` and copy the chosen option's `semantic_id`; the
+executor resolves it to the current STS2MCP index after a fresh state read. A
+card chosen for Smith or another service is selected by its stable
+`instance_id`; do not infer eligibility or upgrade text from the base name. If
+the site has no remaining options and `can_proceed` is true, use `proceed`.
 
 ## Decision worksheet
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { PROFILE } from '../server/lib/learning-profile.mjs';
 if (!process.env[PROFILE.apiKeyEnv]) throw new Error(`${PROFILE.apiKeyEnv} must be present in the system environment`);
-const child = spawn('docker', ['run', '--rm', '--name', 'steambench-model-probe', '-e', PROFILE.apiKeyEnv, '-e', `STEAMBENCH_MODEL=${PROFILE.key}`, '--entrypoint', 'node', PROFILE.image, '/opt/steambench/client/learning/decision-probe.mjs'], {
+const child = spawn('docker', ['run', '--rm', '--name', 'steambench-model-probe', '-e', PROFILE.apiKeyEnv, '--entrypoint', 'node', PROFILE.image, '/opt/steambench/client/learning/decision-probe.mjs'], {
   env: { ...process.env, DOCKER_CONTEXT: 'default' }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 let output = '';

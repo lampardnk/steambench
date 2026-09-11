@@ -4,26 +4,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import assert from 'node:assert/strict';
 import { Planner } from './planner.mjs';
-import zlib from 'node:zlib';
 import { PROFILE } from './profile.mjs';
-
-/** A solid square PNG, built here so no fixture image ships with the probe. */
-function swatch(size, [red, green, blue]) {
-  const pixel = Buffer.from([red, green, blue]);
-  const row = Buffer.concat([Buffer.from([0]), ...Array.from({ length: size }, () => pixel)]);
-  const raw = Buffer.concat(Array.from({ length: size }, () => row));
-  const crc32 = buffer => { let value = ~0; for (const byte of buffer) { value ^= byte; for (let bit = 0; bit < 8; bit++) value = (value >>> 1) ^ (0xEDB88320 & -(value & 1)); } return (~value) >>> 0; };
-  const chunk = (type, data) => {
-    const length = Buffer.alloc(4); length.writeUInt32BE(data.length);
-    const body = Buffer.concat([Buffer.from(type), data]);
-    const checksum = Buffer.alloc(4); checksum.writeUInt32BE(crc32(body));
-    return Buffer.concat([length, body, checksum]);
-  };
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(size, 0); header.writeUInt32BE(size, 4); header[8] = 8; header[9] = 2;
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
-}
-const report = { at: Date.now(), profile: PROFILE.checkpointVersion, model: PROFILE.model, baseUrl: PROFILE.baseUrl, ready: false, capabilities: { streaming: false, json: false, image: false }, requests: [], gameplayInputs: 0 };
+const report = { at: Date.now(), profile: PROFILE.checkpointVersion, model: PROFILE.model, baseUrl: PROFILE.baseUrl, ready: false, capabilities: { streaming: false, json: false }, requests: [], gameplayActions: 0 };
 const proxy = http.createServer(async (request, response) => {
   try {
     assert.equal(request.headers.authorization === `Bearer ${process.env[PROFILE.apiKeyEnv]}`, true, `Pi must forward ${PROFILE.apiKeyEnv} exactly`);
@@ -33,15 +15,8 @@ const proxy = http.createServer(async (request, response) => {
     assert.equal(payload.model, PROFILE.model);
     assert.equal(payload.stream, true);
     assert.equal(payload.provider, undefined);
-    // The reasoning level the profile asks for has to survive the trip, and it
-    // travels in one of two shapes. On a generic OpenAI-compatible endpoint pi
-    // sends the flat `reasoning_effort`; on OpenRouter it detects the host and
-    // sends OpenRouter's native `reasoning:{effort}` instead. Both are the same
-    // request as far as the level is concerned - measured on this route,
-    // reasoning:{effort:"high"} returned 647 reasoning tokens - so the
-    // assertion is on the LEVEL, not on which spelling carried it. A level pi
-    // silently clamped (it clamps `max` down to `high` without a
-    // thinkingLevelMap) would still be caught here, which is the point.
+    // Assert the effective level rather than its OpenAI-compatible wire shape;
+    // this catches any client-side clamp before a room is allowed to start.
     const wanted = PROFILE.reasoning && PROFILE.reasoning !== 'default' ? PROFILE.reasoning : undefined;
     const carried = payload.reasoning && typeof payload.reasoning === 'object' ? payload.reasoning.effort : payload.reasoning_effort;
     assert.equal(Boolean(payload.reasoning) && Boolean(payload.reasoning_effort), false, 'one shape only, never both');
@@ -73,16 +48,6 @@ try {
   report.capabilities.json = true;
   report.capabilities.streaming = chunks > 0;
   assert.ok(chunks > 0, 'Pi must expose text stream chunks');
-  // A generated 64x64 red swatch; no gameplay screenshot or personal data. It
-  // used to be a single red pixel, which gpt-5.6-luna called yellow - fairly,
-  // since one pixel survives almost no encoding. The probe is asking whether
-  // the actuator can read a screenshot, so it has to show it something with an
-  // area.
-  const image = { mime_type: 'image/png', data_base64: swatch(64, [220, 20, 20]).toString('base64') };
-  const vision = await planner.ask({ role: 'probe', prompt: 'probe.txt', context: { probe: 'image' }, image });
-  assert.equal(vision.ok, true);
-  assert.equal(vision.color.toLowerCase(), 'red');
-  report.capabilities.image = true;
   report.ready = true;
 } catch (error) {
   report.error = error.message.replaceAll(process.env[PROFILE.apiKeyEnv] || 'NO_KEY', '[redacted]').slice(0, 1000);

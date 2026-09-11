@@ -46,7 +46,7 @@ export class EncounterScratchpad {
   observe(state, verifiedEffects = []) {
     if (!state.battle || !state.player?.hand) { this.reset(); return null; }
     const enemyIds = (state.battle.enemies || []).map(e => e.combat_id ?? e.entity_id ?? e.name).join(',');
-    const key = digest([state.run?.seed ?? null, state.run?.act, state.run?.floor, state.ui?.encounter_id ?? enemyIds]);
+    const key = digest([state.run?.seed ?? null, state.run?.act, state.run?.floor, state.encounter_id ?? enemyIds]);
     const encounterChanged = key !== this.key;
     if (encounterChanged) this.reset();
     const previous = this.value;

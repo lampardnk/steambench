@@ -2,21 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { api, apiUrl, wsUrl, STAGE_LABELS, type AgentInfo, type LibraryGame, type Meta, type PadEvent, type RoomSummary, type TranscriptItem } from '@/lib/backend'
+import { api, apiUrl, wsUrl, STAGE_LABELS, type ActionEvent, type AgentInfo, type LibraryGame, type Meta, type RoomSummary, type TranscriptItem } from '@/lib/backend'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
-import { ControllerView } from '@/components/controller'
+import { ActionAudit } from '@/components/action-audit'
 import { GameView } from '@/components/game-view'
 import { SteamLogin } from '@/components/steam-login'
 import { Transcript } from '@/components/transcript'
 import { Learning } from '@/components/learning'
 
 type WsMessage =
-  | { type: 'snapshot'; room: RoomSummary; transcript: TranscriptItem[]; agents: AgentInfo[]; padHistory: PadEvent[]; log: string[] }
+  | { type: 'snapshot'; room: RoomSummary; transcript: TranscriptItem[]; agents: AgentInfo[]; actionHistory: ActionEvent[]; log: string[] }
   | { type: 'item'; item: TranscriptItem }
   | { type: 'agents'; agents: AgentInfo[] }
   | { type: 'delta'; id: string; kind: string; agent?: string; delta: string }
   | { type: 'agent_status'; status: string; requiresResume?: boolean; attention?: RoomSummary['attention'] }
-  | { type: 'pad'; event: PadEvent }
+  | { type: 'action'; event: ActionEvent }
   | { type: 'room'; room: RoomSummary }
   | { type: 'log'; line: string }
   | { type: 'error'; message: string }
@@ -29,7 +29,7 @@ export default function RoomPage() {
   const [room, setRoom] = useState<RoomSummary | null>(null)
   const [items, setItems] = useState<TranscriptItem[]>([])
   const [agents, setAgents] = useState<AgentInfo[]>([])
-  const [pads, setPads] = useState<PadEvent[]>([])
+  const [actions, setActions] = useState<ActionEvent[]>([])
   const [log, setLog] = useState<string[]>([])
   const [error, setError] = useState('')
   const [connected, setConnected] = useState(false)
@@ -54,7 +54,7 @@ export default function RoomPage() {
           setRoom(msg.room)
           setItems(msg.transcript)
           setAgents(msg.agents || [])
-          setPads(msg.padHistory)
+          setActions(msg.actionHistory)
           setLog(msg.log)
         } else if (msg.type === 'agents') {
           setAgents(msg.agents || [])
@@ -78,8 +78,8 @@ export default function RoomPage() {
             next[i] = { ...next[i], text: (next[i].text || '') + msg.delta }
             return next
           })
-        } else if (msg.type === 'pad') {
-          setPads((prev) => [...prev, msg.event].slice(-300))
+        } else if (msg.type === 'action') {
+          setActions((prev) => [...prev.filter(item => item.id !== msg.event.id), msg.event].slice(-300))
         } else if (msg.type === 'room') {
           setRoom(msg.room)
         } else if (msg.type === 'log') {
@@ -217,11 +217,11 @@ export default function RoomPage() {
 
               <details className="rounded-lg border border-border bg-card">
                 <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
-                  Debug <span className="font-normal text-muted-foreground">· room data, log, controller and health</span>
+                  Debug <span className="font-normal text-muted-foreground">· room data, action audit, log and health</span>
                 </summary>
                 <div className="flex flex-col gap-3 border-t border-border p-3">
                   <RoomInfo room={room} log={log} />
-                  <ControllerView last={pads[pads.length - 1] || room.lastPad} history={pads} />
+                  <ActionAudit history={actions.length ? actions : room.lastAction ? [room.lastAction] : []} />
                   <HealthPanel settings={settings} room={room} />
                 </div>
               </details>

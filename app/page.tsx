@@ -111,7 +111,7 @@ export default function Page() {
                 {r.detail && <span className="text-muted-foreground"> · {r.detail}</span>}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {r.login ? `Steam: ${r.login.personaName || r.login.steamId}` : 'Steam: not signed in'} · player {r.agentStatus} · {r.padCount} inputs
+                {r.login ? `Steam: ${r.login.personaName || r.login.steamId}` : 'Steam: not signed in'} · player {r.agentStatus} · {r.actionCount} actions
               </p>
               <a href={`/r/${r.id}`} className="mt-3 inline-block text-sm text-primary underline-offset-4 hover:underline">
                 open →

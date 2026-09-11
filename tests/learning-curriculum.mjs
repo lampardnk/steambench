@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Curriculum, situation } from '../client/learning/curriculum.mjs';
-import { MAX_NOTE_IN_CONTEXT, controlManual, focusNote, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
+import { MAX_NOTE_IN_CONTEXT, RETRIEVAL_BUDGET, focusNote, indexNotes, parseNote, retrieve, situationTerms } from '../client/learning/retrieval.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-curriculum-'));
 const skillDir = path.join(root, 'skills', 'sts2');
@@ -35,7 +35,7 @@ const inRun = { state_type: 'map', run: { act: 1, floor: 3, ascension: 1, charac
 
 // --- proposing -------------------------------------------------------------
 const planner = new FakePlanner();
-let curriculum = new Curriculum({ skillDir, planner, playerName: 'STS2-Pi-OrcaRouter', roomId: 'aaaa1111' });
+let curriculum = new Curriculum({ skillDir, planner, playerName: 'STS2-Pi-Luna', roomId: 'aaaa1111' });
 assert.equal(curriculum.active, null, 'a fresh ladder has no objective');
 assert.ok(curriculum.needsObjective(inRun));
 assert.ok(!curriculum.needsObjective({ state_type: 'menu' }), 'no objective is proposed outside a run');
@@ -58,7 +58,7 @@ const reloaded = new Curriculum({ skillDir, planner: new FakePlanner() });
 assert.equal(reloaded.active?.text, proposed.text, 'the objective survives a reload');
 
 // --- the critic is the only thing that closes an objective -----------------
-const evidence = [{ decision: 6, floor: 4, actions: ['input'], completed: [{ type: 'input', verified: true }] }];
+const evidence = [{ decision: 6, floor: 4, actions: ['choose_map_node'], completed: [{ type: 'choose_map_node', verified: true }] }];
 planner.queue({ verdict: 'pending', reasoning: 'still on floor 4' });
 let checked = await curriculum.verify(inRun, { decision: 8, evidence });
 assert.equal(checked.verdict, 'pending');
@@ -264,22 +264,6 @@ assert.deepEqual(summary.enemies, ['Wriggler']);
 assert.equal(summary.hp, 60);
 
 fs.rmSync(root, { recursive: true, force: true });
-// The pad's manual is not a match to be won. Retrieval scores a note against
-// the terms the situation carries, and a controls note carries none of them:
-// on the Neow bundle screen the terms are "bundle" and "select". Live, that
-// scored zero, and the actuator worked the screen blind for 55 decisions.
-{
-  note('ironclad/a1/controls/CONTROLS.md', '---\ndescription: How the pad drives this build.\nkeys: [controls, pad, buttons, focus]\n---\n# Controls\nb closes an overlay.\n');
-  const bundle = { state_type: 'bundle_select', bundle_select: { screen_type: 'bundle' }, player: {}, run: {} };
-  const index = indexNotes(skillDir);
-  const scored = retrieve(skillDir, index, bundle, null).map(note => note.path);
-  assert.ok(!scored.some(path => /controls\//.test(path)), 'retrieval alone does not surface a controls note on this screen');
-  const manual = controlManual(skillDir, index);
-  assert.ok(manual.length > 0, 'the manual is handed over regardless');
-  assert.ok(manual.every(note => /controls\//.test(note.path)), 'and it is only controls notes');
-  assert.ok(manual[0].content.length > 0, 'with its body, not just its name');
-  assert.ok(controlManual(skillDir, index, { budget: 300 }).every(note => note.content.length <= 300), 'and it stays bounded');
-}
 
 // A roster note is one entry per enemy in the biome; a fight has one or two.
 // Sending all sixteen spent 15.6KB of a 32KB budget on enemies that were not
@@ -305,7 +289,7 @@ fs.rmSync(root, { recursive: true, force: true });
   assert.equal(focusNote(roster, new Set()), roster, 'and a situation with no subject slices nothing');
 }
 
-console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'the Ancient screen is a boundary the act and floor cannot express', 'situation carries the deck as cards', 'situation reads relics from player', 'situation names the act boss', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'the controls manual reaches the pad even when retrieval scores it zero', 'a roster note is cut to the enemies actually present'] }));
+console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion condition required', 'ladder inherited', 'critic pending/failure/success', 'critique reaches the next decision', 'three failures abandon', 'an unreachable objective is abandoned at once', 'frontier carried forward', 'progress-boundary checks', 'a boundary crossed during combat survives until the critic consumes it', 'the Ancient screen is a boundary the act and floor cannot express', 'situation carries the deck as cards', 'situation reads relics from player', 'situation names the act boss', 'run close', 'objective never outlives its room', 'front matter', 'retrieval ranking', 'retrieval budget', 'a roster note is cut to the enemies actually present'] }));
 
 // Live effects are named under status, not powers. Selection cards, carried
 // relics and potions are also subjects whose mechanics must be discoverable.
@@ -344,15 +328,19 @@ console.log(JSON.stringify({ result: 'passed', verified: ['propose', 'completion
   assert.match(found, /Shared source list/);
 }
 
-// A factual entry larger than the previous indexing/retrieval thresholds is
-// still indexed and delivered, including its final Notes/Interactions marker.
+// A note too long for one decision's budget is cut to fit and says so, rather
+// than being indexed away or spending the whole budget on itself. The old
+// contract let a source run past 64KB because the budget was derived from a
+// 1M-token context window; the budget is now a fixed cost ceiling, so the
+// truncation is the guarantee that matters.
 {
   const body = 'A verified mechanic and its conditions.\n'.repeat(1700) + '[wiki-driven] END_OF_LONG_SOURCE';
   note('effects/long-source.md', `---\ndescription: Comprehensive Sandpit effects\nkeys: sandpit\n---\n${body}`);
   const found = retrieve(skillDir, indexNotes(skillDir), { player: { status: [{ name: 'Sandpit' }] } }, null);
   const long = found.find(item => item.path === 'effects/long-source.md');
-  assert.ok(long, 'a source exceeding 64KB is indexed');
-  assert.ok(long.content.length > 60000);
-  assert.match(long.content, /END_OF_LONG_SOURCE/);
-  assert.equal(long.truncated, false);
+  assert.ok(long, 'a source larger than one note may carry is still indexed');
+  assert.ok(long.content.length <= MAX_NOTE_IN_CONTEXT, `it is cut to the per-note ceiling, not the whole page: ${long.content.length}`);
+  assert.equal(long.truncated, true, 'and it is marked as cut so the model knows there is more');
+  assert.ok(found.reduce((total, item) => total + item.content.length, 0) <= RETRIEVAL_BUDGET,
+    'the whole decision stays inside the retrieval budget');
 }

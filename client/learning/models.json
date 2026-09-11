@@ -15,71 +15,9 @@
           ],
           "contextWindow": 1050000,
           "maxTokens": 65536,
-          "compat": {
-            "supportsStore": false,
-            "supportsReasoningEffort": true,
-            "maxTokensField": "max_tokens"
-          }
-        },
-        {
-          "id": "deepseek-v4.1-flash",
-          "name": "Experiential DeepSeek V4.1 Flash",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 393216,
           "thinkingLevelMap": {
             "max": "max"
           },
-          "compat": {
-            "supportsStore": false,
-            "supportsReasoningEffort": true,
-            "maxTokensField": "max_tokens"
-          }
-        }
-      ]
-    },
-    "orcarouter": {
-      "baseUrl": "https://api.orcarouter.ai/v1",
-      "api": "openai-completions",
-      "apiKey": "$ORCA_KEY",
-      "models": [
-        {
-          "id": "z-ai/glm-5.3-flash-free",
-          "name": "OrcaRouter GLM 5.3 Flash Free",
-          "reasoning": false,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 128000,
-          "maxTokens": 4096,
-          "compat": {
-            "supportsStore": false,
-            "supportsReasoningEffort": false,
-            "maxTokensField": "max_tokens"
-          }
-        }
-      ]
-    },
-    "openrouter": {
-      "baseUrl": "https://openrouter.ai/api/v1",
-      "api": "openai-completions",
-      "apiKey": "$OPENROUTER_API_KEY",
-      "models": [
-        {
-          "id": "google/gemini-3.8-flash",
-          "name": "OpenRouter Google Gemini 3.8 Flash",
-          "reasoning": true,
-          "input": [
-            "text",
-            "image"
-          ],
-          "contextWindow": 1048576,
-          "maxTokens": 65536,
           "compat": {
             "supportsStore": false,
             "supportsReasoningEffort": true,

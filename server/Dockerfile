@@ -1,6 +1,6 @@
 FROM node:24-bookworm-slim
 
-# ca-certificates for OpenRouter/GitHub, git for the persistent skill library,
+# ca-certificates for the model API/GitHub, git for the persistent skill library,
 # the static docker CLI to run agent containers and exec helpers in rooms
 # through the mounted engine socket.
 ARG DOCKER_CLI_VERSION=29.8.0

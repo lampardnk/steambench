@@ -112,9 +112,8 @@ function pruneEmptyDirs(root) {
  * overwrite what the player had since written. The player can no longer write
  * the library at all - it stages proposals into scratchpad.md and a human
  * merges them - so that protection now only preserved staleness: a library
- * seeded once kept its first copy of every template file forever, which is how
- * it ended up serving a CONTROLS.md with no front matter and biome rosters
- * missing their wiki.gg corrections. Curate templates in the repo; anything the
+ * seeded once kept its first copy of every template file forever, including
+ * biome rosters missing their wiki.gg corrections. Curate templates in the repo; anything the
  * template does not provide is left untouched.
  */
 export async function ensureSkill(cfg, skill, templateDir) {
@@ -300,9 +299,8 @@ export async function historyPage(cfg, params = {}) {
  *
  * Every operator rescue is already on disk - the incident holds what the agent
  * could not do, the resolution holds the answer it was given - but they sat in
- * two files nobody reads. Paired and listed, they are the work list for the
- * control manual: anything here is something the agents could not resolve on
- * their own, and each one either belongs in CONTROLS.md or is a runtime bug.
+ * two files nobody reads. Paired and listed, they identify missing structured
+ * state, semantic-action defects, provider failures, or strategy notes to curate.
  */
 export function incidentPage(dir, params = {}) {
   const { limit, offset } = pagination(params);

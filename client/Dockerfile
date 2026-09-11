@@ -11,7 +11,7 @@ RUN mkdir -p /workspace/skills && chown -R node:node /workspace
 WORKDIR /workspace
 USER node
 ENV STEAMBENCH_SKILLS_DIR=/workspace/skills
-LABEL org.opencontainers.image.title="STS2-Pi-OrcaRouter" \
+LABEL org.opencontainers.image.title="STS2-Pi-Luna" \
       ai.steambench.model="z-ai/glm-5.3-flash-free"
 ENTRYPOINT ["node", "/opt/steambench/client/learning/player.mjs"]
 CMD []

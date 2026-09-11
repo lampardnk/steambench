@@ -13,7 +13,6 @@ import argparse
 import base64
 import ctypes
 import ctypes.util
-import errno
 import json
 import os
 import pwd
@@ -40,8 +39,8 @@ MAX_MEMORY = 1024 * 1024
 MAX_LOG_BYTES = 512 * 1024
 SPECIAL_LOG_NAMES = {"console_history.log"}
 
-# STS2MCP mod HTTP API (loopback only). The gateway only ever issues GET
-# requests to these paths, so game actions (POST) are unreachable by design.
+# STS2MCP mod HTTP API (loopback only). Reads are retried when transient;
+# mutations are dispatched exactly once.
 STS2MCP_HOST = "127.0.0.1"
 STS2MCP_DEFAULT_PORT = 15526
 MAX_STS2_BYTES = 1024 * 1024
@@ -55,6 +54,25 @@ STS2_GET_ALLOWLIST: dict[str, set[str]] = {
     "/api/v1/profiles": {"format"},
 }
 STS2_QUERY_CHOICES = {"format": {"json", "markdown"}, "item_type": {"all", "card", "relic"}}
+STS2_ACTION_TIMEOUT_S = 10.0
+STS2_ACTION_SCHEMAS: dict[str, dict[str, tuple[str, Any]]] = {
+    "menu_select": {"option": ("string", None), "seed": ("optional_string", None)},
+    "play_card": {"card_index": ("index", None), "target": ("optional_string", None)},
+    "use_potion": {"slot": ("index", None), "target": ("optional_string", None)},
+    "discard_potion": {"slot": ("index", None)}, "end_turn": {},
+    "combat_select_card": {"card_index": ("index", None)}, "combat_confirm_selection": {},
+    "claim_reward": {"index": ("index", None)}, "select_card_reward": {"card_index": ("index", None)},
+    "skip_card_reward": {}, "proceed": {}, "choose_event_option": {"index": ("index", None)},
+    "advance_dialogue": {}, "choose_rest_option": {"index": ("index", None)},
+    "shop_purchase": {"index": ("index", None)}, "choose_map_node": {"index": ("index", None)},
+    "select_card": {"index": ("index", None)}, "confirm_selection": {}, "cancel_selection": {},
+    "select_bundle": {"index": ("index", None)}, "confirm_bundle_selection": {}, "cancel_bundle_selection": {},
+    "select_relic": {"index": ("index", None)}, "skip_relic_selection": {},
+    "claim_treasure_relic": {"index": ("index", None)},
+    "crystal_sphere_set_tool": {"tool": ("enum", {"big", "small"})},
+    "crystal_sphere_click_cell": {"x": ("index", None), "y": ("index", None)},
+    "crystal_sphere_proceed": {},
+}
 
 # Screenshot capture of the allowlisted game window.
 STS2_WINDOW_NAME = "Slay the Spire 2"
@@ -66,20 +84,6 @@ SCREENSHOT_DEFAULT_WIDTH = 1280
 # frames come from gamescopectl instead of x11grab.
 GAMESCOPE_SCREENSHOT_TIMEOUT_S = 6.0
 
-# Virtual Xbox 360 pad bounds. Every hold is released inside the request that
-# started it; the watchdog only exists as insurance against bugs.
-MIN_HOLD_MS = 30
-MAX_HOLD_MS = 2000
-DEFAULT_HOLD_MS = 80
-MAX_PRESSES = 20
-MIN_INTERVAL_MS = 40
-MAX_INTERVAL_MS = 500
-DEFAULT_INTERVAL_MS = 120
-PAD_WATCHDOG_S = 3.0
-PAD_NAME = "Microsoft X-Box 360 pad"
-PAD_VENDOR = 0x045E
-PAD_PRODUCT = 0x028E
-PAD_VERSION = 0x0114
 
 KNOWN_NAMES = {
     "steam",
@@ -123,182 +127,6 @@ def reply_error(error: GatewayError) -> dict[str, Any]:
     return {"ok": False, "error": value}
 
 
-class PadController:
-    """Virtual Xbox 360 pad over /dev/uinput.
-
-    The device is created once and lives for the gateway lifetime so it exists
-    before the game launches. Buttons are named the way the agent sees them
-    (a, b, x, y, lb, rb, back, start, guide, ls, rs, lt, rt).
-    """
-
-    STICKS = {"left": ("ABS_X", "ABS_Y"), "right": ("ABS_RX", "ABS_RY")}
-    TRIGGERS = {"lt": "ABS_Z", "rt": "ABS_RZ"}
-    DPAD = {"up": ("ABS_HAT0Y", -1), "down": ("ABS_HAT0Y", 1), "left": ("ABS_HAT0X", -1), "right": ("ABS_HAT0X", 1)}
-    BUTTONS = {
-        "a": "BTN_A",
-        "b": "BTN_B",
-        "x": "BTN_X",
-        "y": "BTN_Y",
-        "lb": "BTN_TL",
-        "rb": "BTN_TR",
-        "back": "BTN_SELECT",
-        "start": "BTN_START",
-        "guide": "BTN_MODE",
-        "ls": "BTN_THUMBL",
-        "rs": "BTN_THUMBR",
-    }
-
-    def __init__(self) -> None:
-        import evdev  # Debian python3-evdev; imported lazily so the gateway runs without it.
-
-        self.evdev = evdev
-        codes = evdev.ecodes
-        stick_info = evdev.AbsInfo(0, -32768, 32767, 16, 128, 0)
-        trigger_info = evdev.AbsInfo(0, 0, 255, 0, 0, 0)
-        hat_info = evdev.AbsInfo(0, -1, 1, 0, 0, 0)
-        self.axes: dict[str, int] = {
-            "ABS_X": 0, "ABS_Y": 0, "ABS_RX": 0, "ABS_RY": 0,
-            "ABS_Z": 0, "ABS_RZ": 0, "ABS_HAT0X": 0, "ABS_HAT0Y": 0,
-        }
-        abs_events = []
-        for axis in self.axes:
-            info = stick_info if axis in {"ABS_X", "ABS_Y", "ABS_RX", "ABS_RY"} else trigger_info if axis in {"ABS_Z", "ABS_RZ"} else hat_info
-            abs_events.append((getattr(codes, axis), info))
-        self.lock = threading.RLock()
-        self.held: set[str] = set()
-        self.last_change = time.monotonic()
-        self.closed = False
-        self.ui = evdev.UInput(
-            events={codes.EV_KEY: [getattr(codes, key) for key in self.BUTTONS.values()], codes.EV_ABS: abs_events},
-            name=PAD_NAME,
-            vendor=PAD_VENDOR,
-            product=PAD_PRODUCT,
-            version=PAD_VERSION,
-            bustype=codes.BUS_USB,
-        )
-        self.device_path = self.ui.device.path
-        self._watchdog = threading.Thread(target=self._watchdog_loop, daemon=True)
-        self._watchdog.start()
-
-    def _code(self, name: str) -> int:
-        return getattr(self.evdev.ecodes, name)
-
-    def _write_key(self, button: str, value: int) -> None:
-        self.ui.write(self.evdev.ecodes.EV_KEY, self._code(self.BUTTONS[button]), value)
-        if value:
-            self.held.add(button)
-        else:
-            self.held.discard(button)
-        self.last_change = time.monotonic()
-
-    def _write_abs(self, axis: str, value: int) -> None:
-        self.ui.write(self.evdev.ecodes.EV_ABS, self._code(axis), value)
-        self.axes[axis] = value
-        self.last_change = time.monotonic()
-
-    def _active(self) -> bool:
-        return bool(self.held) or any(self.axes.values())
-
-    def neutral(self) -> None:
-        with self.lock:
-            if self.closed:
-                return
-            try:
-                for button in list(self.held):
-                    self._write_key(button, 0)
-                for axis, value in self.axes.items():
-                    if value:
-                        self._write_abs(axis, 0)
-                self.ui.syn()
-            except OSError as exc:
-                print(f"pad neutral failed: {exc}", file=sys.stderr, flush=True)
-
-    def _sleep_then_neutral(self, hold_ms: int) -> None:
-        try:
-            time.sleep(hold_ms / 1000)
-        finally:
-            self.neutral()
-
-    def press(self, button: str, hold_ms: int) -> None:
-        with self.lock:
-            if button in self.TRIGGERS:
-                self._write_abs(self.TRIGGERS[button], 255)
-            else:
-                self._write_key(button, 1)
-            self.ui.syn()
-            self._sleep_then_neutral(hold_ms)
-
-    def stick(self, which: str, x: float, y: float, hold_ms: int) -> dict[str, int]:
-        axis_x, axis_y = self.STICKS[which]
-        values = {axis_x: int(round(x * 32767)), axis_y: int(round(y * 32767))}
-        with self.lock:
-            for axis, value in values.items():
-                self._write_abs(axis, max(-32768, min(32767, value)))
-            self.ui.syn()
-            self._sleep_then_neutral(hold_ms)
-        return values
-
-    def dpad(self, direction: str, presses: int, interval_ms: int) -> None:
-        axis, value = self.DPAD[direction]
-        with self.lock:
-            try:
-                for index in range(presses):
-                    self._write_abs(axis, value)
-                    self.ui.syn()
-                    time.sleep(0.06)
-                    self._write_abs(axis, 0)
-                    self.ui.syn()
-                    if index + 1 < presses:
-                        time.sleep(interval_ms / 1000)
-            finally:
-                self.neutral()
-
-    def status(self) -> dict[str, Any]:
-        grabbed = False
-        try:
-            probe = self.evdev.InputDevice(self.device_path)
-            try:
-                probe.grab()
-                probe.ungrab()
-            except OSError as exc:
-                grabbed = exc.errno == errno.EBUSY
-            finally:
-                probe.close()
-        except OSError:
-            pass
-        with self.lock:
-            return {
-                "available": True,
-                "device": self.device_path,
-                "name": PAD_NAME,
-                "held": sorted(self.held),
-                "axes": dict(self.axes),
-                "grabbed_by_other": grabbed,
-            }
-
-    def _watchdog_loop(self) -> None:
-        while not self.closed:
-            time.sleep(0.25)
-            if self.lock.acquire(blocking=False):
-                try:
-                    if self._active() and time.monotonic() - self.last_change > PAD_WATCHDOG_S:
-                        print("pad watchdog: neutralizing stale input", file=sys.stderr, flush=True)
-                        self.neutral()
-                finally:
-                    self.lock.release()
-
-    def close(self) -> None:
-        with self.lock:
-            if self.closed:
-                return
-            self.neutral()
-            self.closed = True
-            try:
-                self.ui.close()
-            except OSError:
-                pass
-
-
 class ProcessGateway:
     def __init__(
         self,
@@ -307,7 +135,6 @@ class ProcessGateway:
         xauthority: str | None,
         token: str | None,
         sts2_port: int = STS2MCP_DEFAULT_PORT,
-        pad_enabled: bool = True,
         gamescope_display: str | None = "auto",
     ):
         self.home = home.expanduser().resolve()
@@ -316,16 +143,6 @@ class ProcessGateway:
         self.token = token
         self.gamescope_display = gamescope_display
         self.sts2_base = f"http://{STS2MCP_HOST}:{sts2_port}"
-        self.pad: PadController | None = None
-        self.pad_error = "virtual pad disabled with --no-pad"
-        if pad_enabled:
-            try:
-                self.pad = PadController()
-                self.pad_error = ""
-                print(f"virtual pad created at {self.pad.device_path}", flush=True)
-            except Exception as exc:  # Missing evdev or no /dev/uinput access: keep the other ops working.
-                self.pad_error = f"{type(exc).__name__}: {exc}"
-                print(f"virtual pad unavailable: {self.pad_error}", file=sys.stderr, flush=True)
         self.steam_roots = [
             self.home / ".local/share/Steam",
             self.home / ".steam/steam",
@@ -732,7 +549,7 @@ class ProcessGateway:
         self._xdotool("click", "--window", str(window["window"]), str(button))
         return {"window": window, "button": button, "x": x, "y": y}
 
-    # -- STS2MCP read-only proxy -------------------------------------------------
+    # -- STS2MCP proxy -----------------------------------------------------------
 
     def sts2_get(self, request: dict[str, Any]) -> dict[str, Any]:
         path = request.get("path")
@@ -762,23 +579,89 @@ class ProcessGateway:
         if params:
             url += "?" + urllib.parse.urlencode(params)
         http_request = urllib.request.Request(url, method="GET", headers={"Accept": "application/json, text/markdown, text/plain"})
+        last_error: GatewayError | None = None
+        for attempt in range(3):
+            if attempt:
+                time.sleep(0.3)
+            try:
+                with urllib.request.urlopen(http_request, timeout=10) as response:
+                    body = response.read(MAX_STS2_BYTES + 1)
+                    status = response.status
+                    content_type = response.headers.get("Content-Type", "")
+                break
+            except urllib.error.HTTPError as exc:
+                excerpt = exc.read(4096).decode("utf-8", "replace")
+                error = GatewayError("sts2_http_error", f"STS2MCP returned HTTP {exc.code}", {"status": exc.code, "body": excerpt})
+                if exc.code < 500:
+                    raise error from exc
+                last_error = error
+            except (urllib.error.URLError, OSError, TimeoutError) as exc:
+                last_error = GatewayError(
+                    "sts2_unavailable",
+                    f"STS2MCP is not reachable at {self.sts2_base}; is the game running with the mod enabled?",
+                    {"reason": str(getattr(exc, "reason", exc))},
+                )
+        else:
+            raise last_error or GatewayError("sts2_unavailable", "STS2MCP GET failed after 3 attempts")
+        if len(body) > MAX_STS2_BYTES:
+            raise GatewayError("sts2_too_large", f"STS2MCP response exceeds {MAX_STS2_BYTES} bytes")
+        return {"status": status, "content_type": content_type, "bytes": len(body), "body": body.decode("utf-8", "replace")}
+
+    def sts2_action(self, request: dict[str, Any]) -> dict[str, Any]:
+        action = request.get("action")
+        if not isinstance(action, str) or action not in STS2_ACTION_SCHEMAS:
+            raise GatewayError("invalid_action", "action is not allowlisted", {"allowed": sorted(STS2_ACTION_SCHEMAS)})
+        params = request.get("params", {})
+        if not isinstance(params, dict):
+            raise GatewayError("invalid_params", "params must be an object")
+        schema = STS2_ACTION_SCHEMAS[action]
+        extras = set(params) - set(schema)
+        if extras:
+            raise GatewayError("invalid_params", f"parameter not allowed for {action}: {sorted(extras)[0]}", {"allowed": sorted(schema)})
+        clean: dict[str, Any] = {}
+        for key, (kind, choices) in schema.items():
+            optional = kind.startswith("optional_")
+            if key not in params:
+                if optional:
+                    continue
+                raise GatewayError("invalid_params", f"{action}.{key} is required")
+            value = params[key]
+            kind = kind.removeprefix("optional_")
+            if kind == "index" and (isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 10000):
+                raise GatewayError("invalid_params", f"{action}.{key} must be an integer from 0 to 10000")
+            if kind == "string" and (not isinstance(value, str) or not value or len(value) > 160):
+                raise GatewayError("invalid_params", f"{action}.{key} must be a 1-160 character string")
+            if kind == "enum" and value not in choices:
+                raise GatewayError("invalid_params", f"{action}.{key} must be one of {sorted(choices)}")
+            clean[key] = value
+        payload = json.dumps({"action": action, **clean}, separators=(",", ":")).encode("utf-8")
+        http_request = urllib.request.Request(
+            self.sts2_base + "/api/v1/singleplayer", data=payload, method="POST",
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+        )
         try:
-            with urllib.request.urlopen(http_request, timeout=10) as response:
+            with urllib.request.urlopen(http_request, timeout=STS2_ACTION_TIMEOUT_S) as response:
                 body = response.read(MAX_STS2_BYTES + 1)
                 status = response.status
-                content_type = response.headers.get("Content-Type", "")
         except urllib.error.HTTPError as exc:
             excerpt = exc.read(4096).decode("utf-8", "replace")
             raise GatewayError("sts2_http_error", f"STS2MCP returned HTTP {exc.code}", {"status": exc.code, "body": excerpt}) from exc
         except (urllib.error.URLError, OSError, TimeoutError) as exc:
-            raise GatewayError(
-                "sts2_unavailable",
-                f"STS2MCP is not reachable at {self.sts2_base}; is the game running with the mod enabled?",
-                {"reason": str(getattr(exc, "reason", exc))},
-            ) from exc
+            # A write is never retried: the mod may have applied it before the
+            # connection was lost.
+            raise GatewayError("sts2_action_outcome_unknown", "STS2MCP connection was lost after action dispatch; outcome is unknown and must be reviewed", {"action": action, "reason": str(getattr(exc, "reason", exc))}) from exc
         if len(body) > MAX_STS2_BYTES:
             raise GatewayError("sts2_too_large", f"STS2MCP response exceeds {MAX_STS2_BYTES} bytes")
-        return {"status": status, "content_type": content_type, "bytes": len(body), "body": body.decode("utf-8", "replace")}
+        try:
+            result = json.loads(body.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise GatewayError("sts2_malformed_response", "STS2MCP action response is not valid JSON") from exc
+        if status >= 400:
+            raise GatewayError("sts2_http_error", f"STS2MCP returned HTTP {status}", {"status": status, "result": result})
+        if not isinstance(result, dict) or result.get("status") != "ok":
+            message = result.get("error") or result.get("message") if isinstance(result, dict) else None
+            raise GatewayError("sts2_action_failed", str(message or "STS2MCP rejected the action"), {"result": result})
+        return {"action": action, "params": clean, "acknowledgement": result}
 
     # -- Screenshot ---------------------------------------------------------------
 
@@ -880,75 +763,6 @@ class ProcessGateway:
             "bytes": len(result.stdout),
             "data_base64": base64.b64encode(result.stdout).decode("ascii"),
         }
-
-    # -- Virtual pad --------------------------------------------------------------
-
-    def _pad(self) -> PadController:
-        if self.pad is None:
-            raise GatewayError("pad_unavailable", f"virtual pad is not available: {self.pad_error}")
-        return self.pad
-
-    @staticmethod
-    def _bounded_int(request: dict[str, Any], key: str, default: int, low: int, high: int, code: str) -> int:
-        value = request.get(key, default)
-        if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-            raise GatewayError(code, f"{key} must be an integer between {low} and {high}")
-        return value
-
-    def pad_status(self) -> dict[str, Any]:
-        if self.pad is None:
-            return {"available": False, "reason": self.pad_error}
-        status = self.pad.status()
-        readers: list[int] = []
-        for record in self.list_processes():
-            fd_dir = Path("/proc") / str(record["pid"]) / "fd"
-            try:
-                names = os.listdir(fd_dir)
-            except OSError:
-                continue
-            if any(self._readlink(fd_dir / name) == self.pad.device_path for name in names):
-                readers.append(record["pid"])
-        status["readers"] = readers
-        return status
-
-    def pad_press(self, request: dict[str, Any]) -> dict[str, Any]:
-        pad = self._pad()
-        button = request.get("button")
-        if button not in PadController.BUTTONS and button not in PadController.TRIGGERS:
-            raise GatewayError("invalid_button", "unknown button", {"allowed": sorted(PadController.BUTTONS) + sorted(PadController.TRIGGERS)})
-        hold_ms = self._bounded_int(request, "hold_ms", DEFAULT_HOLD_MS, MIN_HOLD_MS, MAX_HOLD_MS, "invalid_hold")
-        pad.press(button, hold_ms)
-        return {"button": button, "hold_ms": hold_ms}
-
-    def pad_stick(self, request: dict[str, Any]) -> dict[str, Any]:
-        pad = self._pad()
-        which = request.get("stick", "left")
-        if which not in PadController.STICKS:
-            raise GatewayError("invalid_stick", "stick must be left or right")
-        try:
-            x = float(request.get("x", 0.0))
-            y = float(request.get("y", 0.0))
-        except (TypeError, ValueError) as exc:
-            raise GatewayError("invalid_stick", "x and y must be numbers between -1 and 1") from exc
-        if not (-1.0 <= x <= 1.0 and -1.0 <= y <= 1.0):
-            raise GatewayError("invalid_stick", "x and y must be between -1 and 1")
-        hold_ms = self._bounded_int(request, "hold_ms", DEFAULT_HOLD_MS, MIN_HOLD_MS, MAX_HOLD_MS, "invalid_hold")
-        values = pad.stick(which, x, y, hold_ms)
-        return {"stick": which, "axes": values, "hold_ms": hold_ms}
-
-    def pad_dpad(self, request: dict[str, Any]) -> dict[str, Any]:
-        pad = self._pad()
-        direction = request.get("direction")
-        if direction not in PadController.DPAD:
-            raise GatewayError("invalid_direction", "direction must be up, down, left, or right")
-        presses = self._bounded_int(request, "presses", 1, 1, MAX_PRESSES, "invalid_presses")
-        interval_ms = self._bounded_int(request, "interval_ms", DEFAULT_INTERVAL_MS, MIN_INTERVAL_MS, MAX_INTERVAL_MS, "invalid_interval")
-        pad.dpad(direction, presses, interval_ms)
-        return {"direction": direction, "presses": presses, "interval_ms": interval_ms}
-
-    def pad_neutral(self) -> dict[str, Any]:
-        self._pad().neutral()
-        return {"neutral": True}
 
     def signal(self, request: dict[str, Any]) -> dict[str, Any]:
         record = self.target(request.get("pid"))
@@ -1142,27 +956,15 @@ class ProcessGateway:
             "ptrace-peek": lambda: self.ptrace_peek(request),
             "ptrace-poke": lambda: self.ptrace_poke(request),
             "sts2-get": lambda: self.sts2_get(request),
+            "sts2-action": lambda: self.sts2_action(request),
             "screenshot": lambda: self.screenshot(request),
-            "pad-status": lambda: self.pad_status(),
-            "pad-press": lambda: self.pad_press(request),
-            "pad-stick": lambda: self.pad_stick(request),
-            "pad-dpad": lambda: self.pad_dpad(request),
-            "pad-neutral": lambda: self.pad_neutral(),
         }
         handler = operations.get(operation)
         if not handler:
             raise GatewayError("unknown_operation", f"Unsupported operation: {operation}")
-        try:
-            return reply_ok(handler())
-        except BaseException:
-            # Any failure inside a pad operation must leave the pad neutral.
-            if isinstance(operation, str) and operation.startswith("pad-") and self.pad is not None:
-                self.pad.neutral()
-            raise
+        return reply_ok(handler())
 
     def close(self) -> None:
-        if self.pad is not None:
-            self.pad.close()
         for pid in list(self.attached):
             try:
                 self._ptrace_job(lambda p=pid: self._ptrace_raw(17, p))
@@ -1225,9 +1027,8 @@ def main() -> int:
         "--sts2-port",
         type=int,
         default=int(os.environ.get("STEAMBENCH_STS2_PORT", STS2MCP_DEFAULT_PORT)),
-        help="Loopback port of the STS2MCP mod HTTP API (GET-only proxy)",
+        help="Loopback port of the STS2MCP mod HTTP API",
     )
-    parser.add_argument("--no-pad", action="store_true", help="Do not create the virtual Xbox pad on /dev/uinput")
     parser.add_argument(
         "--gamescope-display",
         default=os.environ.get("STEAMBENCH_GAMESCOPE_DISPLAY", "auto"),
@@ -1270,7 +1071,6 @@ def main() -> int:
         args.xauthority,
         args.token,
         sts2_port=args.sts2_port,
-        pad_enabled=not args.no_pad,
         gamescope_display=args.gamescope_display or None,
     )
     server.gateway = gateway  # type: ignore[attr-defined]

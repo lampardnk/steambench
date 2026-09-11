@@ -28,7 +28,6 @@ services:
       - nvidia-driver-vol:/usr/nvidia:rw
     devices:
       - /dev/dri
-      - /dev/uinput
       - /dev/uhid
       - /dev/nvidia-uvm
       - /dev/nvidia-uvm-tools
@@ -52,9 +51,6 @@ services:
       # API token is local; the model provider key is passed only from the system environment.
       - STEAMBENCH_TOKEN=${STEAMBENCH_TOKEN:?set STEAMBENCH_TOKEN in .env}
       - EXPLABS_API_KEY
-      - ORCA_KEY
-      - OPENROUTER_API_KEY
-      - STEAMBENCH_MODEL
       - WOLF_SOCKET_PATH=/etc/wolf/wolf.sock
       - WOLF_CFG_FILE=/etc/wolf/cfg/config.toml
       - WOLF_VIDEO_PING_PORT=${WOLF_VIDEO_PING_PORT:-58100}

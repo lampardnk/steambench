@@ -63,15 +63,15 @@ export async function api<T>(s: Settings, path: string, init: RequestInit = {}):
   return body as T
 }
 
-export type PadEvent = {
+export type ActionEvent = {
+  id: string
   t: number
-  kind: 'press' | 'dpad' | 'stick'
-  button: string
-  hold_ms?: number
-  presses?: number
-  interval_ms?: number
-  x?: number
-  y?: number
+  action: string
+  params: Record<string, unknown>
+  acknowledgement: 'dispatching' | 'received' | 'unknown'
+  result: unknown
+  verification: 'pending' | 'awaiting_verification' | 'verified' | 'failed' | 'unknown'
+  verificationDetail?: string
 }
 
 /** One member of the playing team, as the player's runtime publishes it. */
@@ -161,8 +161,8 @@ export type RoomSummary = {
   frames: number
   lastFrameAt: number
   media: { ready: boolean; codecs: string; fragments: number; bytes: number; audioReady: boolean; audioCodecs: string; audioFragments: number; width: number; height: number } | null
-  lastPad: PadEvent | null
-  padCount: number
+  lastAction: ActionEvent | null
+  actionCount: number
   lastState: Record<string, unknown> | null
   log: string[]
 }

@@ -1,9 +1,9 @@
 ---
-description: Source-linked combat reward facts and live-state card, gold and Potion selection rules.
+description: Source-linked combat reward facts, live-state card, gold and Potion selection rules, and which of the two Skip controls actually skips.
 character: Ironclad
 act: any
 category: rewards
-keys: [rewards, card reward, card pick, skip, gold, potion, relic, ancient]
+keys: [rewards, card reward, card pick, skip, decline, back, stuck, loop, gold, potion, relic, ancient]
 sources:
   - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Map_Locations
   - https://slaythespire.wiki.gg/wiki/Slay_the_Spire_2:Cards
@@ -50,10 +50,13 @@ effect against the current deck, route, resource state and visible threats. A
 random generated card, upgrade, transform or Potion result is unknown until the
 screen shows it. Gold and Relics have their live item identity and effect.
 
-Use the card-selection contract in [CONTROLS.md](../controls/CONTROLS.md) for a
-choice screen. After collecting one row, re-read focus and the remaining rows.
-Offers, selected cards, prices, floors and outcomes from one seed belong in the
-scratchpad and do not form a durable lesson.
+Copy a reward row's `semantic_id` into `claim_reward`; copy a card offer's
+`semantic_id` into `select_card_reward`. After every action, re-read the
+remaining rows. Use `skip_card_reward` only when `card_reward.can_skip` is true;
+use `proceed` only from the reward list when `rewards.can_proceed` is true.
+Reopening an unchanged card reward does not reroll its offer. Offers, selected
+cards, prices, floors and outcomes from one seed belong in the scratchpad and
+do not form a durable lesson.
 
 ## Ancient floors
 

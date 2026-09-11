@@ -94,11 +94,11 @@ function Objectives({ settings, curriculum, roomId, refreshKey }: { settings: Se
 }
 
 /**
- * Every UI problem this room stopped on, and what got it moving again.
+ * Every incident this room stopped on, and what got it moving again.
  *
  * These are the run's real failures: an agent that could not resolve a screen
- * on its own and needed an operator. Read together they are the work list for
- * the control manual - each one either belongs in CONTROLS.md or is a bug.
+ * on its own and needed an operator. Read together they identify missing state,
+ * semantic-action defects, provider failures, or strategy notes to curate.
  */
 function Rescues({ settings, roomId, refreshKey }: { settings: Settings; roomId?: string; refreshKey: string }) {
   const [page, setPage] = useState<RescuePage | null>(null)
@@ -117,7 +117,7 @@ function Rescues({ settings, roomId, refreshKey }: { settings: Settings; roomId?
     return () => { current = false }
   }, [settings, roomId, refreshKey])
 
-  if (!roomId) return <p className="p-2 text-xs text-muted-foreground">Open a room to see the UI problems it hit.</p>
+  if (!roomId) return <p className="p-2 text-xs text-muted-foreground">Open a room to see the incidents it hit.</p>
   const items = page?.incidents || []
   return (
     <section className="min-w-0 rounded-md border border-border bg-card" aria-label="UI rescues">

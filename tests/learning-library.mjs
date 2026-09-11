@@ -14,10 +14,9 @@ import { noteProblem, validatePlan, stateId } from '../client/learning/state.mjs
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'learning-library-'));
 const cfg = { runtimeDir: path.join(root, 'runtime') };
 const template = path.join(root, 'template');
-fs.mkdirSync(path.join(template, 'ironclad', 'a1', 'controls'), { recursive: true });
+fs.mkdirSync(path.join(template, 'ironclad', 'a1', 'meta_strategy', 'rewards'), { recursive: true });
 fs.writeFileSync(path.join(template, 'SKILL.md'), '# skill\n');
-fs.writeFileSync(path.join(template, 'ironclad', 'a1', 'controls', 'CONTROLS.md'), 'A selects.\n');
-fs.writeFileSync(path.join(template, 'ironclad', 'a1', 'controls', 'rewards.md'), '---\ndescription: The reward screen\nkeys: rewards\n---\nY proceeds once every row is taken.\n');
+fs.writeFileSync(path.join(template, 'ironclad', 'a1', 'meta_strategy', 'rewards', 'README.md'), '---\ndescription: Choosing card rewards\nkeys: rewards, card reward\n---\nPrefer cards that strengthen the current deck plan.\n');
 fs.mkdirSync(path.join(template, 'scratchpad'), { recursive: true });
 fs.writeFileSync(path.join(template, 'scratchpad', 'README.md'), 'per-run only\n');
 
@@ -34,23 +33,23 @@ assert.ok(!fs.existsSync(path.join(first.dir, 'scratchpad')), 'per-run state sta
 // contributes exactly one file, scratchpad.md, for a human to merge.
 const roomOne = path.join(root, 'room-one', 'skills', 'sts2');
 library.checkoutInto(cfg, 'sts2', roomOne);
-assert.ok(fs.existsSync(path.join(roomOne, 'ironclad', 'a1', 'controls', 'CONTROLS.md')));
+assert.ok(fs.existsSync(path.join(roomOne, 'ironclad', 'a1', 'meta_strategy', 'rewards', 'README.md')));
 fs.mkdirSync(path.join(roomOne, 'scratchpad'), { recursive: true });
 fs.writeFileSync(path.join(roomOne, 'scratchpad', 'checkpoint.json'), '{"decision":12}');
 // Everything a run might try: a brand new note, an edit to an inherited one, and
 // the staging file.
 fs.mkdirSync(path.join(roomOne, 'ironclad', 'a1', 'act1', 'normal'), { recursive: true });
 fs.writeFileSync(path.join(roomOne, 'ironclad', 'a1', 'act1', 'normal', 'wriggler.md'), 'Empower then Strategic.\n');
-fs.writeFileSync(path.join(roomOne, 'ironclad', 'a1', 'controls', 'CONTROLS.md'), 'Overwritten by the player.\n');
+fs.writeFileSync(path.join(roomOne, 'ironclad', 'a1', 'meta_strategy', 'rewards', 'README.md'), 'Overwritten by the player.\n');
 fs.writeFileSync(path.join(roomOne, 'scratchpad.md'), '# Staged notes\n\n## ironclad/a1/act1/normal/wriggler.md\n\nEmpower then Strategic.\n');
-const commit = await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomOne, roomId: 'aaaa1111', player: 'STS2-Pi-OrcaRouter', message: 'Stage what room aaaa1111 proposed' });
+const commit = await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomOne, roomId: 'aaaa1111', player: 'STS2-Pi-Luna', message: 'Stage what room aaaa1111 proposed' });
 assert.ok(commit);
 
 fs.rmSync(path.join(root, 'room-one'), { recursive: true, force: true });
 assert.ok(fs.existsSync(path.join(first.dir, 'scratchpad.md')), 'the proposal survives the room');
 assert.match(fs.readFileSync(path.join(first.dir, 'scratchpad.md'), 'utf8'), /Empower then Strategic/);
 assert.ok(!fs.existsSync(path.join(first.dir, 'ironclad', 'a1', 'act1', 'normal', 'wriggler.md')), 'a player cannot add a library note');
-assert.notEqual(fs.readFileSync(path.join(first.dir, 'ironclad', 'a1', 'controls', 'CONTROLS.md'), 'utf8').trim(), 'Overwritten by the player.',
+assert.notEqual(fs.readFileSync(path.join(first.dir, 'ironclad', 'a1', 'meta_strategy', 'rewards', 'README.md'), 'utf8').trim(), 'Overwritten by the player.',
   'nor overwrite one it inherited');
 assert.ok(!fs.existsSync(path.join(first.dir, 'scratchpad', 'checkpoint.json')), 'run state is never committed');
 
@@ -64,9 +63,9 @@ fs.writeFileSync(curated, '---\ndescription: a note a human later judged wrong\n
 const roomTwo = path.join(root, 'room-two', 'skills', 'sts2');
 library.checkoutInto(cfg, 'sts2', roomTwo);
 assert.ok(fs.existsSync(path.join(roomTwo, 'ironclad', 'a1', 'act1', 'normal', 'weeded.md')), 'room two inherited it');
-await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomTwo, roomId: 'bbbb2222', player: 'STS2-Pi-OrcaRouter', message: 'Keep the curated note' });
+await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomTwo, roomId: 'bbbb2222', player: 'STS2-Pi-Luna', message: 'Keep the curated note' });
 fs.rmSync(curated);                                                    // curated away while room two runs
-await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomTwo, roomId: 'cccc3333', player: 'STS2-Pi-OrcaRouter', message: 'Finish room cccc3333' });
+await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomTwo, roomId: 'cccc3333', player: 'STS2-Pi-Luna', message: 'Finish room cccc3333' });
 assert.ok(!fs.existsSync(curated), 'a note deleted while a room ran stays deleted');
 
 // A staged proposal is never retrieved: it is exactly the unreviewed guess the
@@ -74,11 +73,11 @@ assert.ok(!fs.existsSync(curated), 'a note deleted while a room ran stays delete
 const roomThree = path.join(root, 'room-three', 'skills', 'sts2');
 library.checkoutInto(cfg, 'sts2', roomThree);
 assert.ok(!fs.existsSync(path.join(roomThree, 'scratchpad.md')), 'unreviewed proposals and old run reflections are never inherited');
-assert.deepEqual(learnedFiles(roomThree), ['SKILL.md', 'ironclad/a1/controls/CONTROLS.md', 'ironclad/a1/controls/rewards.md']);
+assert.deepEqual(learnedFiles(roomThree), ['SKILL.md', 'ironclad/a1/meta_strategy/rewards/README.md']);
 
 // --- history reads like git ----------------------------------------------
 const log = await library.history(cfg, { limit: 10 });
-assert.equal(log[0].author, 'STS2-Pi-OrcaRouter');
+assert.equal(log[0].author, 'STS2-Pi-Luna');
 assert.equal(log[0].room, 'cccc3333');
 const staging = (await library.history(cfg, { limit: 10 })).find(entry => entry.room === 'aaaa1111');
 assert.equal(staging.subject, 'Stage what room aaaa1111 proposed');
@@ -95,7 +94,7 @@ assert.throws(() => library.readFile(cfg, 'sts2', 'scratchpad/checkpoint.json'),
 // A newer image is the authority for the paths it ships. Adding only, as this
 // once did, meant a library seeded once kept its first copy of every template
 // file forever: months of template corrections never reached it, which is how it
-// served a CONTROLS.md with no front matter. The player cannot write these
+// served stale strategy text. The player cannot write these
 // files, so there is nothing of its to protect.
 fs.writeFileSync(path.join(template, 'SKILL.md'), '# replaced by a newer image\n');
 fs.writeFileSync(path.join(template, 'wiki.md'), 'new reference\n');
@@ -138,7 +137,7 @@ assert.ok(fs.existsSync(path.join(first.dir, '.strategy-version')));
 assert.equal(await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomTwo, roomId: 'bbbb2222', player: 'p', message: 'no change' }), null);
 
 // --- the player's learn/recall/research actions ---------------------------
-const state = { state_type: 'map', player: { hp: 80 }, ui: { focus_path: '/map' }, map: { nodes: [], next_options: [] } };
+const state = { state_type: 'menu', menu_screen: 'main', options: ['singleplayer'], player: { hp: 80 } };
 const plan = (actions) => ({ observation: stateId(state), summary: 'fixture', note: 'fixture', actions });
 for (const bad of [
   [{ type: 'research', url: 'http://slaythespire2.net/x' }],
@@ -173,11 +172,13 @@ assert.match(noteProblem({ type: 'learn', path: 'ironclad/a1/act1/normal/nibbit.
 validatePlan(plan([{ type: 'recall' }]), state);
 
 const calls = [];
+let liveState = state;
 const executor = new Executor({
   skillDir: roomTwo,
   call: async (request) => {
     calls.push(request);
-    if (request.op === 'sts2-get') return { body: JSON.stringify(state) };
+    if (request.op === 'sts2-get') return { body: JSON.stringify(liveState) };
+    if (request.op === 'sts2-action') { liveState = { ...state, menu_screen: 'mode_select', options: ['standard'] }; return { acknowledgement: { status: 'ok' } }; }
     if (request.op === 'skill-commit') return { committed: true, commit: 'abc1234567' };
     if (request.op === 'web-get') return { url: `${request.url}&v=${REFERENCE_VERSION}`, retrieved: '2026-09-07', provenance: 'slaythespire2.net ?v=beta', truncated: false, text: 'Wriggler: Empower, then Strategic.' };
     return {};
@@ -201,8 +202,8 @@ assert.deepEqual(calls.filter((c) => c.op === 'skill-commit'), [{ op: 'skill-com
 
 // A note may close a plan, recording what that plan just verified.
 const withNote = plan([
-  { type: 'input', buttons: ['left'], probe: true },
-  { type: 'learn', path: 'ironclad/a1/controls/map.md', content: '---\ndescription: Moving between reachable map nodes\nkeys: map, focus\n---\nLeft and right move between the reachable options; read their count from state.\n', message: 'Record map focus movement' },
+  { type: 'menu_select', option: 'singleplayer' },
+  { type: 'learn', path: 'ironclad/a1/meta_strategy/map/route-selection.md', content: '---\ndescription: Choosing between reachable map nodes\nkeys: map, route\n---\nCompare the current reachable nodes against the deck and path needs.\n', message: 'Record route selection strategy' },
 ]);
 validatePlan(withNote, state);
 const both = await executor.execute(withNote, state);
@@ -211,28 +212,27 @@ assert.equal(both.completed.length, 2);
 assert.equal(both.completed[1].commit, 'abc1234567');
 // Both proposals accumulate in the one file, newest last, and neither reached a note.
 const afterTwo = fs.readFileSync(path.join(roomTwo, 'scratchpad.md'), 'utf8');
-assert.match(afterTwo, /read their count from state/);
-assert.ok(afterTwo.indexOf('wood-carvings') < afterTwo.indexOf('controls/map.md'), 'appended in order');
-assert.ok(!fs.existsSync(path.join(roomTwo, 'ironclad', 'a1', 'controls', 'map.md')));
+assert.match(afterTwo, /Compare the current reachable nodes/);
+assert.ok(afterTwo.indexOf('wood-carvings') < afterTwo.indexOf('route-selection.md'), 'appended in order');
+assert.ok(!fs.existsSync(path.join(roomTwo, 'ironclad', 'a1', 'meta_strategy', 'map', 'route-selection.md')));
 
 // The same badly formed note reaches the executor as a result, and the plan's
 // other verified work survives it.
+liveState = state;
 const rejected = await executor.execute(plan([
-  { type: 'input', buttons: ['left'], probe: true },
   { type: 'learn', path: 'ironclad/a1/act1/unknown/../../../../../escape.md', content: 'x', message: 'escape' },
 ]), state);
 assert.equal(rejected.error, undefined);
-assert.equal(rejected.completed[0].verified, true);
-assert.equal(rejected.completed[1].verified, false);
-assert.match(rejected.completed[1].error, /note not kept/);
+assert.equal(rejected.completed[0].verified, false);
+assert.match(rejected.completed[0].error, /note not kept/);
 assert.ok(!fs.existsSync(path.join(root, 'room-two', 'skills', 'escape.md')));
 
 // recall reads the library, which is now only what a human put there. A path the
 // player merely proposed is not a note and cannot be read back as one.
-const read = await executor.execute(plan([{ type: 'recall', path: 'ironclad/a1/controls/rewards.md' }]), state);
-assert.match(read.completed[0].text, /Y proceeds once every row is taken/);
+const read = await executor.execute(plan([{ type: 'recall', path: 'ironclad/a1/meta_strategy/rewards/README.md' }]), state);
+assert.match(read.completed[0].text, /strengthen the current deck plan/);
 const listed = await executor.execute(plan([{ type: 'recall' }]), state);
-assert.ok(listed.completed[0].learned_files.includes('ironclad/a1/controls/rewards.md'));
+assert.ok(listed.completed[0].learned_files.includes('ironclad/a1/meta_strategy/rewards/README.md'));
 assert.ok(!listed.completed[0].learned_files.includes('ironclad/a1/act1/unknown/wood-carvings.md'), 'a proposal is not a note');
 assert.ok(!listed.completed[0].learned_files.includes('scratchpad.md'), 'and the staging file is not one either');
 const proposedOnly = await executor.execute(plan([{ type: 'recall', path: 'ironclad/a1/act1/unknown/wood-carvings.md' }]), state);
@@ -242,11 +242,10 @@ assert.match(missing.error, /no learned note/);
 const fetched = await executor.execute(plan([{ type: 'research', url: 'https://slaythespire2.net/monster/wriggler?v=beta' }]), state);
 assert.match(fetched.completed[0].text, /Empower/);
 assert.ok(fetched.completed[0].provenance);
-// Keeping, recalling and researching notes send no gameplay input; the only
-// presses above are the two deliberate probes.
-assert.deepEqual(calls.filter((c) => String(c.op || '').startsWith('pad-')), [
-  { op: 'pad-dpad', direction: 'left', presses: 1 },
-  { op: 'pad-dpad', direction: 'left', presses: 1 },
+// Keeping, recalling and researching notes do not dispatch gameplay actions;
+// only the explicit semantic menu selection above reaches the mutation API.
+assert.deepEqual(calls.filter((c) => c.op === 'sts2-action'), [
+  { op: 'sts2-action', action: 'menu_select', params: { option: 'singleplayer' } },
 ]);
 
 // --- web fetching stays on the allowlist ---------------------------------
@@ -268,11 +267,10 @@ assert.equal(htmlToText('<h1>Wriggler</h1><script>evil()</script><p>Deal 9 &amp;
 assert.deepEqual(learnedFiles(roomTwo), [
   'SKILL.md',
   'ironclad/a1/act1/normal/weeded.md',   // inherited before it was curated away; the room keeps its copy
-  'ironclad/a1/controls/CONTROLS.md',
-  'ironclad/a1/controls/rewards.md',
+  'ironclad/a1/meta_strategy/rewards/README.md',
 ]);
 
-console.log(JSON.stringify({ result: 'passed', verified: ['seed', 'inherit', 'commit-back', 'run state excluded', 'the template is authoritative for what it ships', 'a note the template has moved leaves no copy behind', 'git-style history', 'path escapes', 'a learn action only ever stages a proposal', 'the library is human-curated: a room can neither add, edit nor resurrect a note', 'recall/research', 'a note may close a plan', 'a bad note never ends a run', 'note areas', 'seed-specific notes refused', 'front matter required', 'single reference site pinned to beta'], gameInputs: 0 }));
+console.log(JSON.stringify({ result: 'passed', verified: ['seed', 'inherit', 'commit-back', 'run state excluded', 'the template is authoritative for what it ships', 'a note the template has moved leaves no copy behind', 'git-style history', 'path escapes', 'a learn action only ever stages a proposal', 'the library is human-curated: a room can neither add, edit nor resurrect a note', 'recall/research', 'a note may close a semantic action plan', 'a bad note never ends a run', 'note areas', 'seed-specific notes refused', 'front matter required', 'single reference site pinned to beta'], gameActions: 1 }));
 
 
 // --- a legacy <skill>-astra library is renamed, not stranded ---------------
@@ -288,7 +286,7 @@ library.checkoutInto(legacyCfg, 'sts2-astra', legacyRoom);
 const legacyNote = path.join(library.libraryDir(legacyCfg), 'sts2-astra', 'ironclad', 'a1', 'act1', 'normal', 'wriggler.md');
 fs.mkdirSync(path.dirname(legacyNote), { recursive: true });
 fs.writeFileSync(legacyNote, 'Empower then Strategic.\n');
-await library.commitFromRoom(legacyCfg, { skill: 'sts2-astra', roomSkillDir: legacyRoom, roomId: 'dddd4444', player: 'STS2-Pi-OrcaRouter', message: 'Record the Wriggler intent cycle' });
+await library.commitFromRoom(legacyCfg, { skill: 'sts2-astra', roomSkillDir: legacyRoom, roomId: 'dddd4444', player: 'STS2-Pi-Luna', message: 'Record the Wriggler intent cycle' });
 
 const migrated = await library.ensureSkill(legacyCfg, 'sts2', template);
 assert.ok(!fs.existsSync(path.join(library.libraryDir(legacyCfg), 'sts2-astra')), 'the legacy tree is gone');

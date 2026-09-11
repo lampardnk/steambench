@@ -2,8 +2,8 @@
  * The team that plays the run, and the lane each member talks in.
  *
  * One agent reading everything was the problem: a combat decision arrived with
- * the map graph, the objective ladder, the whole element list and a 22,000
- * character prompt covering screens that were not on screen, and the model
+ * the map graph, the objective ladder and a large prompt covering decisions
+ * that were not part of the fight, and the model
  * spent its output budget reasoning across all of it before emitting any JSON.
  * Splitting the work splits the context with it. Each role below sees only what
  * its own job rests on, and nothing else reaches it.
@@ -29,17 +29,12 @@ export const ROLES = {
     prompt: 'combat.txt',
     blurb: 'One encounter, start to finish. Never sees the map.',
   },
-  actuator: {
-    label: 'Actuator',
-    prompt: 'actuator.txt',
-    blurb: 'Owns the pad. Turns one intent into presses. Never sees strategy.',
-  },
   curriculum: { label: 'Curriculum', prompt: 'curriculum.txt', blurb: 'Chooses the next objective.' },
   critic: { label: 'Critic', prompt: 'critic.txt', blurb: 'Decides whether an objective was met.' },
 };
 
 /** Stable lane id for the roles that exist for the whole room. */
-export const LANE = { room: 'room', strategist: 'strategist', actuator: 'actuator', curriculum: 'curriculum', critic: 'critic' };
+export const LANE = { room: 'room', strategist: 'strategist', curriculum: 'curriculum', critic: 'critic' };
 
 /**
  * Who is speaking, so the dashboard can file it. Every event a member emits

@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { api, type AgentInfo, type PadEvent, type RoomSummary, type TranscriptItem } from '@/lib/backend'
+import { api, type ActionEvent, type AgentInfo, type RoomSummary, type TranscriptItem } from '@/lib/backend'
+import { ActionAudit } from '@/components/action-audit'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { Transcript } from '@/components/transcript'
 
 type Entry = RoomSummary & { dir: string; reason: string; archivedAt: number; transcriptItems: number }
-type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; padHistory: PadEvent[]; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
+type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; actionHistory: ActionEvent[]; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
 
 export default function HistoryPage() {
   const [settings, setSettings, loaded] = useSettings()
@@ -55,7 +56,7 @@ export default function HistoryPage() {
                 <button onClick={() => show(e.dir)} className={`w-full rounded-md border border-border p-3 text-left text-sm hover:bg-muted ${open?.room.dir === e.dir ? 'bg-muted' : 'bg-card'}`}>
                   <div className="font-medium">{e.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {new Date(e.archivedAt).toLocaleString()} · {e.setup ? `${e.setup.task.character} A${e.setup.task.ascension}` : 'no task'} · {e.finish ? `run ${e.finish.result}` : e.reason} · {e.padCount} inputs
+                    {new Date(e.archivedAt).toLocaleString()} · {e.setup ? `${e.setup.task.character} A${e.setup.task.ascension}` : 'no task'} · {e.finish ? `run ${e.finish.result}` : e.reason} · {e.actionCount || 0} actions
                   </div>
                 </button>
               </li>
@@ -74,6 +75,7 @@ export default function HistoryPage() {
                 {open.room.lastState && <p className="font-mono text-xs">{JSON.stringify(open.room.lastState)}</p>}
               </div>
               <Transcript items={open.transcript} agents={open.agents} />
+              <ActionAudit history={open.actionHistory || []} />
               {open.scratchpad.length > 0 && (
                 <details className="rounded-md border border-border bg-card p-3 text-xs">
                   <summary className="cursor-pointer font-medium">scratchpad</summary>

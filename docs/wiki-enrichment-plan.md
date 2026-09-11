@@ -9,7 +9,7 @@ Status: implementation in progress. The user approved execution by Luna agents a
 - Remove invented route, draft, purchase, upgrade, and combat prescriptions. General requests to calculate outcomes, assess risk/reward, and adapt remain allowed.
 - Do not generate or inherit narrative run diaries or advice for the next seed. Operational checkpoints, current encounter state, and incident evidence remain run-local.
 - Keep factual correction proposals outside retrieval and future-room checkouts until a human curates them.
-- Unknown or conflicting mechanics remain labeled as such. Wiki descriptions do not establish that controller support has been tested.
+- Unknown or conflicting mechanics remain labeled as such. Wiki descriptions do not establish that a semantic action is available or verified.
 
 ## Batches and ownership
 
