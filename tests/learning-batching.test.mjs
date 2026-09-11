@@ -168,6 +168,14 @@ test('character selection verifies from the structured selected-character field'
   assert.equal(result.completed[0].verified, true);
   assert.equal(result.state.selected_character, 'IRONCLAD');
 });
+test('accepts an acknowledged character selection already reflected in state', async () => {
+  const initial = { state_type: 'menu', menu_screen: 'character_select', selected_character: 'IRONCLAD', message: 'Select a character.', options: [{ name: 'IRONCLAD', enabled: true }] };
+  const f = fixture(initial, state => state);
+  const result = await f.executor.execute(plan(initial, [{ type: 'menu_select', option: 'IRONCLAD' }]), initial);
+  assert.equal(result.error, undefined);
+  assert.equal(result.completed[0].verified, true);
+  assert.equal(result.state.selected_character, 'IRONCLAD');
+});
 
 test('structured model state excludes presentation/navigation data', () => {
   const state = { ...combat(), ui: { elements: [{ id: 'x' }], focus_path: '/x', hotkeys: ['x'] } };

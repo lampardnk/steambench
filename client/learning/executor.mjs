@@ -46,6 +46,13 @@ export function resolveMcpAction(action, state) {
 }
 
 function transitionVerified(action, before, after) {
+  if (action.type === 'menu_select'
+      && before.state_type === 'menu'
+      && before.menu_screen === 'character_select'
+      && before.selected_character === action.option
+      && after.state_type === before.state_type
+      && after.menu_screen === before.menu_screen
+      && after.selected_character === action.option) return true;
   if (stateId(before) === stateId(after)) return false;
   if (action.type === 'play_card') return !after.player?.hand?.some(card => card.instance_id === action.card);
   if (action.type === 'use_potion' || action.type === 'discard_potion') {
