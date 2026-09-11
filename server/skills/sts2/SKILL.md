@@ -6,15 +6,13 @@ description: Source-linked Slay the Spire 2 Ironclad reference and safe play con
 # Slay the Spire 2 reference
 
 Read the live sensor first. Current card text, can-play state, enemy intents and
-effects, pile membership, focus controls and available options outrank every
-reference. The strategist returns semantic intents; the actuator owns the pad.
+effects, pile membership and available options outrank every reference. The
+strategist and encounter agent return only semantic STS2MCP actions.
 
 ## Find the relevant guide
 
 Ironclad Ascension 1 material lives under `ironclad/a1/`:
 
-- `controls/CONTROLS.md` — verified interface and input contract; read before
-  any input.
 - `debugging/README.md` — incident evidence and explicit resume procedure.
 - `meta_strategy/map/`, `merchant/`, `restsite/`, `rewards/` — map, shop, rest
   and reward facts plus a generic decision worksheet.
@@ -70,7 +68,7 @@ transition requires a fresh decision. Durable notes describe reusable mechanics,
 conditions, timings, source uncertainty or enemy intent graphs. Offers, floors,
 rounds, HP, maps, hands and outcomes from one seed remain in the scratchpad.
 
-The first planner, provider or executor failure pauses input, releases the pad,
-and preserves incident evidence. Do not retry blindly, change settings or alter
-the game. An unresolved incident is acknowledged only through the explicit
-supervisor resume procedure in `debugging/README.md`.
+The first planner, provider or post-dispatch executor failure pauses action
+dispatch and preserves incident evidence. Never retry an uncertain write,
+change settings or alter the game. An unresolved incident is acknowledged only
+through the explicit supervisor resume procedure in `debugging/README.md`.

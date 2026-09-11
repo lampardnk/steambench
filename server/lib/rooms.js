@@ -1,8 +1,8 @@
 import { PROFILE, normalizePlayerKind } from './learning-profile.mjs';
 import { learningReadiness } from './readiness.mjs';
 // Room lifecycle. One room = one Wolf lobby (Steam + game in a container with
-// its own virtual display, audio sink and virtual Xbox pad) + one observer
-// stream session (MJPEG video, MP3 audio, pad input) + one player container.
+// its own virtual display and audio sink) + one observer stream session
+// (MJPEG video and MP3 audio) + one player container.
 //
 // Stages: creating -> login -> setup -> installing -> launching -> playing -> finished -> deleting
 // (error can happen anywhere; the room stays listed until deleted).
@@ -11,7 +11,7 @@ import net from 'node:net';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { WolfClient, roomVideoPipeline, roomAudioPipeline, encodeControllerArrival, encodeControllerState, encodeMouseMoveAbs, encodeMouseButton, BUTTON_FLAGS } from './wolf.js';
+import { WolfClient, roomVideoPipeline, roomAudioPipeline, encodeMouseMoveAbs, encodeMouseButton } from './wolf.js';
 import { seedRoomHome, saveLoginTemplate, loginTemplateInfo } from './seed.js';
 import { saveSteamHomeCache, cacheInfo, clearCache } from './cache.js';
 import { decodeLoginQr, RELOAD_FALLBACK } from './login.js';
@@ -22,6 +22,7 @@ import { PiAgent } from './agent.js';
 import { GatewayError } from './gateway.js';
 import * as library from './library.js';
 import { webGet } from './web.js';
+import { validateSts2Action } from './sts2-actions.js';
 import { docker, runningContainers, allContainers, containerIp, rmForce, execDetached, execIn, restart as dockerRestart } from './docker.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -36,8 +37,27 @@ export const STS2_GET_ALLOWLIST = {
   '/api/v1/profiles': ['format'],
 };
 const STS2_QUERY_CHOICES = { format: ['json', 'markdown'], item_type: ['all', 'card', 'relic'] };
-const MIN_HOLD = 30, MAX_HOLD = 2000, DEFAULT_HOLD = 80, MAX_PRESSES = 20, MIN_INTERVAL = 40, MAX_INTERVAL = 500, DEFAULT_INTERVAL = 120;
-const PAD_HISTORY_MAX = 300;
+const ACTION_HISTORY_MAX = 300;
+const MAX_STS2_BYTES = 1024 * 1024;
+const STS2_ACTION_TIMEOUT_MS = 10000;
+async function readBoundedResponse(response, maximum = MAX_STS2_BYTES) {
+  if (!response.body?.getReader) {
+    const text = await response.text();
+    if (Buffer.byteLength(text) > maximum) throw new GatewayError('sts2_too_large', 'STS2MCP response exceeds 1 MiB');
+    return text;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let bytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > maximum) { await reader.cancel().catch(() => {}); throw new GatewayError('sts2_too_large', 'STS2MCP response exceeds 1 MiB'); }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, bytes).toString('utf8');
+}
 const OBSERVER_CLIENTS = 8;
 const WOLF_RETRY_MS = 15000;
 const CHARACTERS = ['Ironclad', 'Silent', 'Defect', 'Necrobinder', 'Regent'];
@@ -56,9 +76,6 @@ const LAUNCH_NUDGE_MS = 180000;
 const STEAM_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const FORWARDER_TAG = 'steambench-forwarder';
 const FORWARDER_REPAIR_MS = 45000;
-const LAUNCH_DISMISS_AFTER_S = 45;
-const LAUNCH_DISMISS_EVERY_MS = 15000;
-const MAX_LAUNCH_DISMISS = 12;
 
 // The mod's HTTP server binds loopback only and its .NET listener answers 404
 // unless the request's Host header is the loopback address, so this is a small
@@ -187,7 +204,7 @@ export class RoomManager extends EventEmitter {
     if (!toml.includes('steambench-observer-')) {
       const blocks = [];
       for (let n = 1; n <= OBSERVER_CLIENTS; n++) {
-        blocks.push(`\n[[paired_clients]]\nclient_cert = "steambench-observer-${n}"\napp_state_folder = "steambench-observer-${n}"\n\n[paired_clients.settings]\nrun_uid = 1000\nrun_gid = 1000\ncontrollers_override = ["XBOX"]\nmouse_acceleration = 1.0\nv_scroll_acceleration = 1.0\nh_scroll_acceleration = 1.0\nmotion_controller_override = "AUTO"\n`);
+        blocks.push(`\n[[paired_clients]]\nclient_cert = "steambench-observer-${n}"\napp_state_folder = "steambench-observer-${n}"\n\n[paired_clients.settings]\nrun_uid = 1000\nrun_gid = 1000\nmouse_acceleration = 1.0\nv_scroll_acceleration = 1.0\nh_scroll_acceleration = 1.0\n`);
       }
       toml = toml.replace(/^paired_clients\s*=\s*\[\]\s*$/m, '') + blocks.join('');
       fs.copyFileSync(cfgFile, cfgFile + '.bak');
@@ -266,7 +283,16 @@ export class RoomManager extends EventEmitter {
     if (!fs.existsSync(path.join(base, 'room.json'))) return null;
     const read = (f) => { try { return JSON.parse(fs.readFileSync(path.join(base, f), 'utf8')); } catch { return null; } };
     const text = (f) => { try { return fs.readFileSync(path.join(base, f), 'utf8'); } catch { return null; } };
-    return { room: read('room.json'), transcript: read('transcript.json') || [], agents: read('agents.json') || [], padHistory: read('pad-history.json') || [], scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })), gameLog: text('godot.log') };
+    const legacyHistory = () => (read('pad-history.json') || []).map((entry, index) => ({
+      id: `legacy-${index}-${entry.t || 0}`,
+      t: entry.t || 0,
+      action: 'historical-input',
+      params: entry,
+      acknowledgement: 'received',
+      result: null,
+      verification: 'unknown',
+    }));
+    return { room: read('room.json'), transcript: read('transcript.json') || [], agents: read('agents.json') || [], actionHistory: read('action-history.json') || legacyHistory(), scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })), gameLog: text('godot.log') };
   }
 }
 
@@ -294,7 +320,7 @@ export class Room extends EventEmitter {
     this.home = path.join(this.cfg.roomsDir, id);
     this.hostHome = path.join(this.cfg.hostRoomsDir, id);
     this.reader = null; this.media = null; this.mediaAudio = null; this.agent = null; this.playerImage = null;
-    this.padHistory = []; this.padBusy = Promise.resolve();
+    this.actionHistory = [];
     this.loginQr = null; this.qrPoint = null; this.qrSeenAt = 0; this.qrReloads = 0; this.qrReloadedAt = 0; this.loginSince = Date.now(); this.loginReused = false;
     this.gameReady = false; this.destroyed = false; this.loops = new Set();
     this.lastState = null;
@@ -320,7 +346,7 @@ export class Room extends EventEmitter {
         audioReady: Boolean(this.mediaAudio?.init), audioCodecs: this.mediaAudio?.codecs || '', audioFragments: this.mediaAudio?.fragments || 0,
         width: this.cfg.streamWidth, height: this.cfg.streamHeight,
       },
-      lastPad: this.padHistory[this.padHistory.length - 1] || null, padCount: this.padHistory.length,
+      lastAction: this.actionHistory[this.actionHistory.length - 1] || null, actionCount: this.actionHistory.length,
       lastState: this.lastState, log: this.log.slice(-40),
     };
   }
@@ -352,11 +378,6 @@ export class Room extends EventEmitter {
       renderNode: this.cfg.renderNode, bufferCaps: this.cfg.bufferCaps, runnerStateFolder: `${this.cfg.roomsRel}/${this.id}`,
       runner: {
         type: 'docker', name: runnerName, image: this.cfg.roomImage, mounts, devices: [], ports: [],
-        // Do NOT set SDL_GAMECONTROLLER_IGNORE_DEVICES here. On the desktop that
-        // stopped Steam grabbing the pad so Godot could read evdev directly, but
-        // in a room the game runs under Steam and takes its controller through
-        // Steam Input; ignoring the pad there leaves the game with no controller
-        // at all (Steam passes its ignore list down to the game).
         env: ['RUN_GAMESCOPE=1', 'GOW_REQUIRED_DEVICES=/dev/input/* /dev/dri/* /dev/nvidia*', ...this.cfg.roomExtraEnv],
         base_create_json: JSON.stringify({ Hostname: 'steambench-room', HostConfig: {
           IpcMode: 'host', CapAdd: ['SYS_ADMIN', 'SYS_NICE', 'SYS_PTRACE', 'NET_RAW', 'MKNOD', 'NET_ADMIN'],
@@ -375,7 +396,7 @@ export class Room extends EventEmitter {
     this._log(`room container ${containerName} at ${this.roomIp}`);
     await this._startForwarder();
 
-    this.setDetail('attaching video, audio and controller');
+    this.setDetail('attaching video and audio');
     this.clientId = this.m._takeObserverClient();
     this.sessionId = await this.m.wolf.addSession({ width: this.cfg.roomWidth, height: this.cfg.roomHeight, fps: this.cfg.roomFps, clientId: this.clientId });
     await sleep(1500);
@@ -408,8 +429,6 @@ export class Room extends EventEmitter {
     await this.m.wolf.sendAudioPing(this.audioPingPort);
     await sleep(2500);
     await this.m.wolf.joinLobby(this.lobbyId, this.sessionId);
-    await this.m.wolf.sendInput(this.sessionId, encodeControllerArrival(0));
-    await this.m.wolf.sendInput(this.sessionId, encodeControllerState({}));
     this.reader = new MjpegReader({ port: this.jpegPort }).start();
     this.reader.on('frame', (f) => this.emit('frame', f));
 
@@ -515,7 +534,7 @@ export class Room extends EventEmitter {
   // ---- stage: installing ----------------------------------------------------
   async _install() {
     const game = SUPPORTED_GAMES[this.setup.game];
-    // Every room uses the one verified OrcaRouter player image.
+    // Every room uses the one verified builtin player image.
     this.playerImage = this.cfg.learningImage;
     if (this.destroyed) return;
     // Game install
@@ -611,7 +630,6 @@ export class Room extends EventEmitter {
   async _launch() {
     this.launchedAt = Date.now();
     this.launchAttempts = 0;
-    this.dismissPresses = 0;
     this.lastDismissAt = 0;
     await this._nudgeLaunch();
     this._loop(() => this._watchLaunch(), 5000);
@@ -661,17 +679,6 @@ export class Room extends EventEmitter {
       this.setStage('error', `the game started but its mod failed to load: ${modError}`);
       return false;
     }
-    // Steam blocks the launch behind first-run overlays (the Steam Input
-    // explainer, for one) that only a controller press dismisses. Only do this
-    // while the game itself is not running, so we can never click its menus.
-    if (waited > LAUNCH_DISMISS_AFTER_S && this.dismissPresses < MAX_LAUNCH_DISMISS && Date.now() - (this.lastDismissAt || 0) > LAUNCH_DISMISS_EVERY_MS) {
-      if (!(await this._gameRunning())) {
-        this.lastDismissAt = Date.now();
-        this.dismissPresses += 1;
-        this._log(`dismissing a possible Steam dialog (press ${this.dismissPresses}/${MAX_LAUNCH_DISMISS})`);
-        try { await this._padPress({ button: 'a' }); } catch (e) { this._log(`dismiss press failed: ${e.message}`); }
-      }
-    }
     // Steam often has to update itself before it will start anything, so nudge
     // the launch again now and then rather than giving up on the room. Never
     // nudge while the game is already up: Steam answers that with an error
@@ -690,7 +697,7 @@ export class Room extends EventEmitter {
     this.setDetail('starting the player');
     const agent = new PiAgent({
       name: `steambench-player-${this.id}`, image: this.playerImage,
-      env: { [PROFILE.apiKeyEnv]: this.cfg.learningKey, STEAMBENCH_MODEL: PROFILE.key, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
+      env: { [PROFILE.apiKeyEnv]: this.cfg.learningKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
       mounts: [`${this.hostHome}/skills:/workspace/skills`],
     });
     this.agent = agent;
@@ -891,7 +898,7 @@ export class Room extends EventEmitter {
     fs.writeFileSync(path.join(dir, 'transcript.json'), JSON.stringify(this.agent?.transcript || [], null, 2));
     // The roster the transcript's lanes refer to, or the archive is a chat with unnamed speakers.
     fs.writeFileSync(path.join(dir, 'agents.json'), JSON.stringify(this.agent?.agents || [], null, 2));
-    fs.writeFileSync(path.join(dir, 'pad-history.json'), JSON.stringify(this.padHistory, null, 2));
+    fs.writeFileSync(path.join(dir, 'action-history.json'), JSON.stringify(this.actionHistory, null, 2));
     if (this.reader?.latest) fs.writeFileSync(path.join(dir, 'last-frame.jpg'), this.reader.latest);
     const scratch = path.join(this.home, 'skills', this.setup?.game || 'sts2', 'scratchpad');
     if (fs.existsSync(scratch)) fs.cpSync(scratch, path.join(dir, 'scratchpad'), { recursive: true });
@@ -917,16 +924,6 @@ export class Room extends EventEmitter {
     add('video', Boolean(this.reader?.latest) && now - this.reader.latestAt < 15000, this.reader?.latest ? `${this.reader.frames} frames, last ${Math.round((now - this.reader.latestAt) / 1000)}s ago` : 'no frames');
     add('video stream', Boolean(this.media?.init) && now - (this.media.lastFragmentAt || 0) < 15000,
       this.media?.init ? `${this.media.codecs}, ${this.media.fragments} fragments, ${Math.round(this.media.bytes / 1024)} KB` : 'no fragmented-MP4 stream yet');
-    let padReaders = '';
-    if (this.roomContainer) {
-      try {
-        padReaders = (await execIn(this.roomContainer, ['sh', '-c',
-          'for p in /proc/[0-9]*; do for f in $p/fd/*; do case "$(readlink $f 2>/dev/null)" in *input/event*) echo "$(cat $p/comm 2>/dev/null)";; esac; done; done | sort -u | tr "\n" " "'],
-          { timeoutMs: 20000 })).trim();
-      } catch { padReaders = ''; }
-    }
-    add('controller', Boolean(this.sessionId) && padReaders.length > 0,
-      `${this.sessionId ? `session ${this.sessionId}, ` : 'no observer session, '}${this.padHistory.length} inputs, read by: ${padReaders || 'nobody (the game will not see the pad)'}`);
     add('steam login', Boolean(this.login), this.login ? (this.login.personaName || this.login.steamId) : 'not signed in');
     if (this.setup) {
       const st = installState(this.home, SUPPORTED_GAMES[this.setup.game].appid);
@@ -984,7 +981,7 @@ export class Room extends EventEmitter {
   async destroy({ keepHome = false, reason = '' } = {}) {
     this.destroyed = true;
     for (const t of this.loops) clearTimeout(t);
-    if (!this.archiveDir && (this.agent || this.padHistory.length)) { try { await this.archive(reason || 'deleted'); } catch (e) { this._log(`archive failed: ${e.message}`); } }
+    if (!this.archiveDir && (this.agent || this.actionHistory.length)) { try { await this.archive(reason || 'deleted'); } catch (e) { this._log(`archive failed: ${e.message}`); } }
     this.setStage('deleting', reason);
     try { await this.agent?.stop(); } catch (e) { this._log(`player stop: ${e.message}`); }
     this.reader?.stop(); this.media?.stop(); this.mediaAudio?.stop();
@@ -1009,9 +1006,9 @@ export class Room extends EventEmitter {
 
   // ---- gateway ops (called by the player through the JSON-line gateway) ----
   async gatewayOp(op, request) {
-    if (this.setup?.player.kind === 'builtin' && this.agent?.attention && ['pad-press', 'pad-dpad', 'pad-stick', 'room-finish'].includes(op)) throw new GatewayError('supervisor_required', 'pending incident requires explicit supervisor review before gameplay');
+    if (this.setup?.player.kind === 'builtin' && (this.agent?.attention || this.agent?.requiresResume) && ['sts2-action', 'room-finish'].includes(op)) throw new GatewayError('supervisor_required', 'pending incident or restored checkpoint requires explicit supervisor review before gameplay');
     switch (op) {
-      case 'hello': return { room: this.id, stage: this.stage, ops: ['sts2-get', 'screenshot', 'pad-status', 'pad-press', 'pad-stick', 'pad-dpad', 'pad-neutral', 'room-finish', 'skill-commit', 'web-get'] };
+      case 'hello': return { room: this.id, stage: this.stage, ops: ['sts2-get', 'sts2-action', 'screenshot', 'room-finish', 'skill-commit', 'web-get'] };
       case 'skill-commit': {
         const message = String(request.message || '').trim();
         if (message.length < 3 || message.length > 200) throw new GatewayError('invalid_message', 'a commit message of 3-200 characters is required');
@@ -1022,12 +1019,9 @@ export class Room extends EventEmitter {
       }
       case 'web-get': return webGet(request);
       case 'sts2-get': return this._sts2Get(request);
+      case 'sts2-action': return this._sts2Action(request);
+      case 'sts2-action-verify': return this._sts2ActionVerify(request);
       case 'screenshot': return this._screenshot();
-      case 'pad-status': return { device: 'wolf-virtual-xbox', session: this.sessionId, held: [], grabbed_by_other: false, readers: this.roomContainer ? [this.roomContainer] : [], history: this.padHistory.slice(-5) };
-      case 'pad-press': return this._padSerial(() => this._padPress(request));
-      case 'pad-dpad': return this._padSerial(() => this._padDpad(request));
-      case 'pad-stick': return this._padSerial(() => this._padStick(request));
-      case 'pad-neutral': return this._padSerial(async () => { await this._padState({}); return { held: [] }; });
       case 'room-finish': {
         if (!['lost', 'won', 'aborted'].includes(request.result)) {
           throw new GatewayError('invalid_result', 'result must be lost, won or aborted');
@@ -1072,13 +1066,72 @@ export class Room extends EventEmitter {
       let res;
       try { res = await fetch(url, { signal: AbortSignal.timeout(10000) }); }
       catch (e) { last = new GatewayError('sts2_unavailable', `STS2MCP mod not reachable in the room (${e.cause?.code || e.name}); is the game running with the mod enabled?`); continue; }
-      const body = await res.text();
-      if (body.length > 1024 * 1024) throw new GatewayError('sts2_too_large', 'response exceeds 1 MiB');
+      let body;
+      try { body = await readBoundedResponse(res); }
+      catch (error) { if (error.code === 'sts2_too_large') throw error; last = new GatewayError('sts2_unavailable', `STS2MCP response was interrupted (${error.message})`); continue; }
       if (res.status >= 500) { last = new GatewayError('sts2_http_error', `STS2MCP returned ${res.status} on ${attempt + 1} attempts`, { status: res.status, body: body.slice(0, 500) }); continue; }
       if (res.status >= 400) throw new GatewayError('sts2_http_error', `STS2MCP returned ${res.status}`, { status: res.status, body: body.slice(0, 500) });
-      return { status: res.status, content_type: res.headers.get('content-type') || '', body, bytes: body.length };
+      return { status: res.status, content_type: res.headers.get('content-type') || '', body, bytes: Buffer.byteLength(body) };
     }
     throw last;
+  }
+
+  async _sts2Action(request) {
+    if (!this.roomIp) throw new GatewayError('sts2_unavailable', 'room is not running yet');
+    let params;
+    try { params = validateSts2Action(request.action, request.params); }
+    catch (error) { throw new GatewayError(error.code || 'invalid_action', error.message, error.details); }
+    const action = request.action;
+    const audit = { id: crypto.randomUUID(), t: Date.now(), action, params, acknowledgement: 'dispatching', result: null, verification: 'pending' };
+    this.actionHistory.push(audit);
+    if (this.actionHistory.length > ACTION_HISTORY_MAX) this.actionHistory.shift();
+    this.emit('action', audit);
+    const url = `http://${this.roomIp}:${this.fwdPort}/api/v1/singleplayer`;
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'POST', signal: AbortSignal.timeout(STS2_ACTION_TIMEOUT_MS),
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ action, ...params }),
+      });
+    } catch (error) {
+      // The request may already have reached the game. Retrying a write could
+      // perform it twice, so this is deliberately terminal and distinct.
+      Object.assign(audit, { acknowledgement: 'unknown', result: { error: error.message }, verification: 'unknown' });
+      this.emit('action', audit);
+      throw new GatewayError('sts2_action_outcome_unknown', 'STS2MCP connection was lost after action dispatch; outcome is unknown and must be reviewed', { action, reason: error.message });
+    }
+    let body;
+    try { body = await readBoundedResponse(response); }
+    catch (error) {
+      Object.assign(audit, { acknowledgement: error.code === 'sts2_too_large' ? 'received' : 'unknown', result: { error: error.message }, verification: error.code === 'sts2_too_large' ? 'failed' : 'unknown' });
+      this.emit('action', audit);
+      if (error.code === 'sts2_too_large') throw error;
+      throw new GatewayError('sts2_action_outcome_unknown', 'STS2MCP connection was lost while receiving the action acknowledgement; outcome is unknown and must be reviewed', { action, reason: error.message });
+    }
+    let result;
+    try { result = JSON.parse(body); }
+    catch {
+      Object.assign(audit, { acknowledgement: 'received', result: { error: 'malformed response', body: body.slice(0, 500) }, verification: 'failed' });
+      this.emit('action', audit);
+      throw new GatewayError('sts2_malformed_response', 'STS2MCP action response is not valid JSON');
+    }
+    Object.assign(audit, { acknowledgement: 'received', result, verification: response.ok && result?.status === 'ok' ? 'awaiting_verification' : 'failed' });
+    this.emit('action', audit);
+    if (!response.ok) throw new GatewayError('sts2_http_error', `STS2MCP returned ${response.status}`, { status: response.status, body: body.slice(0, 500) });
+    if (!result || result.status !== 'ok') throw new GatewayError('sts2_action_failed', String(result?.error || result?.message || 'STS2MCP rejected the action'), { result });
+    return { auditId: audit.id, action, params, acknowledgement: result };
+  }
+
+  _sts2ActionVerify(request) {
+    if (typeof request.id !== 'string' || !['verified', 'failed'].includes(request.verification)) throw new GatewayError('invalid_verification', 'a valid action audit id and verified/failed status are required');
+    const audit = this.actionHistory.find(item => item.id === request.id);
+    if (!audit) throw new GatewayError('unknown_action_audit', 'action audit entry was not found');
+    if (audit.verification !== 'awaiting_verification') throw new GatewayError('invalid_verification_state', `action audit is ${audit.verification}, not awaiting verification`);
+    audit.verification = request.verification;
+    if (typeof request.detail === 'string' && request.detail) audit.verificationDetail = request.detail.slice(0, 500);
+    this.emit('action', audit);
+    return { id: audit.id, verification: audit.verification };
   }
 
   _screenshot() {
@@ -1087,56 +1140,6 @@ export class Room extends EventEmitter {
     return { window: 'room', width: this.cfg.streamWidth, height: this.cfg.streamHeight, format: 'jpeg', bytes: frame.length, data_base64: frame.toString('base64'), age_ms: Date.now() - this.reader.latestAt };
   }
 
-  _padSerial(fn) { const run = this.padBusy.then(fn, fn); this.padBusy = run.catch(() => {}); return run; }
-  async _padState(state) {
-    if (!this.sessionId) throw new GatewayError('pad_unavailable', 'observer session not attached');
-    await this.m.wolf.sendInput(this.sessionId, encodeControllerState(state));
-  }
-  _record(entry) { const e = { t: Date.now(), ...entry }; this.padHistory.push(e); if (this.padHistory.length > PAD_HISTORY_MAX) this.padHistory.shift(); this.emit('pad', e); return e; }
-
-  async _padPress(request) {
-    const button = String(request.button || '');
-    const hold = boundedInt(request.hold_ms, MIN_HOLD, MAX_HOLD, DEFAULT_HOLD, 'invalid_hold', 'hold_ms');
-    let state;
-    if (button in BUTTON_FLAGS) state = { buttons: BUTTON_FLAGS[button] };
-    else if (button === 'lt') state = { lt: 255 };
-    else if (button === 'rt') state = { rt: 255 };
-    else throw new GatewayError('invalid_button', `unknown button: ${button}`, { allowed: [...Object.keys(BUTTON_FLAGS), 'lt', 'rt'] });
-    this._record({ kind: 'press', button, hold_ms: hold });
-    await this._padState(state);
-    try { await sleep(hold); } finally { await this._padState({}); }
-    return { button, hold_ms: hold, held: [] };
-  }
-
-  async _padDpad(request) {
-    const direction = String(request.direction || '');
-    if (!['up', 'down', 'left', 'right'].includes(direction)) throw new GatewayError('invalid_direction', 'direction must be up, down, left or right');
-    const presses = boundedInt(request.presses, 1, MAX_PRESSES, 1, 'invalid_presses', 'presses');
-    const interval = boundedInt(request.interval_ms, MIN_INTERVAL, MAX_INTERVAL, DEFAULT_INTERVAL, 'invalid_interval', 'interval_ms');
-    this._record({ kind: 'dpad', button: direction, presses, interval_ms: interval });
-    try {
-      for (let i = 0; i < presses; i++) {
-        await this._padState({ buttons: BUTTON_FLAGS[direction] });
-        await sleep(60);
-        await this._padState({});
-        if (i < presses - 1) await sleep(interval);
-      }
-    } finally { await this._padState({}); }
-    return { direction, presses, interval_ms: interval, held: [] };
-  }
-
-  async _padStick(request) {
-    const stick = String(request.stick || '');
-    if (!['left', 'right'].includes(stick)) throw new GatewayError('invalid_stick', 'stick must be left or right');
-    const x = clampFloat(request.x), y = clampFloat(request.y);
-    const hold = boundedInt(request.hold_ms, MIN_HOLD, MAX_HOLD, DEFAULT_HOLD, 'invalid_hold', 'hold_ms');
-    const sx = Math.round(x * 32767), sy = Math.round(-y * 32767); // tools: y=-1 up; Moonlight: positive y = up
-    const state = stick === 'left' ? { lx: sx, ly: sy } : { rx: sx, ry: sy };
-    this._record({ kind: 'stick', button: stick, x, y, hold_ms: hold });
-    await this._padState(state);
-    try { await sleep(hold); } finally { await this._padState({}); }
-    return { stick, x, y, hold_ms: hold, held: [] };
-  }
 }
 
 /**
@@ -1173,10 +1176,3 @@ function isPortFree(port) {
     probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
   });
 }
-
-function boundedInt(value, min, max, dflt, code, name) {
-  if (value === undefined || value === null) return dflt;
-  if (!Number.isInteger(value) || value < min || value > max) throw new GatewayError(code, `${name} must be an integer between ${min} and ${max}`);
-  return value;
-}
-function clampFloat(v) { const n = Number(v); if (!Number.isFinite(n)) throw new GatewayError('invalid_axis', 'x and y must be numbers between -1 and 1'); return Math.max(-1, Math.min(1, n)); }

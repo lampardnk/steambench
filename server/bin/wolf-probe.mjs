@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Manual probe: create a room lobby, attach an observer session (MJPEG + pad), grab a frame, press a button.
-// Usage: node server/bin/wolf-probe.mjs <lobby|observe|input|stop> ...
-import { WolfClient, mjpegPipeline, encodeControllerArrival, encodeControllerState, BUTTON_FLAGS, NVIDIA_BUFFER_CAPS } from '../lib/wolf.js';
+// Manual probe: create a room lobby, attach a read-only observer session, and grab a frame.
+// Usage: node server/bin/wolf-probe.mjs <lobby|observe|frame|list|stop|stop-session> ...
+import { WolfClient, mjpegPipeline, NVIDIA_BUFFER_CAPS } from '../lib/wolf.js';
 import net from 'node:net';
 import fs from 'node:fs';
 
@@ -14,7 +14,6 @@ if (cmd === 'lobby') {
   const image = process.env.ROOM_IMAGE || 'ghcr.io/games-on-whales/steam:edge';
   const env = [
     'RUN_GAMESCOPE=1', 'GOW_REQUIRED_DEVICES=/dev/input/* /dev/dri/* /dev/nvidia*',
-    'SDL_GAMECONTROLLER_IGNORE_DEVICES=0x045e/0x02ea',
     ...(process.env.ROOM_ENV ? process.env.ROOM_ENV.split(';') : []),
   ];
   const id = await wolf.createLobby({
@@ -40,9 +39,6 @@ if (cmd === 'lobby') {
   await sleep(2500);
   await wolf.joinLobby(lobbyId, sid);
   console.log('joined lobby');
-  await wolf.sendInput(sid, encodeControllerArrival(0));
-  await wolf.sendInput(sid, encodeControllerState({}));
-  console.log('pad plugged');
 } else if (cmd === 'frame') {
   const [portStr, out] = args; const port = Number(portStr || 39001);
   const sock = net.connect(port, '127.0.0.1');
@@ -54,12 +50,6 @@ if (cmd === 'lobby') {
   });
   sock.on('error', (e) => { console.error('tcp error', e.message); process.exit(1); });
   setTimeout(() => { console.error('no frame in 15s'); process.exit(2); }, 15000);
-} else if (cmd === 'press') {
-  const [sid, button, holdMs] = args;
-  await wolf.sendInput(sid, encodeControllerState({ buttons: BUTTON_FLAGS[button] }));
-  await sleep(Number(holdMs || 100));
-  await wolf.sendInput(sid, encodeControllerState({}));
-  console.log('pressed', button);
 } else if (cmd === 'list') {
   console.log(JSON.stringify({ lobbies: await wolf.listLobbies(), sessions: await wolf.listSessions() }, null, 1));
 } else if (cmd === 'stop') {
@@ -67,5 +57,5 @@ if (cmd === 'lobby') {
 } else if (cmd === 'stop-session') {
   await wolf.stopSession(args[0]); console.log('stopped session');
 } else {
-  console.log('commands: lobby NAME | observe LOBBY_ID [PORT] | frame [PORT] [OUT] | press SESSION BUTTON [MS] | list | stop LOBBY_ID | stop-session SID');
+  console.log('commands: lobby NAME | observe LOBBY_ID [PORT] | frame [PORT] [OUT] | list | stop LOBBY_ID | stop-session SID');
 }

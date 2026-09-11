@@ -2,12 +2,8 @@
 # Run Slay the Spire 2 inside a headless gamescope "room".
 #
 # The game gets its own embedded Xwayland display and always believes it has
-# focus, so the virtual pad works while you use other windows, and the gateway
-# screenshots it through gamescopectl. Requirements, in order:
-#   1. host gateway running (creates the virtual pad),
-#   2. Steam running as: SDL_GAMECONTROLLER_IGNORE_DEVICES=0x045e/0x028e steam
-#      (so Steam does not take the pad and the game reads it directly),
-#   3. this script.
+# focus while the gateway captures screenshots through gamescopectl. The host
+# gateway and STS2MCP communicate over the mod's loopback HTTP API.
 set -euo pipefail
 
 GAME_DIR="${STS2_GAME_DIR:-$HOME/.local/share/Steam/steamapps/common/Slay the Spire 2}"

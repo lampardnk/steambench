@@ -10,7 +10,6 @@ const ROLE_TONE: Record<string, string> = {
   room: 'bg-muted text-muted-foreground',
   strategist: 'bg-primary/15 text-primary',
   combat: 'bg-destructive/15 text-destructive',
-  actuator: 'bg-success/15 text-success',
   curriculum: 'bg-warning/15 text-warning',
   critic: 'bg-warning/15 text-warning',
 }

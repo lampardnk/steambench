@@ -215,16 +215,6 @@ function score(note, { weights, area, generic = new Set() }) {
  * bounded, so the planner reads what it knows without spending a decision on a
  * recall it has to remember to ask for.
  */
-/**
- * A control note is what stops the same screen being re-derived every run, so on
- * a screen it comes first. NOT in a fight. Promoting it unconditionally handed
- * every slot to the UI: a control note carries the character and ascension in
- * its keys, which match any decision at all, so during a floor 7 elite fight the
- * five notes retrieved were about Neow bundles, the reward screen and the main
- * menu, and the bestiary note for the elite being fought never appeared. In
- * combat the enemy is the subject and ordinary relevance decides.
- */
-const CONTROLS_NOTE = /(?:^|\/)controls\//;
 // A note about one event - an unknown room, Neow - is relevant when that event
 // is on screen and at no other time. NEOW.md is 9.6KB about floor 0 and was
 // read on 61 of 83 decisions because it mentions the map; the twenty-odd
@@ -232,20 +222,6 @@ const CONTROLS_NOTE = /(?:^|\/)controls\//;
 // not merely a word they share with the screen.
 const EVENT_NOTE = /(?:^|\/)(?:act\d|meta_strategy)\/(?:unknown|ancient)\//;
 
-/**
- * The controls notes, whatever the screen is.
- *
- * Retrieval scores a note against the terms the situation carries - enemy
- * names, the event, the character, the state type. CONTROLS.md carries none of
- * them, and it cannot: it is about the pad, not about any one screen. On the
- * Neow bundle screen the situation terms are "bundle" and "select", which
- * appear in no note's keys, so the one file describing how that screen works
- * scored zero and was never retrieved - and the actuator worked the screen
- * blind for fifty-five decisions and three supervisor pauses.
- *
- * Ranking control notes first (see retrieve) only reorders notes that already
- * matched. The pad's manual is not a match to be won; the pad always has it.
- */
 /**
  * Keep the entries a situation is actually about.
  *
@@ -285,47 +261,18 @@ export function focusNote(content, subjects) {
   return kept ? out.join('') : content;
 }
 
-// The pad manual is delivered whole on every actuator call, so it gets its own
-// ceiling rather than borrowing the per-note one: the actuator is the only role
-// allowed to press anything, and a manual that stops mid-sentence at the point
-// where the model most needs it is worse than the tokens it saves. 32,000
-// characters covers the current manual (17,177 as written) with room for a
-// second controls note before anything is cut.
-export function controlManual(skillDir, index, { budget = 32000 } = {}) {
-  const out = [];
-  let spent = 0;
-  for (const note of index.filter(item => CONTROLS_NOTE.test(item.path))) {
-    let content;
-    try { content = fs.readFileSync(path.join(skillDir, note.path), 'utf8'); }
-    catch { continue; }
-    const room = Math.max(0, budget - spent);
-    if (room < 200) break;
-    out.push({ path: note.path, description: note.description, matched: ['controls'], relevance: 0, truncated: content.length > room, content: content.slice(0, room) });
-    spent += Math.min(content.length, room);
-  }
-  return out;
-}
-
 export function retrieve(skillDir, index, state, objective, { limit = MAX_RETRIEVED, budget = RETRIEVAL_BUDGET } = {}) {
   const wanted = situationTerms(state, objective);
   if (!wanted.weights.size) return [];
   // A term carried by nearly every note identifies nothing. In a one-character
   // library every note is under ironclad/a1/ and says so in its keys, so
-  // "ironclad" and "ascension-1" matched every decision ever made: during a
-  // floor 7 elite fight the five notes retrieved were about Neow bundles, the
-  // reward screen and the main menu. Such a term still weights a note that is
+  // "ironclad" and "ascension-1" matched every decision ever made. Such a
+  // term still weights a note that is
   // relevant for some other reason; it may not qualify one on its own. Measured
   // from the corpus rather than hardcoded, so it holds for whatever is in it.
   const matches = term => index.reduce((n, note) => n + (note.keys.includes(term) || note.pathTerms.includes(term) || note.descriptionTerms.includes(term) ? 1 : 0), 0);
   const generic = new Set([...wanted.weights.keys()].filter(term => index.length >= 3 && matches(term) > index.length / 2));
-  // Control notes are not in here at all. Every one of them is delivered by
-  // controlManual() on the same call, and before this filter existed they were
-  // split out of the list again before any play agent saw it - so ranking them
-  // here bought a second copy of a file that was already being delivered and was
-  // about to be discarded. On the runaway's 6,063 retrieved entries, 520 were
-  // control notes: a tenth of the list paying for a note no play agent read.
   const ranked = index
-    .filter(note => !CONTROLS_NOTE.test(note.path))
     .map(note => ({ note, ...score(note, { ...wanted, generic }) }))
     .filter(item => item.total > 0)
     .sort((a, b) => b.total - a.total || a.note.bytes - b.note.bytes)

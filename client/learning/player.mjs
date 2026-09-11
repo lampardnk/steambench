@@ -7,15 +7,14 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { DIRECTIONS, VERSION, SENSOR_VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
-import { Actuator } from './actuator.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
 import { Curriculum } from './curriculum.mjs';
-import { controlManual, indexNotes, retrieve } from './retrieval.mjs';
+import { indexNotes, retrieve } from './retrieval.mjs';
 
-// Actions that read or write knowledge and never touch the pad. A decision made
+// Actions that read or write knowledge and never mutate the game. A decision made
 // only of these cannot change the game, which matters twice below: an unchanged
 // observation after one proves nothing about being stuck, and a run of them is
 // note-taking crowding out play.
@@ -23,35 +22,30 @@ const BOOKKEEPING = new Set(['learn', 'recall', 'research', 'lookup']);
 const bookkeepingOnly = (plan) => plan.actions.every(action => BOOKKEEPING.has(action.type));
 const TRANSIENT_BACKOFF_MS = [2000, 5000, 12000, 30000];
 
-// How many consecutive inputs may be spent inside too few distinct situations
+// How many consecutive actions may be spent inside too few distinct situations
 // before the run is stopped for a supervisor.
 //
-// Measured against all eight recorded runs. Sixteen inputs, not eight: at eight
-// this fires on four runs, three of which recovered within six inputs - a fight
+// Measured against all eight recorded runs. Sixteen actions, not eight: at eight
+// this fires on four runs, three of which recovered within six actions - a fight
 // where a turn merely ended, and a screen that was being read - whereas sixteen
 // fires only on screens a run was genuinely thrashing. The five runs that kept
 // moving never fell below six distinct situations in a window; all three this
 // stops had collapsed to two:
-//   * 346 inputs left cycling a reward list and the card screen behind it
+//   * 346 actions left cycling a reward list and the card screen behind it
 //     (live, 499k tokens of run budget in the window alone),
-//   * 212 left alternating two card-upgrade selections, an 84-input screen the
-//     run escaped only 67 inputs after this would have stopped it,
+//   * 212 left alternating two card-upgrade selections, an 84-action screen the
+//     run escaped only 67 actions after this would have stopped it,
 //   * 19 left cycling a card reward.
 // Three situations, not one: a screen and the overlay it opens are two
 // situations, which is what makes `progressId` count the live loop as
 // movement, and neither is a third. Stopping the middle run early is the
-// intent, not a cost: it had spent 84 inputs on one card-upgrade screen by
+// intent, not a cost: it had spent 84 actions on one card-upgrade screen by
 // the time the guard fires.
 const STALL_WINDOW = 16;
 const STALL_SITUATIONS = 3;
 
 // One reversible directional press, sent to find out where focus actually is.
 // It answers a question, so a run of them means the question is not the problem.
-const probeOnly = (plan) => {
-  const steps = plan.actions.filter(action => !BOOKKEEPING.has(action.type));
-  return steps.length === 1 && steps[0].type === 'input' && steps[0].buttons?.length === 1
-    && DIRECTIONS.includes(steps[0].buttons[0]) && !steps[0].expect;
-};
 import { PROFILE } from './profile.mjs';
 import { learningDelta, saveIncident } from './incidents.mjs';
 
@@ -65,10 +59,10 @@ if (checkpoint?.version !== VERSION) checkpoint = null;
 const sessionId = randomUUID().slice(0, 8);
 const emit = event => process.stdout.write(JSON.stringify(event) + '\n');
 const usage = { requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, modelLatencyMs: 0, ...checkpoint?.usage };
-const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'actuator.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'actuator.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'navigation.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
+const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
 const catalog = new ObservationCatalog(directory);
 const started = checkpoint?.started || Date.now();
-let totalInputs = checkpoint?.totalInputs || 0;
+let totalActions = checkpoint?.totalActions ?? checkpoint?.totalInputs ?? 0;
 let verifiedPlays = checkpoint?.verifiedPlays || 0;
 let actionFailures = checkpoint?.actionFailures || 0;
 const executionMetrics = { sensors: 0, screenshots: 0, completedActions: 0, batches: 0, ...checkpoint?.executionMetrics };
@@ -80,7 +74,7 @@ let lifecycle = 'idle';
 let attention = checkpoint?.attention || null;
 let requiresResume = Boolean(checkpoint);
 const recentSensors = [];
-const recentInputs = [];
+const recentActions = [];
 const record = event => {
   if (event.type === 'overhead') act1Timer.add(event.kind, event.milliseconds);
   if (event.type === 'sensor') {
@@ -99,10 +93,10 @@ const record = event => {
     usage.modelLatencyMs += event.latencyMs || 0;
     for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'totalTokens']) usage[key] += Number(event.usage?.[key] || 0);
   }
-  if (event.type === 'input') {
-    totalInputs++;
-    recentInputs.push({ at: Date.now(), ...event });
-    if (recentInputs.length > 24) recentInputs.shift();
+  if (event.type === 'action_dispatch') {
+    totalActions++;
+    recentActions.push({ at: Date.now(), ...event });
+    if (recentActions.length > 24) recentActions.shift();
   }
   if (event.type === 'action' && event.action?.type === 'play' && event.verified) verifiedPlays++;
   if (event.type === 'action_failure' || event.type === 'planner_failure') actionFailures++;
@@ -111,7 +105,7 @@ const record = event => {
 const roster = new Roster({ emit, record });
 const planner = new Planner({ emit, record });
 let active = false;
-let controller;
+let abortRun;
 // Older checkpoints stored plain strings; every instruction now carries the decision it arrived at
 // so a one-time retry directive is not mistaken for a standing order.
 let instructions = (checkpoint?.instructions || []).map(item => (typeof item === 'string' ? { at_decision: null, from: 'supervisor review', text: item } : item));
@@ -147,8 +141,8 @@ let noteIndex = indexNotes(skillDir);
 function saveMetrics() {
   const act1 = act1Timer.summary();
   fs.writeFileSync(path.join(directory, 'act1-timer.json'), JSON.stringify(act1));
-  fs.writeFileSync(path.join(directory, 'metrics.json'), JSON.stringify({ version: VERSION, playerName: PROFILE.name, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, lifecycle, decisions: decision, inputs: totalInputs, verifiedPlays, actionFailures, executionMetrics, elapsedMs: Date.now() - started, floor: lastState?.run?.floor, act: lastState?.run?.act, attention, act1, acceptedMemoryHash: digest(accepted), objective: curriculum.active, objectivesCompleted: curriculum.completed.length, objectivesFailed: curriculum.failed.length, agents: roster.list, usage }, null, 2));
-  const saved = { act1Timer: act1Timer.data, version: VERSION, policyHash, started, taskText, instructions, strategy, decision, lastResult, laneResults, lastEncounter, fights, lastState, freshRunVerified, sawCharacterSelect, attention, usage, totalInputs, verifiedPlays, actionFailures, executionMetrics };
+  fs.writeFileSync(path.join(directory, 'metrics.json'), JSON.stringify({ version: VERSION, playerName: PROFILE.name, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, lifecycle, decisions: decision, actions: totalActions, verifiedPlays, actionFailures, executionMetrics, elapsedMs: Date.now() - started, floor: lastState?.run?.floor, act: lastState?.run?.act, attention, act1, acceptedMemoryHash: digest(accepted), objective: curriculum.active, objectivesCompleted: curriculum.completed.length, objectivesFailed: curriculum.failed.length, agents: roster.list, usage }, null, 2));
+  const saved = { act1Timer: act1Timer.data, version: VERSION, policyHash, started, taskText, instructions, strategy, decision, lastResult, laneResults, lastEncounter, fights, lastState, freshRunVerified, sawCharacterSelect, attention, usage, totalActions, verifiedPlays, actionFailures, executionMetrics };
   const temporary = path.join(directory, 'checkpoint.tmp');
   fs.writeFileSync(temporary, JSON.stringify(saved));
   fs.renameSync(temporary, path.join(directory, 'checkpoint.json'));
@@ -178,30 +172,20 @@ function message(text, agent = LANE.room) {
 async function run(task) {
   active = true;
   encounter.reset();
-  controller = new AbortController();
-  const executor = new Executor({ call: gateway.call, record, signal: controller.signal, skillDir });
-  const actuator = new Actuator({
-    planner, executor, roster, record,
-    screenshot: async () => {
-      executionMetrics.screenshots++;
-      const shot = await gateway.call({ op: 'screenshot', format: 'jpeg' });
-      if (shot.age_ms > 2000) throw new Error('screenshot is stale; refusing to act without current visual evidence');
-      return shot;
-    },
-  });
+  abortRun = new AbortController();
+  const executor = new Executor({ call: gateway.call, record, signal: abortRun.signal, skillDir });
   emit({ type: 'agent_start' });
   lifecycle = 'running';
-  message(`${PROFILE.name} · ${PROFILE.provider}/${PROFILE.model} · ${PROFILE.reasoning} reasoning. Strategist routes and drafts, an encounter agent plays each fight, the actuator owns the pad.`);
+  message(`${PROFILE.name} · ${PROFILE.provider}/${PROFILE.model} · ${PROFILE.reasoning} reasoning. The strategist owns startup and noncombat choices; one encounter agent plays each fight; STS2MCP is the sole gameplay action path.`);
   let unchanged = 0;
   let stalePlans = 0;
   let refines = 0;
   let upstreamRetries = 0;
   let quiet = 0;
-  let probes = 0;
   let previous = '';
   let previousInput = '';
   let repeatedInput = 0;
-  // The situations the last few inputs were spent in. A run that keeps acting
+  // The situations the last few actions were spent in. A run that keeps acting
   // without the situation ever changing is not deciding anything, and the
   // existing guards cannot see it: `unchanged` compares the whole stateId and
   // `repeatedInput` compares one plan against the next, so a two-screen cycle
@@ -209,6 +193,7 @@ async function run(task) {
   const situations = [];
   let observation = lastState;
   let plan = null;
+  let beforeImage = null;
   let objectiveCheck = null;
   // The encounter agent that is currently open, or null between fights.
   let fight = null;
@@ -218,11 +203,11 @@ async function run(task) {
   /**
    * Voyager refines a rejected program with the error in its next prompt rather
    * than escalating. That is safe here only while nothing has reached the game:
-   * a plan the runtime rejected, or one that was already stale, sent no input,
+   * a plan the runtime rejected, or one that was already stale, sent no action,
    * so the scene is untouched and re-planning cannot compound a mistake. Once
-   * input has been sent and failed, the first-error pause still holds exactly as
+   * an action has been sent and failed, the first-error pause still holds exactly as
    * before. The correction goes to the lane that produced the plan - handing a
-   * strategist's rejection to the actuator asks the wrong agent to fix it.
+   * a rejection must return to the role that authored the plan.
    */
   const refine = (error, guidance, lane = LANE.strategist) => {
     if (refines >= 2) throw new Error(`${error} (${refines} refinement rounds already spent without reaching a usable plan)`);
@@ -319,21 +304,21 @@ async function run(task) {
   try {
     while (decision < 800) {
       decision++;
-      controller.signal.throwIfAborted();
+      abortRun.signal.throwIfAborted();
       plan = null;
       let state;
       for (let refresh = 0; refresh <= 2; refresh++) {
         try { state = await executor.quiesced(); break; }
-        catch (error) { if (refresh === 2 || controller.signal.aborted) throw error; }
+        catch (error) { if (refresh === 2 || abortRun.signal.aborted) throw error; }
       }
       lastState = state;
       observation = state;
       build = compatibility(state, policyHash);
-      if (state.ui?.sensor_version !== SENSOR_VERSION || state.ui.error) throw new Error('read-only learning UI sensor is missing or incompatible; install the matching sensor mod build');
+      if (!state.build?.game || !state.build?.mod || state.sensor_error) throw new Error('STS2MCP structured-state extension is missing or incompatible; install the matching mod build');
       accepted = acceptedLessons(memorySeed, build);
       const current = stateId(state);
       // A refinement round and a note-writing decision both deliberately send
-      // no input, so an unchanged observation after either proves nothing and
+      // no action, so an unchanged observation after either proves nothing and
       // must not count as being stuck. Each is bounded on its own instead.
       const refining = Boolean(lastResult?.refine_round);
       if (!refining && !quiet) {
@@ -368,22 +353,16 @@ async function run(task) {
 
       // ---- who plays this decision ----
       // A fight belongs to its own agent, opened when the encounter starts and
-      // closed with one report when it ends. Menus belong to the actuator
-      // alone: there is no strategy in a title screen, and running one through
-      // a play prompt spends the whole context on button pressing. Everything
-      // else - map, rewards, shops, events, rest sites - is the strategist's.
+      // closed with one report when it ends. The strategist also owns startup
+      // and every noncombat semantic choice.
       const kind = encounterKind(state);
       // Not "this screen is not combat" - that closed an elite because a
       // potion put a card-choice overlay in front of it. The encounter ends
       // when the game has left it.
       if (fight && encounterOver(state, fight)) await closeFight(state, state.player?.hp === 0 ? 'lost' : 'won');
       if (kind && !fight) openFight(state, kind);
-      // A menu is actuation and nothing else: there is no card, enemy or route
-      // to weigh on a title screen, and running one through a play prompt spends
-      // the whole context on button pressing.
-      const startup = state.state_type === 'menu';
-      const role = startup ? 'actuator' : fight ? 'combat' : 'strategist';
-      const lane = startup ? LANE.actuator : fight ? fight.lane : LANE.strategist;
+      const role = fight ? 'combat' : 'strategist';
+      const lane = fight ? fight.lane : LANE.strategist;
 
       // Self-verification, at a real progress boundary. The critic is the only
       // thing that closes an objective; a failure's critique goes straight into
@@ -408,14 +387,9 @@ async function run(task) {
       // Skill retrieval: the notes this exact situation is about, read for the
       // agent instead of waiting for it to spend a decision recalling them.
       const retrieved = retrieve(skillDir, noteIndex, state, ladder.objective);
-      // The actuator's manual, always - and the only place control notes enter
-      // the decision. retrieve() leaves them out on purpose: they are delivered
-      // here in full, so ranking them there spent the play agents' budget on a
-      // second copy of the same file.
-      const controlNotes = controlManual(skillDir, noteIndex);
       lastResult = laneResults[lane] || null;
 
-      const counters = { consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet, consecutive_probes_without_acting: probes };
+      const counters = { consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet };
       const context = role === 'combat'
         ? combatContext({ state, briefing: fight.briefing, scratchpad: combatMemory, retrieved, lastResult, instructions, notes, counters })
         : role === 'strategist'
@@ -456,20 +430,13 @@ async function run(task) {
       // ---- the deciding agent ----
       let source;
       try {
-        if (role === 'actuator') {
-          // The runtime's own intent. Startup is pure actuation - abandon what
-          // is loaded, pick the character, embark - and there is nothing for a
-          // strategist to weigh in it.
-          source = { observation: current, summary: 'Work the menu', note: 'Runtime intent: startup and menu screens are actuation only.', actions: [{ type: 'intent', goal: task.slice(0, 300) }] };
-        } else {
-          roster.count(lane);
-          emit({ type: 'message_start', agent: lane });
-          source = validatePlan(await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true }), state, { role });
-        }
-        plan = (await actuator.resolve(source, state, { notes, controlNotes, lastResult: laneResults[LANE.actuator] || null, instructions, from: role, counters })).plan;
+        roster.count(lane);
+        emit({ type: 'message_start', agent: lane });
+        source = validatePlan(await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true }), state, { role });
+        plan = source;
       }
       catch (error) {
-        controller.signal.throwIfAborted();
+        abortRun.signal.throwIfAborted();
         const failedLane = error.lane || lane;
         // The rejected plan itself, or the incident is undiagnosable: a
         // validation failure leaves no diagnostics behind, and one of these
@@ -482,17 +449,13 @@ async function run(task) {
           const waitMs = TRANSIENT_BACKOFF_MS[upstreamRetries++];
           record({ type: 'upstream_retry', agent: failedLane, attempt: upstreamRetries, waitMs, error: error.message });
           await new Promise(resolve => setTimeout(resolve, waitMs));
-          controller.signal.throwIfAborted();
+          abortRun.signal.throwIfAborted();
           continue;
         }
-        refine(`${failedLane === LANE.actuator && role !== 'actuator' ? 'actuator' : role}: ${error.message}`, plannerGuidance(error.message), failedLane);
+        refine(`${role}: ${error.message}`, plannerGuidance(error.message), failedLane);
         continue;
       }
-      controller.signal.throwIfAborted();
-      if (probeOnly(plan) && probes >= 2) {
-        refine(`${probes} probes in a row without acting`, 'A probe tells you where focus is; three of them tell you nothing more. The focus path names the item unless it is an @Control@NNNN, and the element whose id equals focused_element carries the label. Choose one and act on it.', LANE.actuator);
-        continue;
-      }
+      abortRun.signal.throwIfAborted();
       if (bookkeepingOnly(plan) && quiet >= 2) {
         refine(`${quiet} decisions in a row without touching the game`, 'Notes are worth a decision, but not three in a row. Act on the screen in front of you now, and attach the learn as the final action of that plan instead of spending another decision on it.', lane);
         continue;
@@ -504,9 +467,9 @@ async function run(task) {
       // already been in - and stops it when the answer is no.
       const stalled = stallReason(situations, STALL_WINDOW, STALL_SITUATIONS);
       if (stalled !== null) {
-        throw new Error(`${STALL_WINDOW} inputs across only ${stalled} distinct situation${stalled === 1 ? '' : 's'}`
+        throw new Error(`${STALL_WINDOW} actions across only ${stalled} distinct situation${stalled === 1 ? '' : 's'}`
           + ` (${state.state_type} at act ${state.run?.act ?? '?'} floor ${state.run?.floor ?? '?'});`
-          + ' the run is not making progress, so it is stopping for a supervisor rather than spending more inputs on it');
+          + ' the run is not making progress, so it is stopping for a supervisor rather than spending more actions on it');
       }
       const signature = digest({ state: current, actions: plan.actions });
       repeatedInput = signature === previousInput ? repeatedInput + 1 : 0;
@@ -516,7 +479,7 @@ async function run(task) {
         continue;
       }
       encounter.hypothesize(plan.note);
-      message((role === 'actuator' ? plan.summary : source.summary) || plan.summary, lane);
+      message(source.summary || plan.summary, lane);
       const toolCallId = `learn-${sessionId}-${decision}`;
       fs.appendFileSync(path.join(directory, 'learning.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, agent: lane, kind: 'pre_action_hypothesis', note: plan.note, evidence: toolCallId, compatibility: build }) + '\n');
       if (plan.actions[0].type === 'report_issue') {
@@ -547,17 +510,19 @@ async function run(task) {
       emit({ type: 'tool_execution_start', agent: lane, toolCallId, toolName: 'sts2_execute', args: plan });
       const batchStarted = Date.now();
       const batchSensors = executionMetrics.sensors;
-      const batchInputs = executor.inputs;
-      const result = await actuator.execute(plan, state);
+      const batchActions = executor.actions;
+      executionMetrics.screenshots++;
+      beforeImage = await gateway.call({ op: 'screenshot', format: 'jpeg' }).catch(() => null);
+      const result = await executor.execute(plan, state);
       executionMetrics.batches++;
       executionMetrics.completedActions += result.completed.length;
-      record({ type: 'decision_result', agent: lane, plan, completed: result.completed, error: result.error, latencyMs: Date.now() - batchStarted, sensorCalls: executionMetrics.sensors - batchSensors, inputs: executor.inputs - batchInputs });
-      // Sample the situation once per batch that actually reached the pad. A
+      record({ type: 'decision_result', agent: lane, plan, completed: result.completed, error: result.error, latencyMs: Date.now() - batchStarted, sensorCalls: executionMetrics.sensors - batchSensors, actions: executor.actions - batchActions });
+      // Sample the situation once per batch that actually reached STS2MCP. A
       // batch that sent nothing (a stale plan, a refinement round) leaves the
       // game untouched, so counting it would report a stall the run did not
       // have. `state` is the observation the batch ran against, which is the
-      // situation the inputs were spent in.
-      if (executor.inputs > batchInputs) {
+      // situation the actions were spent in.
+      if (executor.actions > batchActions) {
         situations.push(situationId(state));
         if (situations.length > STALL_WINDOW) situations.shift();
       }
@@ -577,8 +542,6 @@ async function run(task) {
         lastResult.changed = stateDiff(state, result.staleState);
       }
       laneResults[lane] = lastResult;
-      // The actuator is told how its own presses landed, whoever asked for them.
-      if (lane !== LANE.actuator) laneResults[LANE.actuator] = lastResult;
       emit({ type: 'tool_execution_end', agent: lane, toolCallId, toolName: 'sts2_execute', isError: Boolean(result.error), result: { content: [{ type: 'text', text: JSON.stringify(lastResult) }] } });
       fs.appendFileSync(path.join(directory, 'learning.jsonl'), JSON.stringify({ at: Date.now(), decision, sessionId, agent: lane, kind: 'observed_outcome', evidence: toolCallId, completed: result.completed, error: result.error, ...learningDelta(state, result.state) }) + '\n');
       // The strategist's standing plan is the run's; a combat agent's is its own
@@ -594,21 +557,17 @@ async function run(task) {
       if (evidence.length > 24) evidence.shift();
       if (plan.actions.some(action => action.type === 'learn')) noteIndex = indexNotes(skillDir);
       quiet = bookkeepingOnly(plan) ? quiet + 1 : 0;
-      probes = probeOnly(plan) ? probes + 1 : 0;
       if (result.code === 'stale_observation' && ++stalePlans < 3) continue;
       if (result.error) {
-        // A resolved plan the game refused must not be resolved the same way
-        // again: the next attempt goes to the actuator, which can see why.
-        if (result.code !== 'stale_observation') actuator.noteFailure(state, plan);
-        // Nothing reached the pad, so re-planning cannot compound a mistake and
+        // Nothing reached STS2MCP, so re-planning cannot compound a mistake and
         // the first-error pause has nothing to protect yet. A stale observation
         // is already bounded by stalePlans above and must not spend this budget
         // a second time.
-        if (result.code !== 'stale_observation' && executor.inputs === batchInputs) {
-          refine(result.error, 'No input reached the game and the scene is unchanged. Re-plan from this observation.', lane);
+        if (result.code !== 'stale_observation' && executor.actions === batchActions) {
+          refine(result.error, 'No action reached the game and the scene is unchanged. Re-plan from this observation.', lane);
           continue;
         }
-        // A batch that stopped cleanly part way is not a failed input. Every
+        // A batch that stopped cleanly part way is not a failed action. Every
         // action that ran did what it said, and the one that could not run was
         // refused before it pressed anything - so the scene is exactly what the
         // successful actions produced, and re-planning cannot compound
@@ -616,7 +575,7 @@ async function run(task) {
         // because a one-shot discount makes every eligible card free IF PLAYED
         // NEXT; Molten Fist spent it, Pommel Strike was correctly declined, and
         // a healthy turn paused for an operator over a card it never touched.
-        if (result.code !== 'stale_observation' && result.failedActionSentInput === false && result.completed.every(item => item.verified !== false)) {
+        if (result.code !== 'stale_observation' && result.failedActionDispatched === false && result.completed.every(item => item.verified !== false)) {
           refine(result.error, 'The actions before this one all landed; this one was refused before it pressed anything, so the screen is exactly what they produced. Re-read it and plan the rest of the turn from there.', lane);
           continue;
         }
@@ -631,30 +590,28 @@ async function run(task) {
     lifecycle = 'paused';
     requiresResume = true;
     if (fight) roster.close(fight.lane, { outcome: 'interrupted', summary: 'The run paused mid-encounter.' });
-    await gateway.call({ op: 'pad-neutral' }, { timeoutMs: 3000 }).catch(() => {});
     let after = recentSensors.at(-1)?.state || lastState;
     let afterImage = null;
     try { after = JSON.parse((await gateway.call({ op: 'sts2-get', path: '/api/v1/singleplayer', query: { format: 'json' } })).body); } catch { }
     try { executionMetrics.screenshots++; afterImage = await gateway.call({ op: 'screenshot', format: 'jpeg' }); } catch { }
     const reason = String(error.message).replaceAll(process.env[PROFILE.apiKeyEnv] || 'NO_KEY', '[redacted]').replace(/sk-(?:or-v1-)?[a-zA-Z0-9_-]{20,}/g, '[redacted]');
-    if (!controller.signal.aborted) {
+    if (!abortRun.signal.aborted) {
       const logFile = path.join(directory, 'events.jsonl');
-      attention = saveIncident(directory, { decision, sessionId, error: reason, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, agents: roster.list, before: observation, after, beforeImage: actuator.lastImage, afterImage, plan, planner: planner.lastDiagnostics, lastResult, recentInputs, recentSensors, eventLogBytes: fs.existsSync(logFile) ? fs.statSync(logFile).size : 0 });
+      attention = saveIncident(directory, { decision, sessionId, error: reason, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, agents: roster.list, before: observation, after, beforeImage, afterImage, plan, planner: planner.lastDiagnostics, lastResult, recentActions, recentSensors, eventLogBytes: fs.existsSync(logFile) ? fs.statSync(logFile).size : 0 });
       emit({ type: 'steambench_attention', attention });
-      message(`SUPERVISOR REQUIRED [${attention.id}]: ${reason}\nEvidence: ${attention.path}\nNo further gameplay inputs until explicit resume.`);
-    } else message('Player paused by operator; no further gameplay inputs.');
+      message(`SUPERVISOR REQUIRED [${attention.id}]: ${reason}\nEvidence: ${attention.path}\nNo further gameplay actions until explicit resume.`);
+    } else message('Player paused by operator; no further gameplay actions.');
     if (after) lastState = after;
     record({ type: 'paused', error: reason, attention });
   } finally {
     saveMetrics();
-    await gateway.call({ op: 'pad-neutral' }).catch(() => {});
     active = false;
     emit({ type: 'agent_settled' });
   }
 }
 
 if (process.argv.includes('--smoke')) {
-  const state = { state_type: 'event', run: { act: 1, floor: 1 }, player: { hp: 80 }, ui: { sensor_version: SENSOR_VERSION } };
+  const state = { state_type: 'event', run: { act: 1, floor: 1 }, player: { hp: 80 }, build: { game: 'smoke', mod: 'smoke' } };
   const plan = await planner.ask({ role: 'strategist', prompt: ROLES.strategist.prompt, stream: true, context: { task: 'Smoke test: choose a standalone wait action. No game is connected.', observation_id: stateId(state), state } });
   validatePlan(plan, state, { role: 'strategist' });
   console.log(JSON.stringify({ smoke: 'passed', model: PROFILE.model, reasoning: PROFILE.reasoning, roles: Object.keys(ROLES), plan }));
@@ -690,12 +647,12 @@ if (process.argv.includes('--smoke')) {
         saveMetrics();
         if (!active) void run(taskText);
       } else if (command.type === 'abort') {
-        controller?.abort();
+        abortRun?.abort();
         await planner.abort();
         emit({ type: 'response', id: command.id, command: command.type, success: true });
       } else throw new Error('unsupported RPC command');
     } catch (error) { emit({ type: 'response', id: command?.id, command: command?.type, success: false, error: error.message }); }
   });
-  input.on('close', () => { controller?.abort(); void planner.abort(); });
-  process.on('SIGTERM', () => { controller?.abort(); void planner.abort(); });
+  input.on('close', () => { abortRun?.abort(); void planner.abort(); });
+  process.on('SIGTERM', () => { abortRun?.abort(); void planner.abort(); });
 }

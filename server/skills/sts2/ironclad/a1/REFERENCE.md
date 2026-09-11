@@ -48,6 +48,6 @@ its exact URL and any uncertainty.
 The wiki pages are community-maintained and can disagree with the installed
 build or with beta data. Record both values and the precise source when they
 differ. Never turn a source prediction into an intent, hidden event outcome or
-controller fact. Wiki Notes/Interactions are retained as `[wiki-driven]`
+semantic-action fact. Wiki Notes/Interactions are retained as `[wiki-driven]`
 observations and linked to the exact page; they are evidence, while any local
 decision criterion is an explicitly labeled hypothesis.

@@ -18,7 +18,7 @@ room.lobbyId = 'preserve-lobby';
 room.roomContainer = 'preserve-game';
 room.sessionId = 'preserve-observer';
 room.lastState = { floor: 8, hp: 52 };
-room.padHistory = [{ button: 'a' }];
+room.actionHistory = [{ action: 'choose_map_node', params: { index: 1 } }];
 room.playerImage = 'fixture-image';
 room._loop = () => {};
 room._refreshCaches = () => { throw new Error('reload must not copy caches'); };
@@ -42,7 +42,7 @@ PiAgent.prototype.send = async function (command) {
 };
 PiAgent.prototype.prompt = async () => { prompts++; };
 PiAgent.prototype.stop = async function () { stopped++; this.status = 'stopped'; };
-const preserved = () => JSON.stringify([room.home, room.lobbyId, room.roomContainer, room.sessionId, room.lastState, room.padHistory, room.token]);
+const preserved = () => JSON.stringify([room.home, room.lobbyId, room.roomContainer, room.sessionId, room.lastState, room.actionHistory, room.token]);
 const before = preserved();
 try {
   room.agent.status = 'running';
@@ -57,7 +57,7 @@ try {
   assert.equal(prompts, 0);
   assert.equal(preserved(), before);
   assert.deepEqual(room.agent.transcript, transcript);
-  for (const operation of ['pad-press', 'pad-dpad', 'pad-stick', 'room-finish']) await assert.rejects(() => room.gatewayOp(operation, {}), error => error.code === 'supervisor_required');
+  for (const operation of ['sts2-action', 'room-finish']) await assert.rejects(() => room.gatewayOp(operation, {}), error => error.code === 'supervisor_required');
   await assert.rejects(() => room.resumePlayer({ issueId: 'wrong', message: 'review' }), /wrong issue/);
   assert.deepEqual(room.agent.transcript, transcript, 'a rejected review is not shown as accepted');
   assert.deepEqual(await room.resumePlayer({ issueId: 'fixture-issue', message: 'review' }), { ok: true });
@@ -102,7 +102,7 @@ try {
     assert.equal((await live.finishRun({ result: 'lost', summary: 'claimed' })).disputed, disputed);
   }
 
-  console.log(JSON.stringify({ result: 'passed', preserved: ['game', 'lobby', 'observer', 'home', 'pad history', 'last state', 'transcript'], verified: ['idle gate', 'checkpoint gate', 'restart lock', 'explicit resume', 'failed restore gate', 'fresh game re-read before disputing a loss'], gameInputs: 0 }));
+  console.log(JSON.stringify({ result: 'passed', preserved: ['game', 'lobby', 'observer', 'home', 'action history', 'last state', 'transcript'], verified: ['idle gate', 'checkpoint gate', 'restart lock', 'explicit resume', 'failed restore gate', 'fresh game re-read before disputing a loss'], gameActions: 0 }));
 } finally {
   for (const [key, value] of Object.entries(original)) PiAgent.prototype[key] = value;
 }

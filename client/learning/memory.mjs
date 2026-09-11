@@ -3,8 +3,8 @@ import path from 'node:path';
 import { VERSION, digest } from './state.mjs';
 
 export function compatibility(state, policyHash) {
-  if (!state.ui?.game_build || !state.ui?.mod_build) return null;
-  return { game: state.ui.game_build, mod: state.ui.mod_build, policy: policyHash };
+  if (!state.build?.game || !state.build?.mod) return null;
+  return { game: state.build.game, mod: state.build.mod, policy: policyHash };
 }
 
 export function acceptedLessons(seed, build) {

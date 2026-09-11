@@ -1,8 +1,6 @@
-// Minimal client for the Wolf (games-on-whales) HTTP API over its unix socket,
-// plus encoders for the Moonlight input packets Wolf accepts on
-// /api/v1/sessions/input. Only the parts steambench needs: lobbies (one game
-// room = one lobby), an "observer" stream session per room that carries the
-// agent's virtual Xbox pad and an MJPEG video consumer, and input injection.
+// Minimal client for the Wolf (games-on-whales) HTTP API over its unix socket.
+// The observer session carries video/audio and the virtual mouse used for Steam
+// QR interaction; gameplay actions go through STS2MCP.
 import http from 'node:http';
 import dgram from 'node:dgram';
 
@@ -16,23 +14,10 @@ export const NVIDIA_BUFFER_CAPS = 'video/x-raw(memory:CUDAMemory)';
 // Moonlight control protocol constants (see wolf src/moonlight-protocol/moonlight/control.hpp).
 const INPUT_DATA = 0x0206;
 const INPUT_TYPE = {
-  CONTROLLER_MULTI: 0x0000000c, CONTROLLER_ARRIVAL: 0x55000004,
   MOUSE_MOVE_ABS: 0x00000005, MOUSE_BUTTON_PRESS: 0x00000008, MOUSE_BUTTON_RELEASE: 0x00000009,
 };
 export const MOUSE_BUTTONS = { left: 1, middle: 2, right: 3 };
-export const XBOX_TYPE = 0x01;
-const CAP_ANALOG_TRIGGERS = 0x01;
-const CAP_RUMBLE = 0x02;
 const ZERO16 = new Array(16).fill(0);
-
-export const BUTTON_FLAGS = {
-  up: 0x0001, down: 0x0002, left: 0x0004, right: 0x0008,
-  start: 0x0010, back: 0x0020, ls: 0x0040, rs: 0x0080,
-  lb: 0x0100, rb: 0x0200, guide: 0x0400,
-  a: 0x1000, b: 0x2000, x: 0x4000, y: 0x8000,
-};
-export const BUTTON_NAMES = Object.keys(BUTTON_FLAGS);
-export const TRIGGER_NAMES = ['lt', 'rt'];
 
 function inputHeader(type, payloadLen) {
   const b = Buffer.alloc(12);
@@ -62,38 +47,6 @@ export function encodeMouseButton(button = 'left', press = true) {
   const p = Buffer.alloc(1);
   p.writeUInt8(MOUSE_BUTTONS[button] || 1, 0);
   return Buffer.concat([inputHeader(press ? INPUT_TYPE.MOUSE_BUTTON_PRESS : INPUT_TYPE.MOUSE_BUTTON_RELEASE, p.length), p]).toString('hex').toUpperCase();
-}
-
-export function encodeControllerArrival(controllerNumber = 0) {
-  const p = Buffer.alloc(7);
-  p.writeUInt8(controllerNumber, 0);
-  p.writeUInt8(XBOX_TYPE, 1);
-  p.writeUInt8(CAP_ANALOG_TRIGGERS | CAP_RUMBLE, 2);
-  p.writeUInt32LE(0x0000ffff, 3); // supported buttons: the standard Xbox set
-  return Buffer.concat([inputHeader(INPUT_TYPE.CONTROLLER_ARRIVAL, p.length), p]).toString('hex').toUpperCase();
-}
-
-/**
- * Full controller state. buttons: bitmask of BUTTON_FLAGS; lt/rt 0..255;
- * sticks -32768..32767 with Moonlight's convention (positive y = up).
- */
-export function encodeControllerState({ controllerNumber = 0, buttons = 0, lt = 0, rt = 0, lx = 0, ly = 0, rx = 0, ry = 0, mask } = {}) {
-  const p = Buffer.alloc(26);
-  p.writeInt16LE(0x1a, 0);                          // header_b
-  p.writeInt16LE(controllerNumber, 2);
-  p.writeInt16LE(mask === undefined ? 1 << controllerNumber : mask, 4); // active_gamepad_mask: keep this pad alive
-  p.writeInt16LE(0x14, 6);                          // mid_b
-  p.writeUInt16LE(buttons & 0xffff, 8);
-  p.writeUInt8(clamp(lt, 0, 255), 10);
-  p.writeUInt8(clamp(rt, 0, 255), 11);
-  p.writeInt16LE(clamp(lx, -32768, 32767), 12);
-  p.writeInt16LE(clamp(ly, -32768, 32767), 14);
-  p.writeInt16LE(clamp(rx, -32768, 32767), 16);
-  p.writeInt16LE(clamp(ry, -32768, 32767), 18);
-  p.writeInt16LE(0x9c, 20);                         // tail_a
-  p.writeInt16LE((buttons >>> 16) & 0xffff, 22);   // buttonFlags2
-  p.writeInt16LE(0x55, 24);                         // tailB
-  return Buffer.concat([inputHeader(INPUT_TYPE.CONTROLLER_MULTI, p.length), p]).toString('hex').toUpperCase();
 }
 
 function clamp(v, lo, hi) { v = Math.round(Number(v) || 0); return v < lo ? lo : v > hi ? hi : v; }
@@ -140,7 +93,7 @@ export class WolfClient {
       stop_when_everyone_leaves: stopWhenEveryoneLeaves,
       video_settings: { width, height, refresh_rate: fps, wayland_render_node: renderNode, runner_render_node: renderNode, video_producer_buffer_caps: bufferCaps },
       audio_settings: { channel_count: 2 },
-      client_settings: { run_uid: 1000, run_gid: 1000, controllers_override: ['XBOX'] },
+      client_settings: { run_uid: 1000, run_gid: 1000 },
       runner_state_folder: runnerStateFolder,
       runner,
     };
@@ -157,7 +110,6 @@ export class WolfClient {
     const body = {
       client_ip: '127.0.0.1', aes_key: '', aes_iv: '', rtsp_fake_ip: '127.0.0.1',
       video_width: width, video_height: height, video_refresh_rate: fps, audio_channel_count: 2,
-      client_settings: { run_uid: 1000, run_gid: 1000, controllers_override: ['XBOX'], mouse_acceleration: 1.0, v_scroll_acceleration: 1.0, h_scroll_acceleration: 1.0, motion_controller_override: 'AUTO' },
     };
     if (appId) body.app_id = appId;
     if (clientId) body.client_id = String(clientId);

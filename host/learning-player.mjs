@@ -25,7 +25,7 @@ function inspectionState(state) {
  * Newest timestamp in the room's event log, read from the tail so a multi-
  * megabyte log costs nothing. A quiet log means no decisions are landing: the
  * planner can legitimately spend a long time on one turn, but past `stall`
- * seconds nobody is driving the pad and the run needs an operator.
+ * seconds no decisions are completing and the run needs an operator.
  */
 function lastEventAt(room) {
   const file = path.join(root, '.runtime', 'wolf', 'rooms', room, 'skills', 'sts2', 'scratchpad', 'events.jsonl');
@@ -68,7 +68,7 @@ try {
       previous = key;
       // An operator-visible state outranks a quiet log: an incident pauses the
       // run deliberately, and a finished room is done. Only otherwise does a
-      // silent event log mean nobody is driving the pad.
+      // silent event log means the player is making no observable progress.
       if (status.attention) { process.exitCode = 2; break; }
       if (['finished', 'error', 'deleting'].includes(status.stage)) break;
       const at = lastEventAt(roomId);
@@ -85,7 +85,7 @@ try {
     if (!/^incidents\/\d+-\d+\/incident\.json$/.test(relative || '')) throw new Error('no valid pending incident');
     const file = path.join(root, '.runtime', 'wolf', 'rooms', roomId, 'skills', 'sts2', 'scratchpad', relative);
     const incident = JSON.parse(fs.readFileSync(file, 'utf8'));
-    console.log(JSON.stringify({ file, id: incident.id, error: incident.error, compatibility: incident.compatibility, plan: incident.plan, planner: incident.planner, lastResult: incident.lastResult, before: inspectionState(incident.before), after: inspectionState(incident.after), recentInputs: incident.recentInputs, sensorSnapshots: incident.recentSensors?.length, screenshots: ['before.jpg', 'after.jpg'].map(name => path.join(path.dirname(file), name)) }, null, 2));
+    console.log(JSON.stringify({ file, id: incident.id, error: incident.error, compatibility: incident.compatibility, plan: incident.plan, planner: incident.planner, lastResult: incident.lastResult, before: inspectionState(incident.before), after: inspectionState(incident.after), recentActions: incident.recentActions, sensorSnapshots: incident.recentSensors?.length, screenshots: ['before.jpg', 'after.jpg'].map(name => path.join(path.dirname(file), name)) }, null, 2));
   } else if (command === 'pause') console.log(JSON.stringify(await api('/abort', {})));
   else if (command === 'reload') console.log(JSON.stringify(await api('/player/restart', {})));
   else if (command === 'resume') {

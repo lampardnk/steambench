@@ -14,15 +14,9 @@ Read-only:
   read-log LABEL/PATH [LINES]
   read-output PID [FD] [--consume]
   windows
-  sts2-get PATH [KEY=VALUE...]        GET-only proxy to the STS2MCP mod API
+  sts2-get PATH [KEY=VALUE...]        Read from the STS2MCP mod API
+  sts2-action ACTION [KEY=JSON...]    Perform one allowlisted STS2MCP action
   screenshot [PID] [WIDTH] [--out FILE]
-  pad-status
-
-Virtual Xbox pad:
-  pad-press BUTTON [HOLD_MS]          a b x y lb rb back start guide ls rs lt rt
-  pad-stick left|right X Y [HOLD_MS]  X/Y in -1..1, negative Y is up
-  pad-dpad up|down|left|right [PRESSES] [INTERVAL_MS]
-  pad-neutral
 
 Window input (XSendEvent; ignored by the game, kept for other windows):
   window-key PID KEY [KEY...]
@@ -64,8 +58,6 @@ function requestFor(args) {
     case "list":
     case "log-files":
     case "windows":
-    case "pad-status":
-    case "pad-neutral":
       return { op };
     case "inspect":
       return { op, pid: integer(args.shift(), "PID") };
@@ -97,6 +89,19 @@ function requestFor(args) {
       }
       return { op, path: apiPath, query };
     }
+    case "sts2-action": {
+      const action = args.shift();
+      if (!action) throw new Error("sts2-action requires an ACTION");
+      const params = {};
+      for (const arg of args) {
+        const equals = arg.indexOf("=");
+        if (equals <= 0) throw new Error(`action arguments must be KEY=JSON, got ${arg}`);
+        const key = arg.slice(0, equals);
+        const raw = arg.slice(equals + 1);
+        try { params[key] = JSON.parse(raw); } catch { params[key] = raw; }
+      }
+      return { op, action, params };
+    }
     case "screenshot": {
       const request = { op };
       const outIndex = args.indexOf("--out");
@@ -107,24 +112,6 @@ function requestFor(args) {
       }
       if (args.length) request.pid = integer(args.shift(), "PID");
       if (args.length) request.width = integer(args.shift(), "WIDTH");
-      return request;
-    }
-    case "pad-press": {
-      const button = args.shift();
-      if (!button) throw new Error("pad-press requires a BUTTON");
-      const request = { op, button };
-      if (args.length) request.hold_ms = integer(args.shift(), "HOLD_MS");
-      return request;
-    }
-    case "pad-stick": {
-      const request = { op, stick: args.shift(), x: number(args.shift(), "X"), y: number(args.shift(), "Y") };
-      if (args.length) request.hold_ms = integer(args.shift(), "HOLD_MS");
-      return request;
-    }
-    case "pad-dpad": {
-      const request = { op, direction: args.shift() };
-      if (args.length) request.presses = integer(args.shift(), "PRESSES");
-      if (args.length) request.interval_ms = integer(args.shift(), "INTERVAL_MS");
       return request;
     }
     case "window-key": {

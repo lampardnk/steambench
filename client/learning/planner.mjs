@@ -41,8 +41,8 @@ export function parsePlanText(text) {
  * strictly worse than a plan that is merely good enough.
  *
  * Derived from the call's own deadline rather than a constant, because the
- * roles do not share one: the actuator gets 30 seconds, the handoff 45, and
- * the auxiliary roles half of the primary budget.
+ * roles do not share one: the handoff gets 45 seconds and auxiliary roles use
+ * half of the primary budget.
  */
 export function budgetNotice(deadlineMs) {
   const seconds = Math.round(deadlineMs / 1000);
@@ -58,11 +58,11 @@ export class Planner {
   /**
    * One model call with its own system prompt, in one member's lane.
    *
-   * Every role on the team - strategist, combat, actuator, curriculum, critic -
+   * Every role on the team - strategist, combat, curriculum, critic -
    * comes through here, so token usage is recorded the same way for all of them
    * and the dashboard can file each response under whoever produced it. `agent`
    * is the lane id, which for the encounter agents changes every fight while
-   * `role` stays 'combat'. `primary` marks the call that owns the pad-facing
+   * `role` stays 'combat'. `primary` marks the call that owns the game-facing
    * decision: it streams its thinking, keeps diagnostics for the incident
    * record, and is the one an operator abort interrupts.
    */

@@ -50,50 +50,13 @@ effect against the current deck, route, resource state and visible threats. A
 random generated card, upgrade, transform or Potion result is unknown until the
 screen shows it. Gold and Relics have their live item identity and effect.
 
-Use the card-selection contract in [CONTROLS.md](../controls/CONTROLS.md) for a
-choice screen. After collecting one row, re-read focus and the remaining rows.
-Offers, selected cards, prices, floors and outcomes from one seed belong in the
-scratchpad and do not form a durable lesson.
-
-## Two controls are labelled `Skip`, and only one of them skips
-
-The card screen and the reward list each draw a control called `Skip`. They are
-different controls with opposite meanings, and confusing them cost one run 363
-inputs and 86 minutes.
-
-- On the **reward list**, Skip is a `NProceedButton` bound to `y`, and it
-  resolves the list: the list closes and the run moves on to the map. It is
-  also the only way to leave the list, so leaving with a row still unclaimed
-  means leaving without it - the one run that did so kept its deck unchanged.
-- On the **card screen**, Skip is an `NCardRewardAlternativeButton` bound to `b`,
-  and its hotkeys are `ui_cancel` and `mega_pause_and_back`. It is a **Back**:
-  it puts the screen away and returns you to the list **without deciding
-  anything**. The row is still there and opening it offers the same three cards.
-
-The asymmetry is not visible in the state at all: both are labelled `Skip`, and
-`can_skip` is reported only by the card screen (`true`, all 285 times it was
-seen) - the reward list reports `can_proceed` and never mentions skipping. So
-neither field tells you which Skip you are looking at, and only the element and
-its binding do. Across every recorded run `b` was pressed on the card screen
-212 times and the reward survived all 212. On the run that stalled, the same
-three cards - Ashen Strike, Setup Strike, Thunderclap - came back six times in a
-row and were taken on the seventh visit, when the row did finally disappear and
-the deck grew by one. While the card screen is open its `y` Skip is drawn but
-**disabled**; `y` only works from the list.
-
-So the loop, and how to not be in it: open the row, read the three cards, press
-`b` meaning "decline", see the row still there, open it again. It never
-resolves, because `b` never decided anything. Two rules:
-
-- **Decide on the card screen, acting there.** Take a card by activating it, or
-  leave with `b` - but understand `b` has decided nothing, so do not reopen the
-  row expecting a different offer. The offer is fixed until a card is taken.
-- **To actually decline, press `y` on the reward list.** The list is the screen
-  that resolves the reward, and leaving it with the row unclaimed is a decline
-  in one press. Returning to the card screen for a second look is not.
-
-Reopening a row you have already read tells you nothing new: the same three
-cards come back. If you cannot choose between them, take the least-bad one.
+Copy a reward row's `semantic_id` into `claim_reward`; copy a card offer's
+`semantic_id` into `select_card_reward`. After every action, re-read the
+remaining rows. Use `skip_card_reward` only when `card_reward.can_skip` is true;
+use `proceed` only from the reward list when `rewards.can_proceed` is true.
+Reopening an unchanged card reward does not reroll its offer. Offers, selected
+cards, prices, floors and outcomes from one seed belong in the scratchpad and
+do not form a durable lesson.
 
 ## Ancient floors
 

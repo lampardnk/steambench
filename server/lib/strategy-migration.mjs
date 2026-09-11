@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const DIARY_PATH = /(?:^|[/_-])(?:floor|round|turn|decision|seed)-?\d/i;
-const destinations = { controls: 'controls', bestiary: 'act1/normal', pools: 'meta_strategy/map', problems: 'meta_strategy/playbook', strategy: 'meta_strategy/playbook', events: 'act1/unknown', setups: 'meta_strategy/deck_archetypes' };
+const destinations = { bestiary: 'act1/normal', pools: 'meta_strategy/map', problems: 'meta_strategy/playbook', strategy: 'meta_strategy/playbook', events: 'act1/unknown', setups: 'meta_strategy/deck_archetypes' };
 
 /** Versioned, additive migration. Removed paths cannot be seeded back by an old template. */
 export function migrateStrategy(root, skill) {
@@ -38,7 +38,7 @@ export function migrateStrategy(root, skill) {
       const [, area, ...rest] = relative.split('/');
       if (!destinations[area]) return;
       target = `ironclad/a1/${destinations[area]}/${rest.join('/').toLowerCase()}`;
-    } else if (relative.startsWith('controls/')) target = `ironclad/a1/controls/${path.basename(relative).toLowerCase()}`;
+    } else if (relative.startsWith('controls/')) return;
     else if (relative === 'wiki/BASICS.md') target = 'ironclad/a1/meta_strategy/mechanics/legacy-basics.md';
     else if (relative === 'wiki/CHARACTERS.md') target = 'characters/legacy-characters.md';
     else return; // old provider/tool scaffolding is intentionally retired
@@ -68,5 +68,5 @@ export function migrateStrategy(root, skill) {
     }
   };
   prune(base);
-  fs.writeFileSync(path.join(base, '.strategy-version'), '2\n');
+  fs.writeFileSync(path.join(base, '.strategy-version'), '3\n');
 }
