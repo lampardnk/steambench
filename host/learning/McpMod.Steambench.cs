@@ -88,13 +88,30 @@ public static partial class McpMod
         shop["can_close_inventory"] = back != null && inventory?.IsOpen == true;
     }
 
+    private static bool IsRenderedMapRoom()
+    {
+        var tree = Godot.Engine.GetMainLoop() as Godot.SceneTree;
+        var mapRoom = tree?.Root == null ? null : FindFirst<NMapRoom>(tree.Root);
+        return mapRoom is Godot.CanvasItem canvas && IsNodeVisible(canvas);
+    }
+
     private static void CorrectVisibleRoomState(Dictionary<string, object?> result, RunState? run)
     {
+        var room = run?.CurrentRoom;
+        if (run != null && (IsMapScreenOpenOrVisible() || IsRenderedMapRoom()))
+        {
+            result.Remove("event");
+            result.Remove("fake_merchant");
+            result.Remove("shop");
+            result.Remove("rest_site");
+            result.Remove("treasure");
+            result["state_type"] = "map";
+            result["map"] = BuildMapState(run);
+            return;
+        }
         var topOverlay = NOverlayStack.Instance?.Peek();
         if (topOverlay is Godot.CanvasItem overlay && IsNodeVisible(overlay))
             return;
-
-        var room = run?.CurrentRoom;
         if (room is EventRoom eventRoom && IsNodeVisible(NEventRoom.Instance))
         {
             result.Remove("map");

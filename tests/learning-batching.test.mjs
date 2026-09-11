@@ -134,6 +134,14 @@ test('semantic resolver covers every indexed noncombat surface', () => {
   assert.throws(() => validatePlan(plan({ state_type: 'shop', shop: { can_close_inventory: false } }, [{ type: 'shop_back' }]), { state_type: 'shop', shop: { can_close_inventory: false } }), /cannot be closed/);
   assert.doesNotThrow(() => validatePlan(plan({ state_type: 'shop', shop: { can_close_inventory: true } }, [{ type: 'shop_back' }]), { state_type: 'shop', shop: { can_close_inventory: true } }));
 });
+test('verified event proceed accepts the map state produced after a transition', async () => {
+  const initial = { state_type: 'event', event: { options: [{ index: 0, title: 'Proceed', is_proceed: true }] }, run: { act: 1, floor: 1 }, player: { hp: 80, energy: null, potions: [] }, build: { game: 'g', mod: 'm' } };
+  const f = fixture(initial, () => ({ state_type: 'map', map: { next_options: [{ index: 0, col: 0, row: 1 }] }, run: { act: 1, floor: 1 }, player: { hp: 80, energy: null, potions: [] }, build: { game: 'g', mod: 'm' } }));
+  const result = await f.executor.execute(plan(initial, [{ type: 'choose_event_option', option: semanticIdentity('event_option', initial.event.options[0]) }]), initial);
+  assert.equal(result.error, undefined);
+  assert.equal(result.state.state_type, 'map');
+  assert.equal(result.completed[0].verified, true);
+});
 
 test('validation excludes removed raw and handoff schemas', () => {
   const state = combat();
