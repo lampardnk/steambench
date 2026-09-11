@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Executor, resolveMcpAction } from '../client/learning/executor.mjs';
-import { compactState, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
+import { compactState, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
 
 const card = (instance_id, index, name = `Card ${instance_id}`, extra = {}) => ({ instance_id, index, id: name.toUpperCase().replaceAll(' ', '_'), name, cost: '1', target_type: 'None', can_play: true, description: 'Deal 6 damage.', ...extra });
 const enemy = (entity_id = 'JAW_WORM_0') => ({ entity_id, combat_id: 0, name: 'Jaw Worm', hp: 40, block: 0 });
@@ -37,6 +37,31 @@ test('re-reads before every POST and resolves shifted hand indices from stable i
   assert.deepEqual(f.posts.map(post => post.params.card_index), [0, 0]);
   assert.equal(result.completed.length, 2);
 });
+test('does not reject a later card when delayed discard state settles after the prior card', async () => {
+  const initial = combat([card(10, 0), card(11, 1)]);
+  let state = structuredClone(initial);
+  let reads = 0;
+  const posts = [];
+  const call = async request => {
+    if (request.op === 'sts2-get') {
+      reads++;
+      if (reads === 4) state = { ...state, player: { ...state.player, discard_pile: [card(10, 0)], discard_pile_count: 1 } };
+      return { body: JSON.stringify(state) };
+    }
+    if (request.op === 'sts2-action') {
+      posts.push(structuredClone(request));
+      const played = state.player.hand[request.params.card_index];
+      state = { ...state, player: { ...state.player, energy: state.player.energy - 1, hand: state.player.hand.filter(item => item.instance_id !== played.instance_id).map((item, index) => ({ ...item, index })) }, battle: { ...state.battle, enemies: state.battle.enemies.map(item => ({ ...item, hp: item.hp - 6 })) } };
+      return { acknowledgement: { status: 'ok' } };
+    }
+    throw new Error(`unexpected ${request.op}`);
+  };
+  const executor = new Executor({ call, verifyMs: 20, pollMs: 0 });
+  executor.sleep = async () => {};
+  const result = await executor.execute(plan(initial, [{ type: 'play_card', card: 10 }, { type: 'play_card', card: 11 }]), initial);
+  assert.equal(result.error, undefined);
+  assert.equal(posts.length, 2);
+});
 
 test('revalidates a later card against live playability before POST', async () => {
   const initial = combat([card(10, 0, 'Setup', { cost: '0' }), card(11, 1, 'Follow Up', { cost: '0' })]);
@@ -58,6 +83,40 @@ test('targeted cards carry the observed entity ID and changing targets stops the
   assert.equal(f.posts.length, 1);
   assert.equal(f.posts[0].params.target, 'JAW_WORM_0');
   assert.equal(result.completed[0].barrier, 'enemy targets changed');
+});
+
+test('still rejects a first action when state changes after the planner snapshot', async () => {
+  const initial = combat();
+  let reads = 0;
+  const posts = [];
+  const call = async request => {
+    if (request.op === 'sts2-get') {
+      reads++;
+      const state = reads === 2 ? { ...initial, player: { ...initial.player, energy: 2 } } : initial;
+      return { body: JSON.stringify(state) };
+    }
+    if (request.op === 'sts2-action') posts.push(request);
+    throw new Error(`unexpected ${request.op}`);
+  };
+  const executor = new Executor({ call, verifyMs: 20, pollMs: 0 });
+  executor.sleep = async () => {};
+  const result = await executor.execute(plan(initial, [{ type: 'end_turn' }]), initial);
+  assert.equal(result.code, 'stale_observation');
+  assert.equal(result.failedActionDispatched, false);
+  assert.equal(posts.length, 0);
+});
+
+test('repairs a mixed standalone combat plan without inventing an action', () => {
+  const initial = combat();
+  const invalid = plan(initial, [{ type: 'play_card', card: 10 }, { type: 'end_turn' }]);
+  const repaired = repairPlan(invalid, { role: 'combat' });
+  assert.deepEqual(repaired.actions, [{ type: 'play_card', card: 10 }]);
+  assert.doesNotThrow(() => validatePlan(repaired, initial, { role: 'combat' }));
+  assert.deepEqual(repairPlan({ ...invalid, actions: [{ type: 'end_turn' }, { type: 'play_card', card: 10 }] }, { role: 'combat' }).actions, [{ type: 'end_turn' }]);
+  const withNote = { ...invalid, actions: [{ type: 'play_card', card: 10 }, { type: 'end_turn' }, { type: 'learn', path: 'x.md', content: 'x', message: 'x' }] };
+  assert.deepEqual(repairPlan(withNote, { role: 'combat' }).actions, [{ type: 'play_card', card: 10 }, { type: 'learn', path: 'x.md', content: 'x', message: 'x' }]);
+  const standaloneWithNote = { ...invalid, actions: [{ type: 'end_turn' }, { type: 'learn', path: 'x.md', content: 'x', message: 'x' }] };
+  assert.equal(repairPlan(standaloneWithNote, { role: 'combat' }), standaloneWithNote);
 });
 
 test('potion use requires the overlay current-usability flag and an observed target', () => {

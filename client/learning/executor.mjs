@@ -147,6 +147,7 @@ export class Executor {
       return { completed: [], error: 'state changed while planning; no action dispatched', code: 'stale_observation', state, staleState: state, failedActionDispatched: false };
     }
     const completed = [];
+    let dispatchedInPlan = false;
     const note = plan.actions.length > 1 && plan.actions.at(-1).type === 'learn' ? plan.actions.at(-1) : null;
     const steps = note ? plan.actions.slice(0, -1) : plan.actions;
     for (const action of steps) {
@@ -165,7 +166,11 @@ export class Executor {
           continue;
         }
         const fresh = await this.observe();
-        if (planIdentity(fresh) !== planIdentity(before)) {
+        // The first gameplay dispatch must still match the planner's exact
+        // observation. Once a verified action has landed, STS2 may publish
+        // delayed discard/status fields; semantic validation against the fresh
+        // state below remains the guard for every later action.
+        if (!dispatchedInPlan && planIdentity(fresh) !== planIdentity(before)) {
           const error = new Error('state changed immediately before dispatch; no action sent');
           error.code = 'stale_observation';
           throw error;
@@ -178,6 +183,7 @@ export class Executor {
         const wire = resolveMcpAction(action, fresh);
         this.signal?.throwIfAborted();
         this.actions++;
+        dispatchedInPlan = true;
         this.record({ type: 'action_dispatch', request: { op: 'sts2-action', ...wire } });
         acknowledgement = await this.call({ op: 'sts2-action', ...wire });
         state = await this.verify(action, fresh);

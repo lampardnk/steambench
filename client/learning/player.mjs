@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
@@ -432,7 +432,10 @@ async function run(task) {
       try {
         roster.count(lane);
         emit({ type: 'message_start', agent: lane });
-        source = validatePlan(await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true }), state, { role });
+        const proposed = await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true });
+        const repaired = repairPlan(proposed, { role });
+        if (repaired !== proposed) record({ type: 'planner_repair', agent: lane, originalActions: proposed.actions, repairedActions: repaired.actions });
+        source = validatePlan(repaired, state, { role });
         plan = source;
       }
       catch (error) {

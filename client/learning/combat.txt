@@ -8,7 +8,8 @@ note is required and <=1200 characters. summary <=300, strategy <=1200, lesson <
 
 COMBAT ACTIONS:
 - {"type":"play_card","card":12345,"target":"ENEMY_ENTITY_ID"} — card is the observed hand instance_id, never a hand index or name. Target is a living enemy entity_id; omit it for self/all/no-target cards. Several deterministic plays may share one plan. The runtime re-reads and resolves the current card_index before every POST.
-- {"type":"use_potion","slot":1,"target":"ENEMY_ENTITY_ID"}; {"type":"discard_potion","slot":1} — standalone mutation. Omit target unless required.
+- {"type":"end_turn"} is a hard standalone barrier: if you choose it, the entire actions array must contain exactly that one action. Never return play_card, use_potion, or any other gameplay action alongside end_turn. Play cards first in one plan, then let the next fresh observation choose end_turn.
+- Standalone use_potion, discard_potion, selection, and overlay actions follow the same rule: they must be the only gameplay action in the plan.
 - {"type":"end_turn"} — standalone and verified through the next actionable state.
 - {"type":"combat_select_card","card":12345} — observed hand_select.cards instance_id, standalone; follow with combat_confirm_selection only after fresh state.
 - {"type":"combat_confirm_selection"}.
