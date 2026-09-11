@@ -130,9 +130,14 @@ export function plannerResult(result) {
 
 const MOMENT_IN_PATH = /(?:^|[/_-])(?:floor|round|turn|decision|seed)-?\d/;
 const OUT_OF_BUDGET = /exceeded [\d.]+-second deadline|stop reason length|empty \w+ response/;
+const STANDALONE_PLAN = /must be the only gameplay action in its plan/;
 const TRANSIENT_UPSTREAM = /\b(?:429|50[0234])\b|rate[ _-]?limit|temporarily busy|overloaded|try again shortly|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i;
 export function transientUpstream(message) { return TRANSIENT_UPSTREAM.test(message || ''); }
-export function plannerGuidance(message) { return OUT_OF_BUDGET.test(message || '') ? 'The previous response ran out of budget before a plan arrived. No gameplay action was dispatched. Answer from the SAME observation with a concise valid plan, or report the issue when evidence is insufficient.' : 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.'; }
+export function plannerGuidance(message) {
+  if (OUT_OF_BUDGET.test(message || '')) return 'The previous response ran out of budget before a plan arrived. No gameplay action was dispatched. Answer from the SAME observation with a concise valid plan, or report the issue when evidence is insufficient.';
+  if (STANDALONE_PLAN.test(message || '')) return 'A standalone gameplay action was combined with another gameplay action. Return either the deterministic card-play prefix only, or exactly one standalone action; never include end_turn with play_card or another mutation.';
+  return 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.';
+}
 export function noteProblem(action) {
   if (typeof action?.path !== 'string' || !/^[a-z0-9][a-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('//') || action.path.includes('..')) return 'learn.path must be a lowercase .md path inside the strategy guide';
   if (!/^(?:ironclad\/a1\/(?:debugging|meta_strategy|act[123])\/|characters\/|ascension\/)/.test(action.path)) return 'use the strategy guide hierarchy; scratchpad and objective history are not strategy';
@@ -165,6 +170,21 @@ export const ROLE_ACTIONS = {
   combat: new Set(['play_card', 'use_potion', 'discard_potion', 'end_turn', 'combat_select_card', 'combat_confirm_selection', 'select_card', 'confirm_selection', 'cancel_selection', ...COMMON]),
 };
 const standalone = new Set([...GAME_ACTIONS].filter(type => type !== 'play_card'));
+export function repairPlan(plan, { role = null } = {}) {
+  if (role !== 'combat' || !Array.isArray(plan?.actions)) return plan;
+  const gameplay = plan.actions.filter(action => GAME_ACTIONS.has(action?.type));
+  if (gameplay.length <= 1) return plan;
+  const standaloneIndex = plan.actions.findIndex(action => standalone.has(action?.type));
+  if (standaloneIndex < 0) return plan;
+  const standaloneAction = plan.actions[standaloneIndex];
+  const prefix = plan.actions.slice(0, standaloneIndex);
+  const notes = plan.actions.slice(standaloneIndex + 1).filter(action => action?.type === 'learn');
+  if (notes.some((note, index) => plan.actions.indexOf(note) !== plan.actions.length - notes.length + index)) return plan;
+  if (standaloneIndex === 0) return { ...plan, actions: [standaloneAction, ...notes] };
+  if (prefix.some(action => action?.type !== 'play_card')) return plan;
+  return { ...plan, actions: [...prefix, ...notes] };
+}
+
 const integer = (value, name) => { if (!Number.isInteger(value) || value < 0) throw new Error(`${name} must be a non-negative observed index`); };
 const string = (value, name) => { if (typeof value !== 'string' || !value.trim() || value.length > 160) throw new Error(`${name} must be a non-empty string of at most 160 characters`); };
 const present = (items, value, field) => Array.isArray(items) && items.some(item => item?.[field] === value);

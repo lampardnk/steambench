@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Executor, resolveMcpAction } from '../client/learning/executor.mjs';
-import { compactState, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
+import { compactState, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
 
 const card = (instance_id, index, name = `Card ${instance_id}`, extra = {}) => ({ instance_id, index, id: name.toUpperCase().replaceAll(' ', '_'), name, cost: '1', target_type: 'None', can_play: true, description: 'Deal 6 damage.', ...extra });
 const enemy = (entity_id = 'JAW_WORM_0') => ({ entity_id, combat_id: 0, name: 'Jaw Worm', hp: 40, block: 0 });
@@ -104,6 +104,19 @@ test('still rejects a first action when state changes after the planner snapshot
   assert.equal(result.code, 'stale_observation');
   assert.equal(result.failedActionDispatched, false);
   assert.equal(posts.length, 0);
+});
+
+test('repairs a mixed standalone combat plan without inventing an action', () => {
+  const initial = combat();
+  const invalid = plan(initial, [{ type: 'play_card', card: 10 }, { type: 'end_turn' }]);
+  const repaired = repairPlan(invalid, { role: 'combat' });
+  assert.deepEqual(repaired.actions, [{ type: 'play_card', card: 10 }]);
+  assert.doesNotThrow(() => validatePlan(repaired, initial, { role: 'combat' }));
+  assert.deepEqual(repairPlan({ ...invalid, actions: [{ type: 'end_turn' }, { type: 'play_card', card: 10 }] }, { role: 'combat' }).actions, [{ type: 'end_turn' }]);
+  const withNote = { ...invalid, actions: [{ type: 'play_card', card: 10 }, { type: 'end_turn' }, { type: 'learn', path: 'x.md', content: 'x', message: 'x' }] };
+  assert.deepEqual(repairPlan(withNote, { role: 'combat' }).actions, [{ type: 'play_card', card: 10 }, { type: 'learn', path: 'x.md', content: 'x', message: 'x' }]);
+  const standaloneWithNote = { ...invalid, actions: [{ type: 'end_turn' }, { type: 'learn', path: 'x.md', content: 'x', message: 'x' }] };
+  assert.equal(repairPlan(standaloneWithNote, { role: 'combat' }), standaloneWithNote);
 });
 
 test('potion use requires the overlay current-usability flag and an observed target', () => {

@@ -64,6 +64,7 @@ for (const failure of ['decision exceeded 120-second deadline', 'empty decision 
   assert.match(guidance, /ran out of budget/);
   assert.match(guidance, /SAME observation/);
 }
+assert.match(plannerGuidance('end_turn must be the only gameplay action in its plan'), /never include end_turn with play_card/);
 const preamble = 'Use the stable card identity from the observation.\n\n'
   + '{"observation":"957a44e9adc4b2de","summary":"Play Strike.","actions":[{"type":"play_card","card":83}]}';
 assert.equal(parsePlanText(preamble).actions[0].type, 'play_card');
