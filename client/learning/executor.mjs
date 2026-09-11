@@ -33,6 +33,7 @@ export function resolveMcpAction(action, state) {
     case 'choose_event_option': return { action: action.type, params: { index: itemIndex(state.event?.options, action.option, item => semanticIdentity('event_option', item) === action.option) } };
     case 'choose_rest_option': return { action: action.type, params: { index: itemIndex(state.rest_site?.options, action.option, item => semanticIdentity('rest', item) === action.option) } };
     case 'shop_purchase': { const items = state.shop?.items || state.fake_merchant?.shop?.items; return { action: action.type, params: { index: itemIndex(items, action.item, item => semanticIdentity('shop_item', item) === action.item) } }; }
+    case 'shop_back': return { action: action.type, params: {} };
     case 'choose_map_node': return { action: action.type, params: { index: itemIndex(state.map?.next_options, action.node, item => semanticIdentity('map', item) === action.node) } };
     case 'select_card': return { action: action.type, params: { index: itemIndex(state.card_select?.cards, action.card, item => semanticIdentity('card', item) === action.card) } };
     case 'select_bundle': return { action: action.type, params: { index: itemIndex(state.bundle_select?.bundles, action.bundle, item => semanticIdentity('bundle', item) === action.bundle) } };

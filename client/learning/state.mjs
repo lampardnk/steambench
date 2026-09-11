@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { PROFILE } from './profile.mjs';
 
 export const VERSION = PROFILE.checkpointVersion;
-export const SENSOR_VERSION = 7;
+export const SENSOR_VERSION = 8;
 export const digest = value => crypto.createHash('sha256').update(JSON.stringify(value) ?? 'null').digest('hex').slice(0, 16);
 
 const contentIdentity = value => {
@@ -144,13 +144,13 @@ export function noteProblem(action) {
 }
 export function energyCost(cost) { const value = typeof cost === 'string' && /^\d+$/.test(cost.trim()) ? Number(cost) : cost; return Number.isInteger(value) && value >= 0 ? value : null; }
 
-export const GAME_ACTIONS = new Set(['menu_select', 'play_card', 'use_potion', 'discard_potion', 'end_turn', 'combat_select_card', 'combat_confirm_selection', 'claim_reward', 'select_card_reward', 'skip_card_reward', 'proceed', 'choose_event_option', 'advance_dialogue', 'choose_rest_option', 'shop_purchase', 'choose_map_node', 'select_card', 'confirm_selection', 'cancel_selection', 'select_bundle', 'confirm_bundle_selection', 'cancel_bundle_selection', 'select_relic', 'skip_relic_selection', 'claim_treasure_relic', 'crystal_sphere_set_tool', 'crystal_sphere_click_cell', 'crystal_sphere_proceed']);
+export const GAME_ACTIONS = new Set(['menu_select', 'play_card', 'use_potion', 'discard_potion', 'end_turn', 'combat_select_card', 'combat_confirm_selection', 'claim_reward', 'select_card_reward', 'skip_card_reward', 'proceed', 'shop_back', 'choose_event_option', 'advance_dialogue', 'choose_rest_option', 'shop_purchase', 'choose_map_node', 'select_card', 'confirm_selection', 'cancel_selection', 'select_bundle', 'confirm_bundle_selection', 'cancel_bundle_selection', 'select_relic', 'skip_relic_selection', 'claim_treasure_relic', 'crystal_sphere_set_tool', 'crystal_sphere_click_cell', 'crystal_sphere_proceed']);
 const COMMON = ['learn', 'recall', 'research', 'lookup', 'wait', 'report_issue'];
 const PLAN_ACTION_FIELDS = Object.freeze({
   menu_select: ['type', 'option', 'seed'], play_card: ['type', 'card', 'target'],
   use_potion: ['type', 'slot', 'target'], discard_potion: ['type', 'slot'], end_turn: ['type'],
   combat_select_card: ['type', 'card'], combat_confirm_selection: ['type'],
-  claim_reward: ['type', 'reward'], select_card_reward: ['type', 'card'], skip_card_reward: ['type'], proceed: ['type'],
+  claim_reward: ['type', 'reward'], select_card_reward: ['type', 'card'], skip_card_reward: ['type'], proceed: ['type'], shop_back: ['type'],
   choose_event_option: ['type', 'option'], advance_dialogue: ['type'], choose_rest_option: ['type', 'option'],
   shop_purchase: ['type', 'item'], choose_map_node: ['type', 'node'], select_card: ['type', 'card'],
   confirm_selection: ['type'], cancel_selection: ['type'], select_bundle: ['type', 'bundle'],
@@ -221,6 +221,7 @@ export function validatePlan(plan, state, { role = null } = {}) {
     else if (action.type === 'select_card_reward') { string(action.card, 'select_card_reward.card'); if (!(state.card_reward?.cards || []).some(item => semanticIdentity('card_reward', item) === action.card)) throw new Error('unknown card reward'); }
     else if (action.type === 'skip_card_reward' && state.card_reward?.can_skip !== true) throw new Error('card reward cannot be skipped');
     else if (action.type === 'proceed') { const screen = state.rewards || state.rest_site || state.shop || state.fake_merchant?.shop || state.treasure; if (screen?.can_proceed !== true) throw new Error('cannot proceed from the current state'); }
+    else if (action.type === 'shop_back') { const screen = state.shop || state.fake_merchant?.shop; if (screen?.can_close_inventory !== true) throw new Error('shop inventory cannot be closed from the current state'); }
     else if (action.type === 'choose_event_option') { string(action.option, 'choose_event_option.option'); const option = (state.event?.options || []).find(item => semanticIdentity('event_option', item) === action.option); if (!option) throw new Error('unknown event option'); if (option.is_locked) throw new Error('event option is locked'); }
     else if (action.type === 'advance_dialogue' && state.event?.in_dialogue !== true) throw new Error('event dialogue is not active');
     else if (action.type === 'choose_rest_option') { string(action.option, 'choose_rest_option.option'); const option = (state.rest_site?.options || []).find(item => semanticIdentity('rest', item) === action.option); if (!option) throw new Error('unknown rest option'); if (option.is_enabled === false) throw new Error('rest option is disabled'); }

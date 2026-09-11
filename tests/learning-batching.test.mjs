@@ -130,6 +130,9 @@ test('semantic resolver covers every indexed noncombat surface', () => {
     [{ type: 'claim_treasure_relic', relic: semanticIdentity('relic', state.treasure.relics[0]) }, 'index', 2],
   ];
   for (const [action, key, index] of cases) assert.equal(resolveMcpAction(action, state).params[key], index, action.type);
+  assert.deepEqual(resolveMcpAction({ type: 'shop_back' }, { shop: { can_close_inventory: true } }), { action: 'shop_back', params: {} });
+  assert.throws(() => validatePlan(plan({ state_type: 'shop', shop: { can_close_inventory: false } }, [{ type: 'shop_back' }]), { state_type: 'shop', shop: { can_close_inventory: false } }), /cannot be closed/);
+  assert.doesNotThrow(() => validatePlan(plan({ state_type: 'shop', shop: { can_close_inventory: true } }, [{ type: 'shop_back' }]), { state_type: 'shop', shop: { can_close_inventory: true } }));
 });
 
 test('validation excludes removed raw and handoff schemas', () => {

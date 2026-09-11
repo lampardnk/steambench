@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Context;
@@ -9,19 +10,149 @@ using MegaCrit.Sts2.Core.Entities.Potions;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using MegaCrit.Sts2.Core.Nodes.Events.Custom;
+using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 using MegaCrit.Sts2.Core.Nodes.Screens.CardSelection;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.Overlays;
+using MegaCrit.Sts2.Core.Nodes.Screens.Shops;
+using MegaCrit.Sts2.Core.Models.Events;
+using MegaCrit.Sts2.Core.Nodes.RestSite;
+using MegaCrit.Sts2.Core.Nodes.Screens.TreasureRoomRelic;
+using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
-
+using Godot;
 namespace STS2_MCP;
 
-// Steambench adds only structured identities and build metadata needed to make
-// semantic actions stale-safe. It deliberately exposes no navigation graph,
-// hotkeys, bindings, or input-device state.
+// Steambench adds structured identities, semantic rescue controls and build
+// metadata needed to make actions stale-safe. It deliberately exposes no
+// navigation graph, hotkeys, bindings, or input-device state.
 public static partial class McpMod
 {
+    private static Dictionary<string, object?> ShopBack()
+    {
+        var regular = NMerchantRoom.Instance;
+        if (regular != null)
+        {
+            var back = FindAll<NBackButton>(regular).FirstOrDefault(IsControlVisibleOrActionable);
+            if (back != null)
+            {
+                back.ForceClick();
+                return new Dictionary<string, object?> { ["status"] = "ok", ["message"] = "Closing shop inventory" };
+            }
+        }
+
+        var events = NEventRoom.Instance;
+        var fakeMerchant = events == null ? null : FindFirst<NFakeMerchant>(events);
+        if (fakeMerchant != null)
+        {
+            var back = FindAll<NBackButton>(fakeMerchant).FirstOrDefault(IsControlVisibleOrActionable);
+            if (back != null)
+            {
+                back.ForceClick();
+                return new Dictionary<string, object?> { ["status"] = "ok", ["message"] = "Closing fake-merchant inventory" };
+            }
+        }
+
+        return Error("No enabled shop back button is visible; use proceed when the shop reports can_proceed");
+    }
+
+    private static void AddShopNavigationState(Dictionary<string, object?> result)
+    {
+        if (result.TryGetValue("shop", out var shopObject)
+            && shopObject is Dictionary<string, object?> shop)
+        {
+            AddShopNavigationState(shop, NMerchantRoom.Instance);
+        }
+        else if (result.TryGetValue("fake_merchant", out var fakeObject)
+                 && fakeObject is Dictionary<string, object?> fake
+                 && fake.TryGetValue("shop", out var fakeShopObject)
+                 && fakeShopObject is Dictionary<string, object?> fakeShop)
+        {
+            AddShopNavigationState(fakeShop, NEventRoom.Instance == null ? null : FindFirst<NFakeMerchant>(NEventRoom.Instance));
+        }
+    }
+
+    private static void AddShopNavigationState(Dictionary<string, object?> shop, Node? owner)
+    {
+        var back = owner == null ? null : FindAll<NBackButton>(owner).FirstOrDefault(IsControlVisibleOrActionable);
+        var inventory = owner switch
+        {
+            NMerchantRoom merchant => merchant.Inventory,
+            NFakeMerchant fake => FindFirst<NMerchantInventory>(fake),
+            _ => null
+        };
+        shop["inventory_open"] = inventory?.IsOpen == true;
+        shop["can_close_inventory"] = back != null && inventory?.IsOpen == true;
+    }
+
+    private static void CorrectVisibleRoomState(Dictionary<string, object?> result, RunState? run)
+    {
+        var topOverlay = NOverlayStack.Instance?.Peek();
+        if (topOverlay is Godot.CanvasItem overlay && IsNodeVisible(overlay))
+            return;
+
+        var room = run?.CurrentRoom;
+        if (room is EventRoom eventRoom && IsNodeVisible(NEventRoom.Instance))
+        {
+            result.Remove("map");
+            result.Remove("shop");
+            result["state_type"] = eventRoom.CanonicalEvent is FakeMerchant ? "fake_merchant" : "event";
+            if (eventRoom.CanonicalEvent is FakeMerchant)
+            {
+                result["fake_merchant"] = BuildFakeMerchantState(eventRoom, run!);
+                result.Remove("event");
+            }
+            else
+            {
+                result["event"] = BuildEventState(eventRoom, run!);
+                result.Remove("fake_merchant");
+            }
+        }
+        else if (room is MerchantRoom merchantRoom && IsNodeVisible(NMerchantRoom.Instance))
+        {
+            result.Remove("map");
+            result.Remove("event");
+            result.Remove("fake_merchant");
+            result["state_type"] = "shop";
+            result["shop"] = BuildShopState(merchantRoom, run!);
+        }
+        else if (room is RestSiteRoom restSiteRoom && IsNodeVisible(NRestSiteRoom.Instance))
+        {
+            result.Remove("map");
+            result.Remove("event");
+            result.Remove("fake_merchant");
+            result["state_type"] = "rest_site";
+            result["rest_site"] = BuildRestSiteState(restSiteRoom, run!);
+        }
+        else if (room is TreasureRoom treasureRoom)
+        {
+            var treasure = FindFirst<NTreasureRoom>(((Godot.SceneTree)Godot.Engine.GetMainLoop()).Root);
+            if (treasure != null && IsNodeVisible(treasure))
+            {
+                result.Remove("map");
+                result.Remove("event");
+                result.Remove("fake_merchant");
+                result["state_type"] = "treasure";
+                result["treasure"] = BuildTreasureState(treasureRoom, run!);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(McpMod), "ExecuteAction")]
+    private static class SteambenchActionPatch
+    {
+        private static bool Prefix(string action, Dictionary<string, JsonElement> data, ref Dictionary<string, object?> __result)
+        {
+            if (!string.Equals(action, "shop_back", StringComparison.Ordinal))
+                return true;
+            __result = ShopBack();
+            return false;
+        }
+    }
+
     private sealed class ObservedCardIdentity
     {
         public int Value { get; } = ++_nextObservedCard;
@@ -93,12 +224,14 @@ public static partial class McpMod
         {
             try
             {
-                __result["sensor_version"] = 7;
+                __result["sensor_version"] = 8;
+                var run = RunManager.Instance.DebugOnlyGetState();
+                CorrectVisibleRoomState(__result, run);
+                AddShopNavigationState(__result);
                 __result["build"] = new Dictionary<string, object?> {
                     ["game"] = typeof(CardModel).Module.ModuleVersionId.ToString(),
                     ["mod"] = typeof(McpMod).Module.ModuleVersionId.ToString()
                 };
-                var run = RunManager.Instance.DebugOnlyGetState();
                 var player = run == null ? null : LocalContext.GetMe(run);
                 if (player != null)
                 {
@@ -118,7 +251,9 @@ public static partial class McpMod
                 if (string.Equals(__result.GetValueOrDefault("menu_screen") as string, "character_select", StringComparison.Ordinal))
                 {
                     var tree = Godot.Engine.GetMainLoop() as Godot.SceneTree;
-                    var selected = tree?.Root == null ? null : FindAll<NCharacterSelectButton>(tree.Root)
+                    var charSelect = tree?.Root == null ? null : FindFirst<NCharacterSelectScreen>(tree.Root);
+                    var selected = charSelect == null ? null : GetInstanceFieldValue(charSelect, "_selectedButton") as NCharacterSelectButton;
+                    selected ??= tree?.Root == null ? null : FindAll<NCharacterSelectButton>(tree.Root)
                         .FirstOrDefault(button => button.IsSelected);
                     if (selected?.Character != null)
                         __result["selected_character"] = selected.Character.Id.Entry;
