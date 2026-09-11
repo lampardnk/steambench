@@ -74,6 +74,15 @@ export function compactState(value) {
 }
 
 export function stateId(state) { return digest(compactState(state)).slice(0, 8); }
+// Models occasionally expand the eight-character observation token into a UUID-like
+// value after copying the correct prefix. Keep validation strict, but repair only
+// that exact-current-prefix form; an unrelated or malformed prefix remains stale.
+export function repairObservation(plan, state) {
+  const expected = stateId(state);
+  const observed = String(plan?.observation ?? '').trim().toLowerCase();
+  if (observed === expected || !observed.startsWith(`${expected}-`) || !/^[0-9a-f?\.\-]+$/.test(observed.slice(expected.length + 1))) return plan;
+  return { ...plan, observation: expected };
+}
 export function progressId(state) { return digest(compactState(state)); }
 export function planIdentity(state) { return progressId(state); }
 export function mapId(state) { return state?.state_type === 'map' ? digest(state.map) : null; }
@@ -134,6 +143,7 @@ const STANDALONE_PLAN = /must be the only gameplay action in its plan/;
 const TRANSIENT_UPSTREAM = /\b(?:429|50[0234])\b|rate[ _-]?limit|temporarily busy|overloaded|try again shortly|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i;
 export function transientUpstream(message) { return TRANSIENT_UPSTREAM.test(message || ''); }
 export function plannerGuidance(message) {
+  if (/stale or missing observation ID/i.test(message || '')) return 'The observation token was missing, stale, or malformed. Copy the exact 8-character lowercase observation_id into the observation field with no UUID suffix or punctuation. No gameplay action was dispatched; answer from the SAME observation, or report the issue when evidence is insufficient.';
   if (OUT_OF_BUDGET.test(message || '')) return 'The previous response ran out of budget before a plan arrived. No gameplay action was dispatched. Answer from the SAME observation with a concise valid plan, or report the issue when evidence is insufficient.';
   if (STANDALONE_PLAN.test(message || '')) return 'A standalone gameplay action was combined with another gameplay action. Return either the deterministic card-play prefix only, or exactly one standalone action; never include end_turn with play_card or another mutation.';
   return 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.';
