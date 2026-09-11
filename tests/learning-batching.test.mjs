@@ -119,6 +119,62 @@ test('repairs a mixed standalone combat plan without inventing an action', () =>
   assert.equal(repairPlan(standaloneWithNote, { role: 'combat' }), standaloneWithNote);
 });
 
+test('executes a five-base-energy line when a prior attack discounts the next one', async () => {
+  const initial = combat([
+    card(10, 0, 'Unrelenting', { cost: '2', target_type: 'AnyEnemy', description: 'Deal 14 damage. The next Attack you play costs 0.' }),
+    card(11, 1, 'Bash', { cost: '2', target_type: 'AnyEnemy' }),
+    card(12, 2, 'Strike', { cost: '1', target_type: 'AnyEnemy' }),
+  ]);
+  const f = fixture(initial, (state, request) => {
+    const played = state.player.hand[request.params.card_index];
+    const energy = played.instance_id === 10 ? 2 : played.instance_id === 11 ? 0 : 1;
+    return {
+      ...state,
+      player: {
+        ...state.player,
+        energy: state.player.energy - energy,
+        hand: state.player.hand.filter(item => item.instance_id !== played.instance_id).map((item, index) => ({
+          ...item,
+          index,
+          ...(played.instance_id === 10 && item.instance_id === 11 ? { cost: '0' } : {}),
+        })),
+      },
+      battle: { ...state.battle, enemies: state.battle.enemies.map(item => ({ ...item, hp: item.hp - 6 })) },
+    };
+  });
+  const result = await f.executor.execute(plan(initial, [
+    { type: 'play_card', card: 10, target: 'JAW_WORM_0' },
+    { type: 'play_card', card: 11, target: 'JAW_WORM_0' },
+    { type: 'play_card', card: 12, target: 'JAW_WORM_0' },
+  ]), initial);
+  assert.equal(result.error, undefined);
+  assert.equal(result.completed.length, 3);
+  assert.equal(f.posts.length, 3);
+});
+
+test('refuses an unaffordable later card before its POST when no discount exists', async () => {
+  const initial = combat([
+    card(10, 0, 'Heavy Attack', { cost: '2', target_type: 'AnyEnemy' }),
+    card(11, 1, 'Second Heavy Attack', { cost: '2', target_type: 'AnyEnemy' }),
+  ]);
+  const f = fixture(initial, (state, request) => ({
+    ...state,
+    player: {
+      ...state.player,
+      energy: 1,
+      hand: state.player.hand.filter(item => item.instance_id !== request.params.card_index + 10).map((item, index) => ({ ...item, index, can_play: false })),
+    },
+  }));
+  const result = await f.executor.execute(plan(initial, [
+    { type: 'play_card', card: 10, target: 'JAW_WORM_0' },
+    { type: 'play_card', card: 11, target: 'JAW_WORM_0' },
+  ]), initial);
+  assert.equal(f.posts.length, 1);
+  assert.equal(result.completed.length, 1);
+  assert.equal(result.failedActionDispatched, false);
+  assert.match(result.error, /not currently playable/);
+});
+
 test('potion use requires the overlay current-usability flag and an observed target', () => {
   const state = combat();
   state.player.potions = [{ slot: 0, id: 'FIRE_POTION', name: 'Fire Potion', target_type: 'AnyEnemy', can_use: false }];

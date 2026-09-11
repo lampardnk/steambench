@@ -196,12 +196,10 @@ export function validatePlan(plan, state, { role = null } = {}) {
   const notes = plan.actions.filter(action => action?.type === 'learn');
   if (notes.length > 1 || (notes.length && plan.actions.at(-1)?.type !== 'learn')) throw new Error('one learned note may appear only as the final action');
   const gameplay = plan.actions.filter(action => GAME_ACTIONS.has(action?.type));
-  const plays = plan.actions.filter(action => action?.type === 'play_card');
-  const costs = plays.map(action => energyCost(state.player?.hand?.find(card => card.instance_id === action.card)?.cost));
-  if (plays.length && costs.every(cost => cost !== null) && Number.isInteger(state.player?.energy)) {
-    const total = costs.reduce((sum, cost) => sum + cost, 0);
-    if (total > state.player.energy) throw new Error(`plan spends ${total} energy and the turn has ${state.player.energy}`);
-  }
+  // Printed card costs describe the base card, not necessarily the cost at
+  // resolution. Card effects can discount a later play or grant energy, while
+  // STS2's live can_play flag is authoritative for the exact current state.
+  // The executor revalidates every card immediately before its own POST.
   for (const action of plan.actions) {
     if (!action || typeof action !== 'object') throw new Error('invalid action');
     if (role && !ROLE_ACTIONS[role]?.has(action.type)) throw new Error(`the ${role} cannot use ${action.type}; its actions are ${[...(ROLE_ACTIONS[role] || [])].join(', ')}`);
