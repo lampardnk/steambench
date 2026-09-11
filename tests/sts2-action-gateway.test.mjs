@@ -10,7 +10,7 @@ import { STS2_ACTION_SCHEMAS, validateSts2Action } from '../server/lib/sts2-acti
 const valid = rule => rule.type === 'integer' ? rule.min : rule.type === 'enum' ? rule.values[0] : 'fixture';
 
 test('every STS2MCP action has an exact accepted parameter contract', () => {
-  assert.equal(Object.keys(STS2_ACTION_SCHEMAS).length, 28);
+  assert.equal(Object.keys(STS2_ACTION_SCHEMAS).length, 29);
   for (const [action, schema] of Object.entries(STS2_ACTION_SCHEMAS)) {
     const params = Object.fromEntries(Object.entries(schema).filter(([, rule]) => !rule.optional).map(([key, rule]) => [key, valid(rule)]));
     assert.deepEqual(validateSts2Action(action, params), params, action);
@@ -20,6 +20,10 @@ test('every STS2MCP action has an exact accepted parameter contract', () => {
   assert.throws(() => validateSts2Action('unknown', {}), /allowlisted/);
   assert.throws(() => validateSts2Action('play_card', { card_index: -1 }), /integer/);
   assert.throws(() => validateSts2Action('crystal_sphere_set_tool', { tool: 'medium' }), /one of/);
+});
+test('shop exit action has no parameters and rejects guessed input', () => {
+  assert.deepEqual(validateSts2Action('shop_back', {}), {});
+  assert.throws(() => validateSts2Action('shop_back', { index: 0 }), /not allowed/);
 });
 
 function room() {

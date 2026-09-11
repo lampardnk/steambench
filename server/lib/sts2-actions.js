@@ -17,6 +17,7 @@ export const STS2_ACTION_SCHEMAS = Object.freeze({
   select_card_reward: { card_index: INDEX },
   skip_card_reward: {},
   proceed: {},
+  shop_back: {},
   choose_event_option: { index: INDEX },
   advance_dialogue: {},
   choose_rest_option: { index: INDEX },
