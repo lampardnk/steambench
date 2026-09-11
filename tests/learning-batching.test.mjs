@@ -63,6 +63,56 @@ test('does not reject a later card when delayed discard state settles after the 
   assert.equal(posts.length, 2);
 });
 
+test('waits for a delayed next-attack discount before continuing a batch', async () => {
+  const initial = combat([
+    card(10, 0, 'Unrelenting', { cost: '2', target_type: 'AnyEnemy', description: 'Deal 14 damage. The next Attack you play costs 0.' }),
+    card(11, 1, 'Bash', { cost: '2', target_type: 'AnyEnemy' }),
+    card(12, 2, 'Strike', { cost: '1', target_type: 'AnyEnemy' }),
+  ]);
+  let state = structuredClone(initial);
+  let reads = 0;
+  const posts = [];
+  const call = async request => {
+    if (request.op === 'sts2-get') {
+      reads++;
+      if (reads === 4) {
+        state = {
+          ...state,
+          player: {
+            ...state.player,
+            hand: state.player.hand.map(item => item.instance_id === 11 ? { ...item, cost: '0', can_play: true } : item),
+          },
+        };
+      }
+      return { body: JSON.stringify(state) };
+    }
+    if (request.op === 'sts2-action') {
+      posts.push(structuredClone(request));
+      const played = state.player.hand[request.params.card_index];
+      const energy = played.instance_id === 10 ? 2 : played.instance_id === 11 ? 0 : 1;
+      let hand = state.player.hand.filter(item => item.instance_id !== played.instance_id).map((item, index) => ({ ...item, index }));
+      if (played.instance_id === 10) hand = hand.map(item => item.instance_id === 11 ? { ...item, can_play: false } : item);
+      state = {
+        ...state,
+        player: { ...state.player, energy: state.player.energy - energy, hand },
+        battle: { ...state.battle, enemies: state.battle.enemies.map(item => ({ ...item, hp: item.hp - 6 })) },
+      };
+      return { acknowledgement: { status: 'ok' } };
+    }
+    throw new Error(`unexpected ${request.op}`);
+  };
+  const executor = new Executor({ call, verifyMs: 20, pollMs: 0 });
+  executor.sleep = async () => {};
+  const result = await executor.execute(plan(initial, [
+    { type: 'play_card', card: 10, target: 'JAW_WORM_0' },
+    { type: 'play_card', card: 11, target: 'JAW_WORM_0' },
+    { type: 'play_card', card: 12, target: 'JAW_WORM_0' },
+  ]), initial);
+  assert.equal(result.error, undefined);
+  assert.equal(posts.length, 3);
+  assert.deepEqual(posts.map(post => post.params.card_index), [0, 0, 0]);
+});
+
 test('revalidates a later card against live playability before POST', async () => {
   const initial = combat([card(10, 0, 'Setup', { cost: '0' }), card(11, 1, 'Follow Up', { cost: '0' })]);
   const f = fixture(initial, state => ({

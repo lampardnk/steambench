@@ -77,6 +77,14 @@ function playBarrier(action, before, after) {
   return null;
 }
 
+function deferredPlayability(action, state) {
+  if (action.type !== 'play_card') return false;
+  const card = state.player?.hand?.find(item => item.instance_id === action.card);
+  return card?.can_play === false && card.unplayable_reason === 'EnergyCostTooHigh';
+}
+
+const DEFERRED_PLAYABILITY_MS = 1000;
+
 export class Executor {
   constructor({ call, record = () => {}, signal, skillDir = null, verifyMs = VERIFY_MS, pollMs = 150 }) { this.call = call; this.record = record; this.signal = signal; this.skillDir = skillDir; this.verifyMs = verifyMs; this.pollMs = pollMs; this.actions = 0; }
   async sleep(ms) {
@@ -172,7 +180,7 @@ export class Executor {
           else { await this.sleep(action.seconds * 1000); state = await this.quiesced(); completed.push({ action, verified: stateId(state) !== stateId(before) }); }
           continue;
         }
-        const fresh = await this.observe();
+        let fresh = await this.observe();
         // The first gameplay dispatch must still match the planner's exact
         // observation. Once a verified action has landed, STS2 may publish
         // delayed discard/status fields; semantic validation against the fresh
@@ -185,8 +193,21 @@ export class Executor {
         // Earlier verified actions may change energy, playability, targets, or
         // selection affordances. Re-run the semantic guard against the exact
         // state used for index resolution so a now-invalid later action is
-        // refused before its POST.
-        validatePlan({ observation: stateId(fresh), summary: plan.summary, actions: [action] }, fresh);
+        // refused before its POST. STS2 can briefly publish the energy
+        // deduction before a one-shot next-attack discount reaches the card;
+        // wait for that specific transient projection to settle.
+        try {
+          validatePlan({ observation: stateId(fresh), summary: plan.summary, actions: [action] }, fresh);
+        } catch (error) {
+          if (!dispatchedInPlan || !deferredPlayability(action, fresh)) throw error;
+          this.record({ type: 'deferred_playability_wait', action, reason: fresh.player.hand.find(item => item.instance_id === action.card)?.unplayable_reason });
+          const deadline = Date.now() + DEFERRED_PLAYABILITY_MS;
+          while (Date.now() < deadline && deferredPlayability(action, fresh)) {
+            await this.sleep(this.pollMs);
+            fresh = await this.observe();
+          }
+          validatePlan({ observation: stateId(fresh), summary: plan.summary, actions: [action] }, fresh);
+        }
         const wire = resolveMcpAction(action, fresh);
         this.signal?.throwIfAborted();
         this.actions++;
