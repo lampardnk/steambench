@@ -31,13 +31,19 @@ namespace STS2_MCP;
 // navigation graph, hotkeys, bindings, or input-device state.
 public static partial class McpMod
 {
+    private static NBackButton? FindShopBackButton(NMerchantInventory? inventory)
+    {
+        return inventory == null ? null : GetInstanceFieldValue(inventory, "_backButton") as NBackButton;
+    }
+
     private static Dictionary<string, object?> ShopBack()
     {
         var regular = NMerchantRoom.Instance;
         if (regular != null)
         {
-            var back = FindAll<NBackButton>(regular).FirstOrDefault(IsControlVisibleOrActionable);
-            if (back != null)
+            var inventory = regular.Inventory;
+            var back = FindShopBackButton(inventory);
+            if (back != null && IsControlVisibleOrActionable(back))
             {
                 back.ForceClick();
                 return new Dictionary<string, object?> { ["status"] = "ok", ["message"] = "Closing shop inventory" };
@@ -48,8 +54,9 @@ public static partial class McpMod
         var fakeMerchant = events == null ? null : FindFirst<NFakeMerchant>(events);
         if (fakeMerchant != null)
         {
-            var back = FindAll<NBackButton>(fakeMerchant).FirstOrDefault(IsControlVisibleOrActionable);
-            if (back != null)
+            var inventory = FindFirst<NMerchantInventory>(fakeMerchant);
+            var back = FindShopBackButton(inventory);
+            if (back != null && IsControlVisibleOrActionable(back))
             {
                 back.ForceClick();
                 return new Dictionary<string, object?> { ["status"] = "ok", ["message"] = "Closing fake-merchant inventory" };
@@ -64,28 +71,23 @@ public static partial class McpMod
         if (result.TryGetValue("shop", out var shopObject)
             && shopObject is Dictionary<string, object?> shop)
         {
-            AddShopNavigationState(shop, NMerchantRoom.Instance);
+            AddShopNavigationState(shop, NMerchantRoom.Instance?.Inventory);
         }
         else if (result.TryGetValue("fake_merchant", out var fakeObject)
                  && fakeObject is Dictionary<string, object?> fake
                  && fake.TryGetValue("shop", out var fakeShopObject)
                  && fakeShopObject is Dictionary<string, object?> fakeShop)
         {
-            AddShopNavigationState(fakeShop, NEventRoom.Instance == null ? null : FindFirst<NFakeMerchant>(NEventRoom.Instance));
+            var fakeMerchant = NEventRoom.Instance == null ? null : FindFirst<NFakeMerchant>(NEventRoom.Instance);
+            AddShopNavigationState(fakeShop, fakeMerchant == null ? null : FindFirst<NMerchantInventory>(fakeMerchant));
         }
     }
 
-    private static void AddShopNavigationState(Dictionary<string, object?> shop, Node? owner)
+    private static void AddShopNavigationState(Dictionary<string, object?> shop, NMerchantInventory? inventory)
     {
-        var back = owner == null ? null : FindAll<NBackButton>(owner).FirstOrDefault(IsControlVisibleOrActionable);
-        var inventory = owner switch
-        {
-            NMerchantRoom merchant => merchant.Inventory,
-            NFakeMerchant fake => FindFirst<NMerchantInventory>(fake),
-            _ => null
-        };
+        var back = FindShopBackButton(inventory);
         shop["inventory_open"] = inventory?.IsOpen == true;
-        shop["can_close_inventory"] = back != null && inventory?.IsOpen == true;
+        shop["can_close_inventory"] = back != null && IsControlVisibleOrActionable(back) && inventory?.IsOpen == true;
     }
 
     private static bool IsRenderedMapRoom()
