@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Executor, resolveMcpAction } from '../client/learning/executor.mjs';
-import { compactState, repairObservation, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
+import { compactState, hasVerifiedProgress, recoverableSuffixFailure, repairObservation, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
 
 const card = (instance_id, index, name = `Card ${instance_id}`, extra = {}) => ({ instance_id, index, id: name.toUpperCase().replaceAll(' ', '_'), name, cost: '1', target_type: 'None', can_play: true, description: 'Deal 6 damage.', ...extra });
 const enemy = (entity_id = 'JAW_WORM_0') => ({ entity_id, combat_id: 0, name: 'Jaw Worm', hp: 40, block: 0 });
@@ -113,17 +113,18 @@ test('waits for a delayed next-attack discount before continuing a batch', async
   assert.deepEqual(posts.map(post => post.params.card_index), [0, 0, 0]);
 });
 
-test('revalidates a later card against live playability before POST', async () => {
-  const initial = combat([card(10, 0, 'Setup', { cost: '0' }), card(11, 1, 'Follow Up', { cost: '0' })]);
+test('classifies a verified prefix refusal as recoverable without treating unknown writes as safe', async () => {
+  const initial = combat([card(10, 0), card(11, 1)]);
   const f = fixture(initial, state => ({
     ...state,
-    player: { ...state.player, hand: [{ ...state.player.hand[1], index: 0, can_play: false }] },
+    player: { ...state.player, energy: 0, hand: [{ ...state.player.hand[1], index: 0, can_play: false }], },
   }));
   const result = await f.executor.execute(plan(initial, [{ type: 'play_card', card: 10 }, { type: 'play_card', card: 11 }]), initial);
   assert.equal(f.posts.length, 1);
-  assert.equal(result.completed.length, 1);
-  assert.equal(result.failedActionDispatched, false);
-  assert.match(result.error, /not currently playable/);
+  assert.equal(hasVerifiedProgress(result), true);
+  assert.equal(recoverableSuffixFailure(result), true);
+  assert.equal(recoverableSuffixFailure({ ...result, completed: [], failedActionDispatched: true }), false);
+  assert.equal(recoverableSuffixFailure({ ...result, code: 'sts2_action_outcome_unknown', failedActionDispatched: true }), false);
 });
 
 test('targeted cards carry the observed entity ID and changing targets stops the batch', async () => {

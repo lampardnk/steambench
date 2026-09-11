@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { VERSION, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, recoverableSuffixFailure, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
@@ -563,6 +563,14 @@ async function run(task) {
       if (evidence.length > 24) evidence.shift();
       if (plan.actions.some(action => action.type === 'learn')) noteIndex = indexNotes(skillDir);
       quiet = bookkeepingOnly(plan) ? quiet + 1 : 0;
+      // A verified prefix is a real progress boundary. Any prior planner
+      // refinements belong to the old observation and must not consume the
+      // suffix's recovery budget.
+      if (hasVerifiedProgress(result)) {
+        refines = 0;
+        stalePlans = 0;
+        upstreamRetries = 0;
+      }
       if (result.code === 'stale_observation' && ++stalePlans < 3) continue;
       if (result.error) {
         // Nothing reached STS2MCP, so re-planning cannot compound a mistake and
@@ -577,11 +585,9 @@ async function run(task) {
         // action that ran did what it said, and the one that could not run was
         // refused before it pressed anything - so the scene is exactly what the
         // successful actions produced, and re-planning cannot compound
-        // anything. Live: Molten Fist and Pommel Strike both reported cost 0
-        // because a one-shot discount makes every eligible card free IF PLAYED
-        // NEXT; Molten Fist spent it, Pommel Strike was correctly declined, and
-        // a healthy turn paused for an operator over a card it never touched.
-        if (result.code !== 'stale_observation' && result.failedActionDispatched === false && result.completed.every(item => item.verified !== false)) {
+        // anything. The refinement budget was reset above because the prefix
+        // verified, so a transiently unavailable suffix gets fresh attempts.
+        if (recoverableSuffixFailure(result)) {
           refine(result.error, 'The actions before this one all landed; this one was refused before it pressed anything, so the screen is exactly what they produced. Re-read it and plan the rest of the turn from there.', lane);
           continue;
         }

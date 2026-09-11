@@ -133,6 +133,15 @@ const DIFF_FIELDS = [
   ['round', state => state?.battle?.round ?? null],
 ];
 export function stateDiff(before, after) { return Object.fromEntries(DIFF_FIELDS.flatMap(([name, read]) => read(before) === read(after) ? [] : [[name, { was: read(before), now: read(after) }]])); }
+export function hasVerifiedProgress(result) { return Array.isArray(result?.completed) && result.completed.some(item => item?.verified === true); }
+export function recoverableSuffixFailure(result) {
+  return Boolean(result?.error
+    && result.code !== 'stale_observation'
+    && result.failedActionDispatched === false
+    && Array.isArray(result.completed)
+    && result.completed.length > 0
+    && result.completed.every(item => item?.verified === true));
+}
 export function plannerResult(result) {
   return { completed: result.completed, ...(result.code === 'stale_observation' ? { replan: 'Observation changed before execution. Zero actions dispatched; use fresh state.', no_input_sent: true } : { error: result.error }), after: result.state ? { state_type: result.state.state_type, run: result.state.run, energy: result.state.player?.energy, map_id: mapId(result.state) } : null };
 }
