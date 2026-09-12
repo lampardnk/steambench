@@ -155,6 +155,7 @@ export function plannerGuidance(message) {
   if (/stale or missing observation ID/i.test(message || '')) return 'The observation token was missing, stale, or malformed. Copy the exact 8-character lowercase observation_id into the observation field with no UUID suffix or punctuation. No gameplay action was dispatched; answer from the SAME observation, or report the issue when evidence is insufficient.';
   if (OUT_OF_BUDGET.test(message || '')) return 'The previous response ran out of budget before a plan arrived. No gameplay action was dispatched. Answer from the SAME observation with a concise valid plan, or report the issue when evidence is insufficient.';
   if (STANDALONE_PLAN.test(message || '')) return 'A standalone gameplay action was combined with another gameplay action. Return either the deterministic card-play prefix only, or exactly one standalone action; never include end_turn with play_card or another mutation.';
+  if (/card reward cannot be skipped|select_card_reward\.card|unknown card reward/i.test(message || '')) return 'Match the action to state_type. For card_select, use select_card with one observed numeric instance_id, or cancel_selection when can_cancel is true. Use select_card_reward/skip_card_reward only for card_reward.';
   return 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.';
 }
 export function noteProblem(action) {
@@ -189,26 +190,45 @@ export const ROLE_ACTIONS = {
   combat: new Set(['play_card', 'use_potion', 'discard_potion', 'end_turn', 'combat_select_card', 'combat_confirm_selection', 'select_card', 'confirm_selection', 'cancel_selection', ...COMMON]),
 };
 const standalone = new Set([...GAME_ACTIONS].filter(type => type !== 'play_card'));
-export function repairPlan(plan, { role = null } = {}) {
-  if (role !== 'combat' || !Array.isArray(plan?.actions)) return plan;
-  const gameplay = plan.actions.filter(action => GAME_ACTIONS.has(action?.type));
-  if (gameplay.length <= 1) return plan;
-  const standaloneIndex = plan.actions.findIndex(action => standalone.has(action?.type));
-  if (standaloneIndex < 0) return plan;
-  const standaloneAction = plan.actions[standaloneIndex];
-  const prefix = plan.actions.slice(0, standaloneIndex);
-  const notes = plan.actions.slice(standaloneIndex + 1).filter(action => action?.type === 'learn');
-  if (notes.some((note, index) => plan.actions.indexOf(note) !== plan.actions.length - notes.length + index)) return plan;
-  if (standaloneIndex === 0) return { ...plan, actions: [standaloneAction, ...notes] };
-  if (prefix.some(action => action?.type !== 'play_card')) return plan;
-  return { ...plan, actions: [...prefix, ...notes] };
+export function repairPlan(plan, { role = null, state = null } = {}) {
+  if (!Array.isArray(plan?.actions)) return plan;
+  let repaired = plan;
+  // A choose-a-card overlay and a card reward display similar offers but use
+  // different MCP actions. Normalize only when the model's intended card (or
+  // skip) resolves uniquely against the currently observed generic selection.
+  if (state?.state_type === 'card_select' && Array.isArray(state.card_select?.cards)) {
+    const actions = plan.actions.map(action => {
+      if (action?.type === 'skip_card_reward'
+          && state.card_select.can_skip === true
+          && state.card_select.can_cancel === true) return { type: 'cancel_selection' };
+      if (action?.type !== 'select_card_reward') return action;
+      const matches = state.card_select.cards.filter(card =>
+        card.instance_id === action.card || semanticIdentity('card_reward', card) === action.card);
+      return matches.length === 1 && Number.isInteger(matches[0].instance_id)
+        ? { type: 'select_card', card: matches[0].instance_id }
+        : action;
+    });
+    if (actions.some((action, index) => action !== plan.actions[index])) repaired = { ...plan, actions };
+  }
+  if (role !== 'combat') return repaired;
+  const gameplay = repaired.actions.filter(action => GAME_ACTIONS.has(action?.type));
+  if (gameplay.length <= 1) return repaired;
+  const standaloneIndex = repaired.actions.findIndex(action => standalone.has(action?.type));
+  if (standaloneIndex < 0) return repaired;
+  const standaloneAction = repaired.actions[standaloneIndex];
+  const prefix = repaired.actions.slice(0, standaloneIndex);
+  const notes = repaired.actions.slice(standaloneIndex + 1).filter(action => action?.type === 'learn');
+  if (notes.some((note, index) => repaired.actions.indexOf(note) !== repaired.actions.length - notes.length + index)) return repaired;
+  if (standaloneIndex === 0) return { ...repaired, actions: [standaloneAction, ...notes] };
+  if (prefix.some(action => action?.type !== 'play_card')) return repaired;
+  return { ...repaired, actions: [...prefix, ...notes] };
 }
 
 const integer = (value, name) => { if (!Number.isInteger(value) || value < 0) throw new Error(`${name} must be a non-negative observed index`); };
 const string = (value, name) => { if (typeof value !== 'string' || !value.trim() || value.length > 160) throw new Error(`${name} must be a non-empty string of at most 160 characters`); };
 const present = (items, value, field) => Array.isArray(items) && items.some(item => item?.[field] === value);
 
-export function validatePlan(plan, state, { role = null } = {}) {
+export function validatePlan(plan, state, { role = null, allowContinue = false } = {}) {
   if (!plan || String(plan.observation ?? '').trim().toLowerCase() !== stateId(state)) throw new Error('stale or missing observation ID');
   if (!Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > 8) throw new Error('a plan needs 1–8 actions');
   if (typeof plan.summary !== 'string' || plan.summary.length > 300) throw new Error('summary must be at most 300 characters');
@@ -232,6 +252,7 @@ export function validatePlan(plan, state, { role = null } = {}) {
     if (action.type === 'menu_select') {
       string(action.option, 'menu_select.option');
       if (action.seed !== undefined) string(action.seed, 'menu_select.seed');
+      if (action.option === 'continue' && !allowContinue) throw new Error('continue is only permitted when resuming a verified run after a game restart');
       const options = state.options || state.menu?.options;
       const option = Array.isArray(options) ? options.find(item => item === action.option || item?.name === action.option || item?.id === action.option || item?.option === action.option || item?.label === action.option) : null;
       if (Array.isArray(options) && option == null) throw new Error('unknown menu option');

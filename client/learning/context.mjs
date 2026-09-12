@@ -28,12 +28,13 @@ export function combatState(state) {
   return compact;
 }
 
-export function strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1, counters, freshRunVerified }) {
+export function strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1, counters, freshRunVerified, resumeExistingRun = false }) {
   const mapUnchanged = Boolean(strategy && lastResult?.after?.map_id && lastResult.after.map_id === mapId(state));
   return {
     task: task.slice(0, 3000),
-    ...(freshRunVerified ? { task_startup_note: 'Startup is verified and this run is in progress. Never abandon, restart, or repeat startup after a reload.' } : {}),
+    ...(freshRunVerified ? { task_startup_note: resumeExistingRun ? 'This verified run was interrupted by a game process restart. Select the advertised continue option exactly once to restore the preserved run; never abandon it.' : 'Startup is verified and this run is in progress. Never abandon, restart, or repeat startup after a reload.' } : {}),
     fresh_run_verified: freshRunVerified,
+    resume_existing_run: resumeExistingRun,
     observation_id: stateId(state),
     state: strategistState(state, { mapUnchanged }),
     strategy, ...ladder, objective_check: objectiveCheck, retrieved_notes: retrieved,
@@ -69,6 +70,11 @@ const AFTER_ENCOUNTER = new Set(['rewards', 'card_reward', 'combat_reward', 'gam
 export function encounterOver(state, fight) {
   if (!fight) return false;
   if (Number.isInteger(state?.run?.floor) && state.run.floor !== fight.floor) return true;
+  // A few post-combat frames retain state_type "monster" while publishing a
+  // completion message. Without battle and hand data there is no combat
+  // action surface left; keep the encounter agent from planning that reward
+  // transition as if it were another turn.
+  if (!isCombat(state)) return true;
   return AFTER_ENCOUNTER.has(String(state?.state_type || '').toLowerCase());
 }
 export function encounterKind(state) {
