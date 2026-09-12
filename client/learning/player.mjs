@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, recoverableSuffixFailure, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { VERSION, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
@@ -434,7 +434,7 @@ async function run(task) {
       try {
         roster.count(lane);
         emit({ type: 'message_start', agent: lane });
-        const proposed = await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true });
+        const proposed = await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true, reasoning: reasoningTier(state, role) });
         const observationRepaired = repairObservation(proposed, state);
         if (observationRepaired !== proposed) record({ type: 'planner_repair', agent: lane, repair: 'observation_prefix', originalObservation: proposed.observation, repairedObservation: observationRepaired.observation });
         const repaired = repairPlan(observationRepaired, { role, state });

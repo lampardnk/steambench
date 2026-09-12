@@ -84,7 +84,91 @@ export function repairObservation(plan, state) {
   return { ...plan, observation: expected };
 }
 export function progressId(state) { return digest(compactState(state)); }
-export function planIdentity(state) { return progressId(state); }
+
+// The state each gameplay action actually reads to resolve and validate itself,
+// mirroring the per-action rules in validatePlan.
+// Every combat action is a resource-allocation decision, so all of them read
+// the whole resource picture: a card resolving mid-plan can hand back energy
+// the agent did not know it had, and ending the turn would waste it. The draw,
+// discard and exhaust piles are deliberately absent - combatState keeps them
+// out of the model's context entirely, so a pile settling cannot invalidate a
+// plan that was never shown it.
+const COMBAT_SURFACE = ['player.hand', 'player.energy', 'player.potions', 'battle'];
+const ACTION_SURFACES = Object.freeze({
+  menu_select: ['options', 'menu'],
+  play_card: COMBAT_SURFACE,
+  use_potion: COMBAT_SURFACE, discard_potion: COMBAT_SURFACE,
+  end_turn: COMBAT_SURFACE,
+  combat_select_card: ['hand_select', ...COMBAT_SURFACE], combat_confirm_selection: ['hand_select', ...COMBAT_SURFACE],
+  claim_reward: ['rewards.items'],
+  select_card_reward: ['card_reward.cards'], skip_card_reward: ['card_reward.can_skip'],
+  proceed: ['rewards.can_proceed', 'rest_site.can_proceed', 'shop.can_proceed', 'fake_merchant.shop.can_proceed', 'treasure.can_proceed'],
+  shop_back: ['shop.can_close_inventory', 'fake_merchant.shop.can_close_inventory'],
+  choose_event_option: ['event.options'], advance_dialogue: ['event.in_dialogue'],
+  choose_rest_option: ['rest_site.options'],
+  shop_purchase: ['shop.items', 'fake_merchant.shop.items', 'player.gold'],
+  choose_map_node: ['map.next_options'],
+  select_card: ['card_select.cards'], confirm_selection: ['card_select.can_confirm'], cancel_selection: ['card_select.can_cancel'],
+  select_bundle: ['bundle_select.bundles'], confirm_bundle_selection: ['bundle_select.can_confirm'], cancel_bundle_selection: ['bundle_select.can_cancel'],
+  select_relic: ['relic_select.relics'], skip_relic_selection: ['relic_select.can_skip'],
+  claim_treasure_relic: ['treasure.relics'],
+  crystal_sphere_set_tool: ['crystal_sphere'], crystal_sphere_click_cell: ['crystal_sphere'], crystal_sphere_proceed: ['crystal_sphere'],
+});
+// Which screen is up, and the run and health it belongs to. Any of these moving
+// means the plan was written against a screen that is gone, whatever it planned.
+const PLAN_CORE = Object.freeze(['state_type', 'menu_screen', 'encounter_id', 'run.floor', 'run.act', 'player.hp']);
+const readPath = (source, path) => path.split('.').reduce((value, key) => (value == null ? undefined : value[key]), source);
+export function planSurfaces(plan) {
+  const actions = Array.isArray(plan?.actions) ? plan.actions.filter(action => GAME_ACTIONS.has(action?.type)) : [];
+  // A plan that touches nothing (a lone report_issue) is asking whether the
+  // screen moved at all, so it keeps the whole-state comparison.
+  if (!actions.length) return null;
+  const surfaces = new Set(PLAN_CORE);
+  for (const action of actions) {
+    const reads = ACTION_SURFACES[action.type];
+    if (!reads) return null;
+    for (const path of reads) surfaces.add(path);
+  }
+  return [...surfaces];
+}
+/**
+ * Whether a plan is still answering the screen it was written for.
+ *
+ * This was the whole compact state, so any field moving anywhere discarded the
+ * plan and dispatched nothing. A run spent 11.9 minutes of model time that way
+ * in 43 discards, and the fields doing the moving - a relic counter ticking, a
+ * discard pile settling, a shop inventory flag - could not change what the plan
+ * resolved to. Comparing only the surfaces the plan's own actions read keeps
+ * the guard where it earns its cost.
+ *
+ * Narrowing here is safe because it is a pre-filter, not the correctness gate:
+ * execute() re-runs validatePlan against freshly observed state immediately
+ * before every dispatch, and transitionVerified confirms the result after.
+ */
+export function planIdentity(state, plan) {
+  const surfaces = planSurfaces(plan);
+  if (!surfaces) return progressId(state);
+  const compact = compactState(state);
+  return digest(surfaces.map(path => [path, readPath(compact, path) ?? null]));
+}
+// Screens whose decision is a genuine, lasting commitment - what to buy, what
+// to add to the deck, how to spend a rest - against screens that only need the
+// obvious next press. A run spent 26.7 minutes on the 270 calls that already
+// reason under 800 tokens, and 12.8 of those minutes were fixed per-call
+// overhead no thinking level can recover, so this only ever trims the rest.
+const DELIBERATE_SCREENS = new Set(['shop', 'card_reward', 'card_select', 'rest_site', 'event']);
+/**
+ * The thinking level to spend on this screen.
+ *
+ * Latency is almost purely a function of reasoning tokens - measured at
+ * 2.9s + 9.6ms per token across a full run - so the thinking level is the only
+ * real control over how long a decision takes. Combat keeps the profile's full
+ * budget: it is where the run is won, and where reasoning is actually spent.
+ */
+export function reasoningTier(state, role) {
+  if (role === 'combat' || isCombat(state)) return PROFILE.reasoning;
+  return DELIBERATE_SCREENS.has(String(state?.state_type || '').toLowerCase()) ? 'medium' : 'low';
+}
 export function mapId(state) { return state?.state_type === 'map' ? digest(state.map) : null; }
 export function isCombat(state) { return Boolean(state?.battle && Array.isArray(state.player?.hand)); }
 export function isCardPlay(state) { return isCombat(state) && !/select|overlay|reward/.test(state.state_type); }
@@ -149,6 +233,10 @@ export function plannerResult(result) {
 const MOMENT_IN_PATH = /(?:^|[/_-])(?:floor|round|turn|decision|seed)-?\d/;
 const OUT_OF_BUDGET = /exceeded [\d.]+-second deadline|stop reason length|empty \w+ response/;
 const STANDALONE_PLAN = /must be the only gameplay action in its plan/;
+// Every rejection where the model named something the screen never published.
+// These cost a whole call each, and the generic guidance never named the rule
+// that would prevent the next one.
+const UNKNOWN_IDENTITY = /unknown (reward|shop item|event option|rest option|map node|selection card|bundle|relic|treasure relic)/;
 const TRANSIENT_UPSTREAM = /\b(?:429|50[0234])\b|rate[ _-]?limit|temporarily busy|overloaded|try again shortly|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i;
 export function transientUpstream(message) { return TRANSIENT_UPSTREAM.test(message || ''); }
 export function plannerGuidance(message) {
@@ -156,6 +244,7 @@ export function plannerGuidance(message) {
   if (OUT_OF_BUDGET.test(message || '')) return 'The previous response ran out of budget before a plan arrived. No gameplay action was dispatched. Answer from the SAME observation with a concise valid plan, or report the issue when evidence is insufficient.';
   if (STANDALONE_PLAN.test(message || '')) return 'A standalone gameplay action was combined with another gameplay action. Return either the deterministic card-play prefix only, or exactly one standalone action; never include end_turn with play_card or another mutation.';
   if (/card reward cannot be skipped|select_card_reward\.card|unknown card reward/i.test(message || '')) return 'Match the action to state_type. For card_select, use select_card with one observed numeric instance_id, or cancel_selection when can_cancel is true. Use select_card_reward/skip_card_reward only for card_reward.';
+  if (UNKNOWN_IDENTITY.test(message || '')) return 'That action named an identity the screen never published. Copy the semantic_id of the observed item exactly as it appears, character for character; never rebuild it from the item\'s name, shorten it, or carry one over from an earlier screen. No gameplay action was dispatched; answer again from the SAME observation using an identity you can see in it.';
   return 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.';
 }
 export function noteProblem(action) {

@@ -66,7 +66,7 @@ export class Planner {
    * decision: it streams its thinking, keeps diagnostics for the incident
    * record, and is the one an operator abort interrupts.
    */
-  ask({ role, agent = role, prompt: promptFile, context, image = null, stream = false, primary = stream, deadlineMs = PROFILE.plannerDeadlineMs }) {
+  ask({ role, agent = role, prompt: promptFile, context, image = null, stream = false, primary = stream, deadlineMs = PROFILE.plannerDeadlineMs, reasoning = PROFILE.reasoning }) {
     if (primary) this.lastDiagnostics = null;
     if (!process.env[PROFILE.apiKeyEnv]) throw new Error(`${PROFILE.apiKeyEnv} is required`);
     // The budget notice rides on the system prompt, the one channel every role
@@ -74,7 +74,7 @@ export class Planner {
     // its caller's deadline.
     const prompt = `${fs.readFileSync(new URL(`./${promptFile}`, import.meta.url), 'utf8').trimEnd()}\n\n${budgetNotice(deadlineMs)}`;
     return new Promise((resolve, reject) => {
-      const child = spawn('pi', ['--mode', 'rpc', '--no-session', '--provider', PROFILE.provider, '--model', PROFILE.model, ...(PROFILE.reasoning && PROFILE.reasoning !== 'default' ? ['--thinking', PROFILE.reasoning] : []), '--no-tools', '--no-extensions', '--no-skills', '--no-context-files', '--no-prompt-templates', '--offline', '--system-prompt', prompt], { stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn('pi', ['--mode', 'rpc', '--no-session', '--provider', PROFILE.provider, '--model', PROFILE.model, ...(reasoning && reasoning !== 'default' ? ['--thinking', reasoning] : []), '--no-tools', '--no-extensions', '--no-skills', '--no-context-files', '--no-prompt-templates', '--offline', '--system-prompt', prompt], { stdio: ['pipe', 'pipe', 'pipe'] });
       if (primary) this.child = child;
       let answer = '';
       let stderr = '';

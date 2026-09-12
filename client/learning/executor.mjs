@@ -163,7 +163,7 @@ export class Executor {
   async execute(plan, observation, { allowContinue = false } = {}) {
     validatePlan(plan, observation, { allowContinue });
     let state = await this.observe();
-    if (planIdentity(state) !== planIdentity(observation)) {
+    if (planIdentity(state, plan) !== planIdentity(observation, plan)) {
       return { completed: [], error: 'state changed while planning; no action dispatched', code: 'stale_observation', state, staleState: state, failedActionDispatched: false };
     }
     const completed = [];
@@ -190,7 +190,7 @@ export class Executor {
         // observation. Once a verified action has landed, STS2 may publish
         // delayed discard/status fields; semantic validation against the fresh
         // state below remains the guard for every later action.
-        if (!dispatchedInPlan && planIdentity(fresh) !== planIdentity(before)) {
+        if (!dispatchedInPlan && planIdentity(fresh, plan) !== planIdentity(before, plan)) {
           const error = new Error('state changed immediately before dispatch; no action sent');
           error.code = 'stale_observation';
           throw error;

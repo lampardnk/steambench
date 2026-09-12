@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Executor, resolveMcpAction } from '../client/learning/executor.mjs';
-import { compactState, hasVerifiedProgress, recoverableSuffixFailure, repairObservation, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
+import { compactState, hasVerifiedProgress, planIdentity, plannerGuidance, reasoningTier, recoverableSuffixFailure, repairObservation, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
 
 const card = (instance_id, index, name = `Card ${instance_id}`, extra = {}) => ({ instance_id, index, id: name.toUpperCase().replaceAll(' ', '_'), name, cost: '1', target_type: 'None', can_play: true, description: 'Deal 6 damage.', ...extra });
 const enemy = (entity_id = 'JAW_WORM_0') => ({ entity_id, combat_id: 0, name: 'Jaw Worm', hp: 40, block: 0 });
@@ -396,4 +396,100 @@ test('validation excludes removed raw and handoff schemas', () => {
     assert.throws(() => validatePlan(plan(state, [action]), state), /unknown action/);
   }
   assert.throws(() => validatePlan(plan(state, [{ type: 'play_card', card: 10, target_label: 'first enemy' }]), state), /not an allowed plan field/);
+});
+
+const mapScreen = () => ({
+  state_type: 'map', run: { act: 1, floor: 5 },
+  player: { hp: 70, gold: 99, potions: [], relics: [{ id: 'BURNING_BLOOD', name: 'Burning Blood', counter: 0 }] },
+  map: { current_position: { col: 1, row: 4 }, next_options: [{ col: 2, row: 4, type: 'monster' }, { col: 2, row: 5, type: 'event' }] },
+  build: { game: 'g', mod: 'm' },
+});
+
+test('a plan is stale only when something it reads has moved', () => {
+  const before = mapScreen();
+  const route = plan(before, [{ type: 'choose_map_node', node: 'map:2,4' }]);
+
+  const relicTicked = mapScreen();
+  relicTicked.player.relics[0].counter = 3;
+  assert.equal(planIdentity(before, route), planIdentity(relicTicked, route));
+  // The same churn still moves the whole-state digest, which is what used to
+  // throw the plan away.
+  assert.notEqual(stateId(before), stateId(relicTicked));
+
+  const rerouted = mapScreen();
+  rerouted.map.next_options[0].row = 7;
+  assert.notEqual(planIdentity(before, route), planIdentity(rerouted, route));
+
+  const hurt = mapScreen();
+  hurt.player.hp = 60;
+  assert.notEqual(planIdentity(before, route), planIdentity(hurt, route));
+});
+
+test('combat plans ignore the piles they are never shown but not the resources they spend', () => {
+  const settled = combat();
+  settled.player.discard_pile = [card(1, 0), card(2, 1)];
+  const drawn = combat();
+  drawn.player.discard_pile = [card(1, 0)];
+  const ending = plan(settled, [{ type: 'end_turn' }]);
+  assert.equal(planIdentity(settled, ending), planIdentity(drawn, ending));
+
+  const refunded = combat();
+  refunded.player.discard_pile = [card(1, 0), card(2, 1)];
+  refunded.player.energy = 2;
+  assert.notEqual(planIdentity(settled, ending), planIdentity(refunded, ending));
+});
+
+test('a plan that reads nothing still compares the whole screen', () => {
+  const quiet = combat();
+  quiet.player.discard_pile = [card(1, 0)];
+  const noisy = combat();
+  noisy.player.discard_pile = [card(1, 0), card(2, 1)];
+  const complaint = { observation: stateId(quiet), summary: 'fixture', note: 'fixture', actions: [{ type: 'report_issue', issue: 'the screen does not match' }] };
+  assert.notEqual(planIdentity(quiet, complaint), planIdentity(noisy, complaint));
+  assert.equal(planIdentity(quiet), planIdentity(quiet, complaint));
+});
+
+test('churn the plan never reads does not cost the dispatch', async () => {
+  const initial = mapScreen();
+  const posts = [];
+  let reads = 0;
+  const call = async request => {
+    if (request.op === 'sts2-get') {
+      reads++;
+      const state = structuredClone(initial);
+      // The relic ticks between the planner's snapshot and the dispatch.
+      if (reads >= 2) state.player.relics[0].counter = 3;
+      if (posts.length) state.map.current_position = { col: 2, row: 4 };
+      return { body: JSON.stringify(state) };
+    }
+    if (request.op === 'sts2-action') { posts.push(structuredClone(request)); return { acknowledgement: { status: 'ok' } }; }
+    throw new Error(`unexpected ${request.op}`);
+  };
+  const executor = new Executor({ call, verifyMs: 20, pollMs: 0 });
+  executor.sleep = async () => {};
+  const result = await executor.execute(plan(initial, [{ type: 'choose_map_node', node: 'map:2,4' }]), initial);
+  assert.equal(result.error, undefined);
+  assert.equal(result.code, undefined);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].params.index, 0);
+});
+
+test('a rejected identity is told to copy the one the screen published', () => {
+  for (const message of ['unknown reward', 'unknown shop item', 'unknown event option', 'unknown rest option', 'unknown map node', 'unknown relic']) {
+    assert.match(plannerGuidance(message), /semantic_id of the observed item exactly/);
+  }
+  // The card_reward family keeps its own more specific guidance.
+  assert.match(plannerGuidance('unknown card reward'), /Match the action to state_type/);
+  assert.match(plannerGuidance('summary must be at most 300 characters'), /Fix exactly what this message names/);
+});
+
+test('thinking is spent on the screens that commit the run', () => {
+  assert.equal(reasoningTier(combat(), 'combat'), 'max');
+  assert.equal(reasoningTier({ state_type: 'elite', player: { hand: [] }, battle: { turn: 'player' } }, 'strategist'), 'max');
+  for (const state_type of ['shop', 'card_reward', 'card_select', 'rest_site', 'event']) {
+    assert.equal(reasoningTier({ state_type }, 'strategist'), 'medium');
+  }
+  for (const state_type of ['map', 'rewards', 'menu', 'treasure']) {
+    assert.equal(reasoningTier({ state_type }, 'strategist'), 'low');
+  }
 });
