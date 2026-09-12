@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { api, apiUrl, wsUrl, STAGE_LABELS, type ActionEvent, type AgentInfo, type LibraryGame, type Meta, type RoomSummary, type TranscriptItem } from '@/lib/backend'
+import { addTurn, api, apiUrl, wsUrl, STAGE_LABELS, type ActionEvent, type AgentInfo, type AgentTurn, type LibraryGame, type Meta, type RoomSummary, type TranscriptItem, type UsageByLane } from '@/lib/backend'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { ActionAudit } from '@/components/action-audit'
 import { GameView } from '@/components/game-view'
@@ -11,9 +11,10 @@ import { Transcript } from '@/components/transcript'
 import { Learning } from '@/components/learning'
 
 type WsMessage =
-  | { type: 'snapshot'; room: RoomSummary; transcript: TranscriptItem[]; agents: AgentInfo[]; actionHistory: ActionEvent[]; log: string[] }
+  | { type: 'snapshot'; room: RoomSummary; transcript: TranscriptItem[]; agents: AgentInfo[]; usage?: UsageByLane; actionHistory: ActionEvent[]; log: string[] }
   | { type: 'item'; item: TranscriptItem }
   | { type: 'agents'; agents: AgentInfo[] }
+  | { type: 'usage'; lane: string; turn: AgentTurn }
   | { type: 'delta'; id: string; kind: string; agent?: string; delta: string }
   | { type: 'agent_status'; status: string; requiresResume?: boolean; attention?: RoomSummary['attention'] }
   | { type: 'action'; event: ActionEvent }
@@ -29,6 +30,7 @@ export default function RoomPage() {
   const [room, setRoom] = useState<RoomSummary | null>(null)
   const [items, setItems] = useState<TranscriptItem[]>([])
   const [agents, setAgents] = useState<AgentInfo[]>([])
+  const [usage, setUsage] = useState<UsageByLane>({})
   const [actions, setActions] = useState<ActionEvent[]>([])
   const [log, setLog] = useState<string[]>([])
   const [error, setError] = useState('')
@@ -54,10 +56,13 @@ export default function RoomPage() {
           setRoom(msg.room)
           setItems(msg.transcript)
           setAgents(msg.agents || [])
+          setUsage(msg.usage || {})
           setActions(msg.actionHistory)
           setLog(msg.log)
         } else if (msg.type === 'agents') {
           setAgents(msg.agents || [])
+        } else if (msg.type === 'usage') {
+          setUsage((prev) => addTurn(prev, msg.lane, msg.turn))
         } else if (msg.type === 'agent_status') {
           setRoom((prev) => prev ? { ...prev, agentStatus: msg.status, requiresResume: msg.requiresResume, attention: msg.attention } : prev)
         } else if (msg.type === 'item') {
@@ -190,7 +195,7 @@ export default function RoomPage() {
                     </p>
                   </div>
                 )}
-                <Transcript items={items} agents={agents} />
+                <Transcript items={items} agents={agents} usage={usage} />
                 <ChatBox
                   attention={Boolean(room.attention || room.requiresResume)}
                   disabled={!['playing', 'finished'].includes(room.stage) || room.agentStatus === 'stopped' || (Boolean(room.attention || room.requiresResume) && room.agentStatus !== 'idle')}

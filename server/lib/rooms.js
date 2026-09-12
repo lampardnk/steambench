@@ -292,7 +292,7 @@ export class RoomManager extends EventEmitter {
       result: null,
       verification: 'unknown',
     }));
-    return { room: read('room.json'), transcript: read('transcript.json') || [], agents: read('agents.json') || [], actionHistory: read('action-history.json') || legacyHistory(), scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })), gameLog: text('godot.log') };
+    return { room: read('room.json'), transcript: read('transcript.json') || [], agents: read('agents.json') || [], usage: read('usage.json') || {}, actionHistory: read('action-history.json') || legacyHistory(), scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })), gameLog: text('godot.log') };
   }
 }
 
@@ -691,7 +691,7 @@ export class Room extends EventEmitter {
     return true;
   }
 
-  async _startPlayer({ resume = false, transcript = [] } = {}) {
+  async _startPlayer({ resume = false, transcript = [], usage = null } = {}) {
     this._log(`player: ${this.setup.player.name}; image=${this.playerImage}; model=${this.cfg.learningProfile.model}; reasoning=${this.cfg.learningProfile.reasoning}`);
     this._log('game and mod reachable');
     this.setDetail('starting the player');
@@ -702,7 +702,10 @@ export class Room extends EventEmitter {
     });
     this.agent = agent;
     agent.transcript = transcript;
-    for (const ev of ['item', 'delta', 'status', 'agents']) agent.on(ev, (payload) => { if (this.agent === agent) this.emit(`agent:${ev}`, payload); });
+    // A resumed room keeps what it already spent, or every restart would
+    // report the run as costing only what happened after it.
+    if (usage) agent.usage.restore(usage);
+    for (const ev of ['item', 'delta', 'status', 'agents', 'usage']) agent.on(ev, (payload) => { if (this.agent === agent) this.emit(`agent:${ev}`, payload); });
     agent.on('attention', () => { if (this.agent === agent) { this.emit('room', this.summary()); this.m.emit('rooms'); } });
     agent.on('status', () => { if (this.agent === agent) this.emit('room', this.summary()); });
     agent.on('status', (status) => {
@@ -898,6 +901,8 @@ export class Room extends EventEmitter {
     fs.writeFileSync(path.join(dir, 'transcript.json'), JSON.stringify(this.agent?.transcript || [], null, 2));
     // The roster the transcript's lanes refer to, or the archive is a chat with unnamed speakers.
     fs.writeFileSync(path.join(dir, 'agents.json'), JSON.stringify(this.agent?.agents || [], null, 2));
+    // What each member spent, so an archived run can still be costed.
+    fs.writeFileSync(path.join(dir, 'usage.json'), JSON.stringify(this.agent?.usage?.snapshot || {}, null, 2));
     fs.writeFileSync(path.join(dir, 'action-history.json'), JSON.stringify(this.actionHistory, null, 2));
     if (this.reader?.latest) fs.writeFileSync(path.join(dir, 'last-frame.jpg'), this.reader.latest);
     const scratch = path.join(this.home, 'skills', this.setup?.game || 'sts2', 'scratchpad');
@@ -960,10 +965,11 @@ export class Room extends EventEmitter {
     try {
       const previous = this.agent;
       const transcript = [...(previous?.transcript || [])];
+      const usage = previous?.usage?.snapshot || null;
       this.agent = null;
       await previous?.stop();
       this._log('reloading only the learning player; game, lobby, sensors and evidence are preserved');
-      await this._startPlayer({ resume: true, transcript });
+      await this._startPlayer({ resume: true, transcript, usage });
       return { ok: true, room: this.id, attention: this.agent?.attention || null, requiresResume: true };
     } catch (error) {
       this.setStage('error', `player reload failed; game preserved: ${error.message}`);

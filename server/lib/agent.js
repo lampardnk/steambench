@@ -2,6 +2,7 @@
 // stream into a compact transcript the dashboard can render.
 import { EventEmitter } from 'node:events';
 import { spawnRun, rmForce, allContainers } from './docker.js';
+import { UsageLedger } from './usage.js';
 
 const MAX_ITEMS = 400;
 // What the dashboard shows before the player has published anything. The
@@ -43,6 +44,8 @@ export class PiAgent extends EventEmitter {
     this.stderrTail = '';
     this.attention = null;
     this.requiresResume = false;
+    // What every member has spent, per turn and in total.
+    this.usage = new UsageLedger();
 
   }
   start() {
@@ -152,6 +155,11 @@ export class PiAgent extends EventEmitter {
       case 'steambench_agents':
         if (Array.isArray(msg.agents) && msg.agents.length) { this.agents = msg.agents; this.emit('agents', this.agents); }
         break;
+      case 'steambench_usage': {
+        const { lane: spender, turn } = this.usage.add(msg);
+        this.emit('usage', { lane: spender, turn });
+        break;
+      }
       case 'steambench_attention':
         this.attention = msg.attention || null;
         if (this.attention) {

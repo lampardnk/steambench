@@ -89,6 +89,72 @@ export type AgentInfo = {
   summary?: string | null
 }
 
+/** One model call, billed to the member that made it. */
+export type AgentTurn = {
+  at: number
+  role: string | null
+  model: string | null
+  /** The thinking level the call was made at, not a token count. */
+  thinking: string | null
+  stopReason: string | null
+  latencyMs: number
+  contextWindow: number | null
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  /** Reasoning tokens, part of output. */
+  reasoning: number
+  totalTokens: number
+  /** What this turn occupied of the window: prompt, cache reads and output. */
+  contextUsed: number
+}
+
+export type AgentTotals = {
+  turns: number
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  reasoning: number
+  totalTokens: number
+  latencyMs: number
+  /** The tightest single turn, which is what the window has to accommodate. */
+  peakContextUsed: number
+}
+
+export type LaneUsage = { turns: AgentTurn[]; totals: AgentTotals; contextWindow: number | null }
+/** Spend per lane id, as the server's ledger publishes it. */
+export type UsageByLane = Record<string, LaneUsage>
+
+const TOKEN_FIELDS = ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'totalTokens'] as const
+/** Matches the server ledger, so a live turn and a reconnect agree. */
+const MAX_TURNS_PER_LANE = 200
+const emptyTotals = (): AgentTotals => ({ turns: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, latencyMs: 0, peakContextUsed: 0 })
+
+/**
+ * Fold one live turn into the lane ledger the snapshot seeded.
+ *
+ * Totals accumulate rather than being derived from `turns`, because turns roll
+ * off once a lane is long-lived and a derived total would quietly shrink.
+ */
+export function addTurn(byLane: UsageByLane, lane: string, turn: AgentTurn): UsageByLane {
+  const entry = byLane[lane]
+  const totals = entry ? { ...entry.totals } : emptyTotals()
+  totals.turns++
+  for (const field of TOKEN_FIELDS) totals[field] += turn[field] || 0
+  totals.latencyMs += turn.latencyMs || 0
+  totals.peakContextUsed = Math.max(totals.peakContextUsed, turn.contextUsed || 0)
+  return {
+    ...byLane,
+    [lane]: {
+      turns: [...(entry?.turns || []), turn].slice(-MAX_TURNS_PER_LANE),
+      totals,
+      contextWindow: turn.contextWindow ?? entry?.contextWindow ?? null,
+    },
+  }
+}
+
 export type TranscriptItem = {
   id: string
   t: number

@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { api, type ActionEvent, type AgentInfo, type RoomSummary, type TranscriptItem } from '@/lib/backend'
+import { api, type ActionEvent, type AgentInfo, type RoomSummary, type TranscriptItem, type UsageByLane } from '@/lib/backend'
 import { ActionAudit } from '@/components/action-audit'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { Transcript } from '@/components/transcript'
 
 type Entry = RoomSummary & { dir: string; reason: string; archivedAt: number; transcriptItems: number }
-type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; actionHistory: ActionEvent[]; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
+type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; usage?: UsageByLane; actionHistory: ActionEvent[]; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
 
 export default function HistoryPage() {
   const [settings, setSettings, loaded] = useSettings()
@@ -74,7 +74,7 @@ export default function HistoryPage() {
                 )}
                 {open.room.lastState && <p className="font-mono text-xs">{JSON.stringify(open.room.lastState)}</p>}
               </div>
-              <Transcript items={open.transcript} agents={open.agents} />
+              <Transcript items={open.transcript} agents={open.agents} usage={open.usage} />
               <ActionAudit history={open.actionHistory || []} />
               {open.scratchpad.length > 0 && (
                 <details className="rounded-md border border-border bg-card p-3 text-xs">

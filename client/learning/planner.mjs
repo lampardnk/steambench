@@ -125,7 +125,14 @@ export class Planner {
           assistant = { model: message.model, provider: message.provider, responseId: message.responseId, stopReason: message.stopReason, contentTypes: message.content?.map(part => part.type), usage: message.usage };
           const finalText = message.content?.filter(part => part.type === 'text').map(part => part.text).join('');
           if (finalText) answer = finalText;
-          this.record({ type: 'model_usage', role, agent, model: event.message.model, usage: event.message.usage, stopReason: event.message.stopReason, latencyMs: Date.now() - started });
+          const latencyMs = Date.now() - started;
+          this.record({ type: 'model_usage', role, agent, model: event.message.model, usage: event.message.usage, stopReason: event.message.stopReason, latencyMs });
+          // The dashboard bills every turn to the member that spent it. This is
+          // the only channel it has: `record` writes to the run log on the
+          // player's own disk, which the browser never reads.
+          // `thinking`, not `reasoning`: usage.reasoning is a token count, and
+          // one name for both the level and the tokens it spent reads as a bug.
+          this.emit({ type: 'steambench_usage', agent, role, model: event.message.model, usage: event.message.usage, stopReason: event.message.stopReason, latencyMs, thinking: reasoning, contextWindow: PROFILE.contextWindow });
           if (event.message.stopReason === 'error' || event.message.stopReason === 'aborted') return finish(new Error(event.message.errorMessage || 'model failed'));
         }
         if (event.type === 'agent_settled') finish();
