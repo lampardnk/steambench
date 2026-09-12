@@ -79,7 +79,9 @@ assert.notEqual(budgetNotice(30000), budgetNotice(120000));
 for (const outage of ['429: temporarily busy', 'Pi exited 1: 503 Service Unavailable', 'fetch failed: ECONNRESET']) assert.equal(transientUpstream(outage), true);
 for (const modelError of ['stale or missing observation ID', 'decision exceeded 120-second deadline', 'fixture provider unavailable', undefined]) assert.equal(transientUpstream(modelError), false);
 
-// Numeric string costs are enforced before any STS2MCP write.
+// Numeric string costs remain parseable for display and diagnostics. The
+// executor uses each card's live can_play result rather than summing base costs
+// across a batch, because card effects may discount later plays or grant energy.
 assert.equal(energyCost('2'), 2);
 assert.equal(energyCost(2), 2);
 for (const unknown of ['X', '', null, undefined, '1.5', '-1']) assert.equal(energyCost(unknown), null);
@@ -93,8 +95,10 @@ const combat = {
   ] },
 };
 const combatPlan = cards => ({ observation: stateId(combat), summary: 'turn', actions: cards.map(card => ({ type: 'play_card', card, ...(card === 23 ? {} : { target: 'SLUG_0' }) })) });
-assert.throws(() => validatePlan(combatPlan([26, 25, 23]), combat), /spends 4 energy/);
+assert.doesNotThrow(() => validatePlan(combatPlan([26, 25, 23]), combat));
 assert.ok(validatePlan(combatPlan([26, 25]), combat));
+const unavailable = { ...combat, player: { ...combat.player, hand: combat.player.hand.map(card => card.instance_id === 26 ? { ...card, can_play: false } : card) } };
+assert.throws(() => validatePlan({ ...combatPlan([26]), observation: stateId(unavailable) }, unavailable), /not currently playable/);
 
 // Retrieval indexes substantive strategy notes and ignores scratch state and
 // bare navigation READMEs.

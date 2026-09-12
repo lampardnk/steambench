@@ -74,6 +74,15 @@ export function compactState(value) {
 }
 
 export function stateId(state) { return digest(compactState(state)).slice(0, 8); }
+// Models occasionally expand the eight-character observation token into a UUID-like
+// value after copying the correct prefix. Keep validation strict, but repair only
+// that exact-current-prefix form; an unrelated or malformed prefix remains stale.
+export function repairObservation(plan, state) {
+  const expected = stateId(state);
+  const observed = String(plan?.observation ?? '').trim().toLowerCase();
+  if (observed === expected || !observed.startsWith(`${expected}-`) || !/^[0-9a-f?\.\-]+$/.test(observed.slice(expected.length + 1))) return plan;
+  return { ...plan, observation: expected };
+}
 export function progressId(state) { return digest(compactState(state)); }
 export function planIdentity(state) { return progressId(state); }
 export function mapId(state) { return state?.state_type === 'map' ? digest(state.map) : null; }
@@ -124,6 +133,15 @@ const DIFF_FIELDS = [
   ['round', state => state?.battle?.round ?? null],
 ];
 export function stateDiff(before, after) { return Object.fromEntries(DIFF_FIELDS.flatMap(([name, read]) => read(before) === read(after) ? [] : [[name, { was: read(before), now: read(after) }]])); }
+export function hasVerifiedProgress(result) { return Array.isArray(result?.completed) && result.completed.some(item => item?.verified === true); }
+export function recoverableSuffixFailure(result) {
+  return Boolean(result?.error
+    && result.code !== 'stale_observation'
+    && result.failedActionDispatched === false
+    && Array.isArray(result.completed)
+    && result.completed.length > 0
+    && result.completed.every(item => item?.verified === true));
+}
 export function plannerResult(result) {
   return { completed: result.completed, ...(result.code === 'stale_observation' ? { replan: 'Observation changed before execution. Zero actions dispatched; use fresh state.', no_input_sent: true } : { error: result.error }), after: result.state ? { state_type: result.state.state_type, run: result.state.run, energy: result.state.player?.energy, map_id: mapId(result.state) } : null };
 }
@@ -134,8 +152,10 @@ const STANDALONE_PLAN = /must be the only gameplay action in its plan/;
 const TRANSIENT_UPSTREAM = /\b(?:429|50[0234])\b|rate[ _-]?limit|temporarily busy|overloaded|try again shortly|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up/i;
 export function transientUpstream(message) { return TRANSIENT_UPSTREAM.test(message || ''); }
 export function plannerGuidance(message) {
+  if (/stale or missing observation ID/i.test(message || '')) return 'The observation token was missing, stale, or malformed. Copy the exact 8-character lowercase observation_id into the observation field with no UUID suffix or punctuation. No gameplay action was dispatched; answer from the SAME observation, or report the issue when evidence is insufficient.';
   if (OUT_OF_BUDGET.test(message || '')) return 'The previous response ran out of budget before a plan arrived. No gameplay action was dispatched. Answer from the SAME observation with a concise valid plan, or report the issue when evidence is insufficient.';
   if (STANDALONE_PLAN.test(message || '')) return 'A standalone gameplay action was combined with another gameplay action. Return either the deterministic card-play prefix only, or exactly one standalone action; never include end_turn with play_card or another mutation.';
+  if (/card reward cannot be skipped|select_card_reward\.card|unknown card reward/i.test(message || '')) return 'Match the action to state_type. For card_select, use select_card with one observed numeric instance_id, or cancel_selection when can_cancel is true. Use select_card_reward/skip_card_reward only for card_reward.';
   return 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.';
 }
 export function noteProblem(action) {
@@ -170,38 +190,55 @@ export const ROLE_ACTIONS = {
   combat: new Set(['play_card', 'use_potion', 'discard_potion', 'end_turn', 'combat_select_card', 'combat_confirm_selection', 'select_card', 'confirm_selection', 'cancel_selection', ...COMMON]),
 };
 const standalone = new Set([...GAME_ACTIONS].filter(type => type !== 'play_card'));
-export function repairPlan(plan, { role = null } = {}) {
-  if (role !== 'combat' || !Array.isArray(plan?.actions)) return plan;
-  const gameplay = plan.actions.filter(action => GAME_ACTIONS.has(action?.type));
-  if (gameplay.length <= 1) return plan;
-  const standaloneIndex = plan.actions.findIndex(action => standalone.has(action?.type));
-  if (standaloneIndex < 0) return plan;
-  const standaloneAction = plan.actions[standaloneIndex];
-  const prefix = plan.actions.slice(0, standaloneIndex);
-  const notes = plan.actions.slice(standaloneIndex + 1).filter(action => action?.type === 'learn');
-  if (notes.some((note, index) => plan.actions.indexOf(note) !== plan.actions.length - notes.length + index)) return plan;
-  if (standaloneIndex === 0) return { ...plan, actions: [standaloneAction, ...notes] };
-  if (prefix.some(action => action?.type !== 'play_card')) return plan;
-  return { ...plan, actions: [...prefix, ...notes] };
+export function repairPlan(plan, { role = null, state = null } = {}) {
+  if (!Array.isArray(plan?.actions)) return plan;
+  let repaired = plan;
+  // A choose-a-card overlay and a card reward display similar offers but use
+  // different MCP actions. Normalize only when the model's intended card (or
+  // skip) resolves uniquely against the currently observed generic selection.
+  if (state?.state_type === 'card_select' && Array.isArray(state.card_select?.cards)) {
+    const actions = plan.actions.map(action => {
+      if (action?.type === 'skip_card_reward'
+          && state.card_select.can_skip === true
+          && state.card_select.can_cancel === true) return { type: 'cancel_selection' };
+      if (action?.type !== 'select_card_reward') return action;
+      const matches = state.card_select.cards.filter(card =>
+        card.instance_id === action.card || semanticIdentity('card_reward', card) === action.card);
+      return matches.length === 1 && Number.isInteger(matches[0].instance_id)
+        ? { type: 'select_card', card: matches[0].instance_id }
+        : action;
+    });
+    if (actions.some((action, index) => action !== plan.actions[index])) repaired = { ...plan, actions };
+  }
+  if (role !== 'combat') return repaired;
+  const gameplay = repaired.actions.filter(action => GAME_ACTIONS.has(action?.type));
+  if (gameplay.length <= 1) return repaired;
+  const standaloneIndex = repaired.actions.findIndex(action => standalone.has(action?.type));
+  if (standaloneIndex < 0) return repaired;
+  const standaloneAction = repaired.actions[standaloneIndex];
+  const prefix = repaired.actions.slice(0, standaloneIndex);
+  const notes = repaired.actions.slice(standaloneIndex + 1).filter(action => action?.type === 'learn');
+  if (notes.some((note, index) => repaired.actions.indexOf(note) !== repaired.actions.length - notes.length + index)) return repaired;
+  if (standaloneIndex === 0) return { ...repaired, actions: [standaloneAction, ...notes] };
+  if (prefix.some(action => action?.type !== 'play_card')) return repaired;
+  return { ...repaired, actions: [...prefix, ...notes] };
 }
 
 const integer = (value, name) => { if (!Number.isInteger(value) || value < 0) throw new Error(`${name} must be a non-negative observed index`); };
 const string = (value, name) => { if (typeof value !== 'string' || !value.trim() || value.length > 160) throw new Error(`${name} must be a non-empty string of at most 160 characters`); };
 const present = (items, value, field) => Array.isArray(items) && items.some(item => item?.[field] === value);
 
-export function validatePlan(plan, state, { role = null } = {}) {
+export function validatePlan(plan, state, { role = null, allowContinue = false } = {}) {
   if (!plan || String(plan.observation ?? '').trim().toLowerCase() !== stateId(state)) throw new Error('stale or missing observation ID');
   if (!Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > 8) throw new Error('a plan needs 1–8 actions');
   if (typeof plan.summary !== 'string' || plan.summary.length > 300) throw new Error('summary must be at most 300 characters');
   const notes = plan.actions.filter(action => action?.type === 'learn');
   if (notes.length > 1 || (notes.length && plan.actions.at(-1)?.type !== 'learn')) throw new Error('one learned note may appear only as the final action');
   const gameplay = plan.actions.filter(action => GAME_ACTIONS.has(action?.type));
-  const plays = plan.actions.filter(action => action?.type === 'play_card');
-  const costs = plays.map(action => energyCost(state.player?.hand?.find(card => card.instance_id === action.card)?.cost));
-  if (plays.length && costs.every(cost => cost !== null) && Number.isInteger(state.player?.energy)) {
-    const total = costs.reduce((sum, cost) => sum + cost, 0);
-    if (total > state.player.energy) throw new Error(`plan spends ${total} energy and the turn has ${state.player.energy}`);
-  }
+  // Printed card costs describe the base card, not necessarily the cost at
+  // resolution. Card effects can discount a later play or grant energy, while
+  // STS2's live can_play flag is authoritative for the exact current state.
+  // The executor revalidates every card immediately before its own POST.
   for (const action of plan.actions) {
     if (!action || typeof action !== 'object') throw new Error('invalid action');
     if (role && !ROLE_ACTIONS[role]?.has(action.type)) throw new Error(`the ${role} cannot use ${action.type}; its actions are ${[...(ROLE_ACTIONS[role] || [])].join(', ')}`);
@@ -215,6 +252,7 @@ export function validatePlan(plan, state, { role = null } = {}) {
     if (action.type === 'menu_select') {
       string(action.option, 'menu_select.option');
       if (action.seed !== undefined) string(action.seed, 'menu_select.seed');
+      if (action.option === 'continue' && !allowContinue) throw new Error('continue is only permitted when resuming a verified run after a game restart');
       const options = state.options || state.menu?.options;
       const option = Array.isArray(options) ? options.find(item => item === action.option || item?.name === action.option || item?.id === action.option || item?.option === action.option || item?.label === action.option) : null;
       if (Array.isArray(options) && option == null) throw new Error('unknown menu option');

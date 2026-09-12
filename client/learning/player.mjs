@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, compactState, digest, planIdentity, plannerGuidance, plannerResult, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { VERSION, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, recoverableSuffixFailure, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
@@ -125,6 +125,7 @@ let accepted = [];
 let taskText = checkpoint?.taskText || '';
 let freshRunVerified = checkpoint?.freshRunVerified || false;
 let sawCharacterSelect = checkpoint?.sawCharacterSelect || false;
+let resumeExistingRun = Boolean(checkpoint?.resumeExistingRun || (checkpoint?.freshRunVerified && checkpoint?.lastState?.state_type !== 'game_over'));
 let memorySeed = null;
 try {
   const file = path.join(directory, 'accepted.json');
@@ -142,7 +143,7 @@ function saveMetrics() {
   const act1 = act1Timer.summary();
   fs.writeFileSync(path.join(directory, 'act1-timer.json'), JSON.stringify(act1));
   fs.writeFileSync(path.join(directory, 'metrics.json'), JSON.stringify({ version: VERSION, playerName: PROFILE.name, model: PROFILE.model, reasoning: PROFILE.reasoning, compatibility: build, lifecycle, decisions: decision, actions: totalActions, verifiedPlays, actionFailures, executionMetrics, elapsedMs: Date.now() - started, floor: lastState?.run?.floor, act: lastState?.run?.act, attention, act1, acceptedMemoryHash: digest(accepted), objective: curriculum.active, objectivesCompleted: curriculum.completed.length, objectivesFailed: curriculum.failed.length, agents: roster.list, usage }, null, 2));
-  const saved = { act1Timer: act1Timer.data, version: VERSION, policyHash, started, taskText, instructions, strategy, decision, lastResult, laneResults, lastEncounter, fights, lastState, freshRunVerified, sawCharacterSelect, attention, usage, totalActions, verifiedPlays, actionFailures, executionMetrics };
+  const saved = { act1Timer: act1Timer.data, version: VERSION, policyHash, started, taskText, instructions, strategy, decision, lastResult, laneResults, lastEncounter, fights, lastState, freshRunVerified, sawCharacterSelect, resumeExistingRun, attention, usage, totalActions, verifiedPlays, actionFailures, executionMetrics };
   const temporary = path.join(directory, 'checkpoint.tmp');
   fs.writeFileSync(temporary, JSON.stringify(saved));
   fs.renameSync(temporary, path.join(directory, 'checkpoint.json'));
@@ -328,6 +329,7 @@ async function run(task) {
       previous = current;
       if (state.menu_screen === 'character_select') sawCharacterSelect = true;
       if (state.run?.floor === 1 && sawCharacterSelect) freshRunVerified = true;
+      if (resumeExistingRun && state.state_type !== 'menu') resumeExistingRun = false;
       const combatMemory = encounter.observe(state);
       fs.writeFileSync(path.join(directory, 'encounter.json'), JSON.stringify(combatMemory));
       const compact = compactState(state);
@@ -393,7 +395,7 @@ async function run(task) {
       const context = role === 'combat'
         ? combatContext({ state, briefing: fight.briefing, scratchpad: combatMemory, retrieved, lastResult, instructions, notes, counters })
         : role === 'strategist'
-          ? strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1: act1Timer.summary(), counters, freshRunVerified })
+          ? strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1: act1Timer.summary(), counters, freshRunVerified, resumeExistingRun })
           : null;
       objectiveCheck = null;
       if (context) {
@@ -433,9 +435,12 @@ async function run(task) {
         roster.count(lane);
         emit({ type: 'message_start', agent: lane });
         const proposed = await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true });
-        const repaired = repairPlan(proposed, { role });
-        if (repaired !== proposed) record({ type: 'planner_repair', agent: lane, originalActions: proposed.actions, repairedActions: repaired.actions });
-        source = validatePlan(repaired, state, { role });
+        const observationRepaired = repairObservation(proposed, state);
+        if (observationRepaired !== proposed) record({ type: 'planner_repair', agent: lane, repair: 'observation_prefix', originalObservation: proposed.observation, repairedObservation: observationRepaired.observation });
+        const repaired = repairPlan(observationRepaired, { role, state });
+        if (repaired !== observationRepaired) record({ type: 'planner_repair', agent: lane, originalActions: observationRepaired.actions, repairedActions: repaired.actions });
+        plan = repaired;
+        source = validatePlan(repaired, state, { role, allowContinue: role === 'strategist' && resumeExistingRun && freshRunVerified });
         plan = source;
       }
       catch (error) {
@@ -516,7 +521,7 @@ async function run(task) {
       const batchActions = executor.actions;
       executionMetrics.screenshots++;
       beforeImage = await gateway.call({ op: 'screenshot', format: 'jpeg' }).catch(() => null);
-      const result = await executor.execute(plan, state);
+      const result = await executor.execute(plan, state, { allowContinue: role === 'strategist' && resumeExistingRun && freshRunVerified });
       executionMetrics.batches++;
       executionMetrics.completedActions += result.completed.length;
       record({ type: 'decision_result', agent: lane, plan, completed: result.completed, error: result.error, latencyMs: Date.now() - batchStarted, sensorCalls: executionMetrics.sensors - batchSensors, actions: executor.actions - batchActions });
@@ -560,6 +565,14 @@ async function run(task) {
       if (evidence.length > 24) evidence.shift();
       if (plan.actions.some(action => action.type === 'learn')) noteIndex = indexNotes(skillDir);
       quiet = bookkeepingOnly(plan) ? quiet + 1 : 0;
+      // A verified prefix is a real progress boundary. Any prior planner
+      // refinements belong to the old observation and must not consume the
+      // suffix's recovery budget.
+      if (hasVerifiedProgress(result)) {
+        refines = 0;
+        stalePlans = 0;
+        upstreamRetries = 0;
+      }
       if (result.code === 'stale_observation' && ++stalePlans < 3) continue;
       if (result.error) {
         // Nothing reached STS2MCP, so re-planning cannot compound a mistake and
@@ -574,11 +587,9 @@ async function run(task) {
         // action that ran did what it said, and the one that could not run was
         // refused before it pressed anything - so the scene is exactly what the
         // successful actions produced, and re-planning cannot compound
-        // anything. Live: Molten Fist and Pommel Strike both reported cost 0
-        // because a one-shot discount makes every eligible card free IF PLAYED
-        // NEXT; Molten Fist spent it, Pommel Strike was correctly declined, and
-        // a healthy turn paused for an operator over a card it never touched.
-        if (result.code !== 'stale_observation' && result.failedActionDispatched === false && result.completed.every(item => item.verified !== false)) {
+        // anything. The refinement budget was reset above because the prefix
+        // verified, so a transiently unavailable suffix gets fresh attempts.
+        if (recoverableSuffixFailure(result)) {
           refine(result.error, 'The actions before this one all landed; this one was refused before it pressed anything, so the screen is exactly what they produced. Re-read it and plan the rest of the turn from there.', lane);
           continue;
         }

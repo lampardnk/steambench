@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { combatState, encounterOver, strategistState } from '../client/learning/context.mjs';
 import { ROLES, LANE, Roster, encounterLane } from '../client/learning/agents.mjs';
-import { combatState, strategistState } from '../client/learning/context.mjs';
 import { ROLE_ACTIONS } from '../client/learning/state.mjs';
 
 test('the runtime has strategist and encounter roles with no actuator lane', () => {
@@ -18,6 +18,11 @@ test('role projections expose only structured information needed by that role', 
   const combat = combatState(state);
   assert.equal(strategist.ui, undefined); assert.equal(strategist.battle, undefined); assert.equal(strategist.player.hand, undefined);
   assert.equal(combat.ui, undefined); assert.equal(combat.map, undefined); assert.equal(combat.deck, undefined);
+});
+test('encounters close on post-combat monster frames without battle data', () => {
+  const fight = { floor: 2 };
+  assert.equal(encounterOver({ state_type: 'monster', message: 'Combat ended. Waiting for rewards...', run: { floor: 2 }, player: {} }, fight), true);
+  assert.equal(encounterOver({ state_type: 'monster', run: { floor: 2 }, player: { hand: [] }, battle: { enemies: [] } }, fight), false);
 });
 
 test('encounters still receive their own dashboard lane', () => {

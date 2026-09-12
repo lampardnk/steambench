@@ -31,9 +31,33 @@ namespace STS2_MCP;
 // navigation graph, hotkeys, bindings, or input-device state.
 public static partial class McpMod
 {
+    private static NMerchantInventory? _semanticallyClosedShopInventory;
+    private static bool _buildingObservation;
     private static NBackButton? FindShopBackButton(NMerchantInventory? inventory)
     {
         return inventory == null ? null : GetInstanceFieldValue(inventory, "_backButton") as NBackButton;
+    }
+
+    private static bool CloseShopInventory(NMerchantInventory? inventory)
+    {
+        if (inventory?.IsOpen != true) return false;
+        // Close is private on NMerchantInventory, so lookup must start on the
+        // declaring type (the fake-merchant inventory is a subclass).
+        var close = typeof(NMerchantInventory).GetMethod(
+            "Close",
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.NonPublic);
+        if (close == null) return false;
+        close.Invoke(inventory, null);
+        return true;
+    }
+    private static NProceedButton? SemanticShopProceedButton(NMerchantInventory? inventory)
+    {
+        if (ReferenceEquals(inventory, NMerchantRoom.Instance?.Inventory)) return NMerchantRoom.Instance?.ProceedButton;
+        var events = NEventRoom.Instance;
+        var fakeMerchant = events == null ? null : FindFirst<NFakeMerchant>(events);
+        return fakeMerchant == null ? null : FindFirst<NProceedButton>(fakeMerchant);
     }
 
     private static Dictionary<string, object?> ShopBack()
@@ -43,9 +67,9 @@ public static partial class McpMod
         {
             var inventory = regular.Inventory;
             var back = FindShopBackButton(inventory);
-            if (back != null && IsControlVisibleOrActionable(back))
+            if (back != null && IsControlVisibleOrActionable(back) && CloseShopInventory(inventory))
             {
-                back.ForceClick();
+                _semanticallyClosedShopInventory = inventory;
                 return new Dictionary<string, object?> { ["status"] = "ok", ["message"] = "Closing shop inventory" };
             }
         }
@@ -56,15 +80,16 @@ public static partial class McpMod
         {
             var inventory = FindFirst<NMerchantInventory>(fakeMerchant);
             var back = FindShopBackButton(inventory);
-            if (back != null && IsControlVisibleOrActionable(back))
+            if (back != null && IsControlVisibleOrActionable(back) && CloseShopInventory(inventory))
             {
-                back.ForceClick();
+                _semanticallyClosedShopInventory = inventory;
                 return new Dictionary<string, object?> { ["status"] = "ok", ["message"] = "Closing fake-merchant inventory" };
             }
         }
 
         return Error("No enabled shop back button is visible; use proceed when the shop reports can_proceed");
     }
+
 
     private static void AddShopNavigationState(Dictionary<string, object?> result)
     {
@@ -86,6 +111,8 @@ public static partial class McpMod
     private static void AddShopNavigationState(Dictionary<string, object?> shop, NMerchantInventory? inventory)
     {
         var back = FindShopBackButton(inventory);
+        var proceed = SemanticShopProceedButton(inventory);
+        shop["can_proceed"] = proceed?.IsEnabled == true;
         shop["inventory_open"] = inventory?.IsOpen == true;
         shop["can_close_inventory"] = back != null && IsControlVisibleOrActionable(back) && inventory?.IsOpen == true;
     }
@@ -172,6 +199,31 @@ public static partial class McpMod
         }
     }
 
+    [HarmonyPatch(typeof(NMerchantRoom), "OpenInventory")]
+    private static class SteambenchMerchantOpenPatch
+    {
+        private static bool Prefix(NMerchantRoom __instance)
+        {
+            if (!ReferenceEquals(__instance.Inventory, _semanticallyClosedShopInventory)) return true;
+            if (_buildingObservation) return false;
+            _semanticallyClosedShopInventory = null;
+            return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(NFakeMerchant), "OpenInventory")]
+    private static class SteambenchFakeMerchantOpenPatch
+    {
+        private static bool Prefix(NFakeMerchant __instance)
+        {
+            var inventory = FindFirst<NMerchantInventory>(__instance);
+            if (!ReferenceEquals(inventory, _semanticallyClosedShopInventory)) return true;
+            if (_buildingObservation) return false;
+            _semanticallyClosedShopInventory = null;
+            return true;
+        }
+    }
+
     private sealed class ObservedCardIdentity
     {
         public int Value { get; } = ++_nextObservedCard;
@@ -239,6 +291,11 @@ public static partial class McpMod
     [HarmonyPatch(typeof(McpMod), "BuildGameState")]
     private static class SteambenchObservationPatch
     {
+        private static void Prefix()
+        {
+            _buildingObservation = true;
+        }
+
         private static void Postfix(Dictionary<string, object?> __result)
         {
             try
@@ -329,6 +386,12 @@ public static partial class McpMod
             {
                 __result["sensor_error"] = error.GetType().Name;
             }
+        }
+
+        private static Exception? Finalizer(Exception? __exception)
+        {
+            _buildingObservation = false;
+            return __exception;
         }
     }
 }
