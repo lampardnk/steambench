@@ -14,6 +14,7 @@ import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs
 import { Curriculum } from './curriculum.mjs';
 import { indexNotes, retrieve } from './retrieval.mjs';
 import { LEARNING_ARTIFACT, readArtifact } from '../../server/lib/learning-artifact.mjs';
+import { roleForCandidateAgent, synthesisContext, validateSynthesis, verifiedLearningCandidates } from './artifact-synthesis.mjs';
 
 // Actions that read or write knowledge and never mutate the game. A decision made
 // only of these cannot change the game, which matters twice below: an unchanged
@@ -61,7 +62,7 @@ if (checkpoint?.version !== VERSION) checkpoint = null;
 const sessionId = randomUUID().slice(0, 8);
 const emit = event => process.stdout.write(JSON.stringify(event) + '\n');
 const usage = { requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, modelLatencyMs: 0, ...checkpoint?.usage };
-const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8')), fs.readFileSync(new URL('../../server/lib/learning-artifact.mjs', import.meta.url), 'utf8')]);
+const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'artifact-synthesis.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'artifact-synthesis.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8')), fs.readFileSync(new URL('../../server/lib/learning-artifact.mjs', import.meta.url), 'utf8')]);
 const catalog = new ObservationCatalog(directory);
 const started = checkpoint?.started || Date.now();
 let totalActions = checkpoint?.totalActions ?? checkpoint?.totalInputs ?? 0;
@@ -304,6 +305,51 @@ async function run(task) {
     };
   };
 
+  /**
+   * The final synthesis attempt is a runtime invariant, not an optional action
+   * the playing agents must remember. It receives only candidates attached to
+   * fully verified batches and appends through the same one-artifact writer as
+   * an ordinary learn action. Failure is telemetry, never a reason to suppress
+   * a verified run result.
+   */
+  const finalizeLearningArtifact = async () => {
+    const synthesisLane = 'learning-synthesis';
+    const candidates = verifiedLearningCandidates(directory, build);
+    record({ type: 'artifact_synthesis_started', candidates: candidates.length });
+    if (!candidates.length) {
+      record({ type: 'artifact_synthesis_finished', candidates: 0, edits: 0, skipped: 'no verified candidates' });
+      return { candidates: 0, edits: 0 };
+    }
+    roster.open(synthesisLane, { role: 'synthesis', title: ROLES.synthesis.blurb });
+    roster.count(synthesisLane);
+    try {
+      const answer = await planner.ask({
+        role: 'synthesis', agent: synthesisLane, prompt: ROLES.synthesis.prompt,
+        context: synthesisContext(skillDir, candidates), deadlineMs: 60000,
+      });
+      const edits = validateSynthesis(answer, candidates);
+      const completed = [];
+      for (const edit of edits) {
+        const kept = await executor.keepNote(
+          { type: 'learn', content: edit.content, message: edit.message },
+          {
+            agent: edit.agent, role: roleForCandidateAgent(edit.agent), decision,
+            sourceCandidates: edit.candidateIds, synthesizedBy: synthesisLane,
+          },
+        );
+        record({ type: 'artifact_synthesis_edit', synthesizer: synthesisLane, candidateIds: edit.candidateIds, agent: edit.agent, verified: kept.verified === true, error: kept.error || null });
+        if (kept.verified) completed.push(kept);
+      }
+      roster.close(synthesisLane, { outcome: 'completed', summary: `${completed.length}/${edits.length} artifact edits appended` });
+      record({ type: 'artifact_synthesis_finished', candidates: candidates.length, proposedEdits: edits.length, edits: completed.length });
+      return { candidates: candidates.length, edits: completed.length };
+    } catch (error) {
+      roster.close(synthesisLane, { outcome: 'failed', summary: error.message });
+      record({ type: 'artifact_synthesis_failure', candidates: candidates.length, error: error.message });
+      throw error;
+    }
+  };
+
   try {
     while (decision < 800) {
       decision++;
@@ -345,6 +391,11 @@ async function run(task) {
         await closeFight(state, result);
         if (curriculum.active) await curriculum.verify(state, { decision, evidence }).catch(() => {});
         curriculum.closeRun(state, { decision, result });
+        const synthesis = await finalizeLearningArtifact().catch(error => {
+          message(`Learning artifact synthesis failed safely: ${error.message}`, LANE.room);
+          return null;
+        });
+        if (synthesis) message(`Learning artifact finalized from ${synthesis.candidates} verified candidates with ${synthesis.edits} attributed edits.`, LANE.room);
         const summary = `${PROFILE.name}: ${result}; act ${state.run?.act}, floor ${state.run?.floor}; ${decision} decisions across ${fights} encounters.`;
         const finished = await gateway.call({ op: 'room-finish', result, summary });
         lifecycle = result;

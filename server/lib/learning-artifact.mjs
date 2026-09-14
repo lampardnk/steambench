@@ -104,7 +104,10 @@ function editId({ at, agent, decision, afterHash }) {
  * artifact, and records who changed the document and the exact before/after
  * hashes.
  */
-export function appendArtifactEdit(skillDir, { content, message, agent = 'unknown', lane = null, role = null, decision = null, at = Date.now(), sourcePath = null } = {}) {
+export function appendArtifactEdit(skillDir, {
+  content, message, agent = 'unknown', lane = null, role = null, decision = null,
+  at = Date.now(), sourcePath = null, sourceCandidates = [], synthesizedBy = null,
+} = {}) {
   if (typeof content !== 'string' || !content.trim() || utf8Bytes(content) > MAX_LEARNING_EDIT) throw new Error(`learning edit must be 1-${MAX_LEARNING_EDIT} UTF-8 bytes`);
   if (typeof message !== 'string' || !message.trim() || message.length > MAX_LEARNING_MESSAGE) throw new Error(`learning edit message must be 1-${MAX_LEARNING_MESSAGE} characters`);
   const file = artifactFile(skillDir);
@@ -122,12 +125,18 @@ export function appendArtifactEdit(skillDir, { content, message, agent = 'unknow
   const afterHash = hashArtifact(after);
   const actor = String(agent || lane || 'unknown').slice(0, 120);
   const editLane = String(lane || agent || 'unknown').slice(0, 120);
+  const candidateIds = Array.isArray(sourceCandidates)
+    ? [...new Set(sourceCandidates.filter(id => typeof id === 'string' && id.length <= 128))].slice(0, 256)
+    : [];
+  const synthesizer = synthesizedBy ? String(synthesizedBy).slice(0, 120) : null;
   const edit = {
     id: editId({ at, agent: actor, lane: editLane, decision, afterHash }),
     at, agent: actor, lane: editLane, role: role ? String(role).slice(0, 40) : null,
     decision: Number.isInteger(decision) ? decision : null,
     message: message.trim().slice(0, MAX_LEARNING_MESSAGE),
     sourcePath: sourcePath || null,
+    ...(candidateIds.length ? { sourceCandidates: candidateIds } : {}),
+    ...(synthesizer ? { synthesizedBy: synthesizer } : {}),
     operation: 'append',
     artifact: LEARNING_ARTIFACT,
     beforeHash, afterHash,

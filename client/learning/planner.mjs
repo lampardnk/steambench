@@ -58,8 +58,8 @@ export class Planner {
   /**
    * One model call with its own system prompt, in one member's lane.
    *
-   * Every role on the team - strategist, combat, curriculum, critic -
-   * comes through here, so token usage is recorded the same way for all of them
+   * Every model role on the team comes through here, so token usage is recorded
+   * the same way for all of them
    * and the dashboard can file each response under whoever produced it. `agent`
    * is the lane id, which for the encounter agents changes every fight while
    * `role` stays 'combat'. `primary` marks the call that owns the game-facing

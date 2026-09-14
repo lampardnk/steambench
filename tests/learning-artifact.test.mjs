@@ -56,6 +56,24 @@ test('artifact bounds count UTF-8 bytes and an unchanged artifact has no diff', 
   assert.equal(artifactReport(dir, { input: 'same' }).diff, '');
 });
 
+test('synthesized edits retain source-candidate and synthesizer provenance', () => {
+  const dir = roomDir();
+  initializeArtifact(dir, '');
+  const edit = appendArtifactEdit(dir, {
+    content: 'Prefer claims supported by observed transitions.',
+    message: 'Verified observation scope',
+    agent: 'combat-001-a1f2',
+    role: 'combat',
+    sourceCandidates: ['candidate-a', 'candidate-b', 'candidate-a'],
+    synthesizedBy: 'learning-synthesis',
+  });
+  assert.deepEqual(edit.sourceCandidates, ['candidate-a', 'candidate-b']);
+  assert.equal(edit.synthesizedBy, 'learning-synthesis');
+  const report = artifactReport(dir);
+  assert.deepEqual(report.edits[0].sourceCandidates, ['candidate-a', 'candidate-b']);
+  assert.equal(report.edits[0].synthesizedBy, 'learning-synthesis');
+});
+
 test('operator input is preserved and a learn action writes only the room artifact', async () => {
   const dir = roomDir();
   initializeArtifact(dir, 'Operator rule: verify every mutation.\n');

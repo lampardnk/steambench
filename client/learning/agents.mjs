@@ -31,6 +31,7 @@ export const ROLES = {
   },
   curriculum: { label: 'Curriculum', prompt: 'curriculum.txt', blurb: 'Chooses the next objective.' },
   critic: { label: 'Critic', prompt: 'critic.txt', blurb: 'Decides whether an objective was met.' },
+  synthesis: { label: 'Learning synthesis', prompt: 'artifact-synthesis.txt', blurb: 'Compacts verified candidates into the room artifact at run end.' },
 };
 
 /** Stable lane id for the roles that exist for the whole room. */

@@ -25,6 +25,7 @@ import { webGet } from './web.js';
 import { validateSts2Action } from './sts2-actions.js';
 import { docker, runningContainers, allContainers, containerIp, rmForce, execDetached, execIn, restart as dockerRestart } from './docker.js';
 import { LEARNING_ARTIFACT, LEARNING_EDITS, MAX_LEARNING_ARTIFACT, artifactReport, initializeArtifact } from './learning-artifact.mjs';
+import { historyRunView, selectNativeRun, snapshotNativeRuns } from './run-history.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sleepUnlessAborted = (ms, signal) => {
@@ -302,10 +303,13 @@ export class RoomManager extends EventEmitter {
       result: null,
       verification: 'unknown',
     }));
+    const room = read('room.json');
+    const events = text(path.join('scratchpad', 'events.jsonl'));
     return {
-      room: read('room.json'), transcript: read('transcript.json') || [], agents: read('agents.json') || [],
+      room, transcript: read('transcript.json') || [], agents: read('agents.json') || [],
       usage: read('usage.json') || {}, actionHistory: read('action-history.json') || legacyHistory(),
       learningArtifact: read('learning-artifact.json'),
+      runHistory: historyRunView(read('run.run'), events, room),
       scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })),
       gameLog: text('godot.log'),
     };
@@ -348,6 +352,8 @@ export class Room extends EventEmitter {
     this.loginQr = null; this.qrPoint = null; this.qrSeenAt = 0; this.qrReloads = 0; this.qrReloadedAt = 0; this.loginSince = Date.now(); this.loginReused = false;
     this.gameReady = false; this.destroyed = false; this.loops = new Set();
     this.lastState = null;
+    this.runHistoryBaseline = new Set();
+    this.runStartedAt = null;
   }
 
   summary() {
@@ -806,6 +812,13 @@ export class Room extends EventEmitter {
       throw error;
     }
     const t = this.setup.task;
+    if (!resume) {
+      // Native history files may already exist because Steam synchronized the
+      // profile. Snapshot them immediately before the fresh-run instruction so
+      // archive selection can distinguish this room's .run from older saves.
+      this.runHistoryBaseline = snapshotNativeRuns(this.home);
+      this.runStartedAt = Date.now();
+    }
     // The win condition is stated because it had been dropped: v0.3 and v0.4
     // carried "Play efficiently to win", and it is absent from the kickoff that
     // replaced them - so nothing in front of any agent says the point is to
@@ -945,6 +958,23 @@ export class Room extends EventEmitter {
   async _archive(reason) {
     const dir = path.join(this.cfg.historyDir, `${new Date(this.createdAt).toISOString().replace(/[:.]/g, '-')}-${this.id}`);
     fs.mkdirSync(dir, { recursive: true });
+    try {
+      const nativeRun = this.finish && this.setup?.game === 'sts2' ? selectNativeRun(this.home, {
+        baseline: this.runHistoryBaseline,
+        startedAt: this.runStartedAt || this.createdAt,
+        character: this.setup.task.character,
+        ascension: this.setup.task.ascension,
+        result: this.finish.result,
+      }) : null;
+      if (nativeRun) {
+        fs.copyFileSync(nativeRun.file, path.join(dir, 'run.run'));
+        this._log(`archived native run history (${path.basename(nativeRun.file)})`);
+      }
+    } catch (error) {
+      // A missing or concurrently-written optional game file must never cost
+      // the transcript, action audit, or learning artifact archive.
+      this._log(`could not archive native run history: ${error.message}`);
+    }
     const meta = { ...this.summary(), log: this.log, reason, archivedAt: Date.now(), transcriptItems: this.agent?.transcript.length || 0 };
     fs.writeFileSync(path.join(dir, 'room.json'), JSON.stringify(meta, null, 2));
     fs.writeFileSync(path.join(dir, 'transcript.json'), JSON.stringify(this.agent?.transcript || [], null, 2));

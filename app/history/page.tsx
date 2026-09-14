@@ -1,14 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { api, type ActionEvent, type AgentInfo, type LearningArtifactReport, type RoomSummary, type TranscriptItem, type UsageByLane } from '@/lib/backend'
+import { api, type ActionEvent, type AgentInfo, type LearningArtifactReport, type RoomSummary, type RunHistoryView, type TranscriptItem, type UsageByLane } from '@/lib/backend'
 import { ActionAudit } from '@/components/action-audit'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { Transcript } from '@/components/transcript'
 import { LearningArtifactView } from '@/components/learning'
+import { NativeRunHistory } from '@/components/run-history'
 
 type Entry = RoomSummary & { dir: string; reason: string; archivedAt: number; transcriptItems: number }
-type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; usage?: UsageByLane; actionHistory: ActionEvent[]; learningArtifact?: LearningArtifactReport | null; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
+type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; usage?: UsageByLane; actionHistory: ActionEvent[]; learningArtifact?: LearningArtifactReport | null; runHistory?: RunHistoryView | null; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
 
 export default function HistoryPage() {
   const [settings, setSettings, loaded] = useSettings()
@@ -42,7 +43,7 @@ export default function HistoryPage() {
   return (
     <main className="min-h-svh bg-background text-foreground">
       <SettingsBar settings={settings} onChange={setSettings} status={`${entries.length} archived room(s)`} />
-      <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="mx-auto max-w-[92rem] px-4 py-6">
         <div className="mb-4 flex items-center gap-3">
           <a href="/" className="text-sm text-muted-foreground hover:underline">
             ← rooms
@@ -50,7 +51,7 @@ export default function HistoryPage() {
           <h1 className="text-xl font-semibold tracking-tight">History</h1>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+        <div className="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
           <ul className="flex flex-col gap-2">
             {entries.map((e) => (
               <li key={e.dir}>
@@ -75,6 +76,7 @@ export default function HistoryPage() {
                 )}
                 {open.room.lastState && <p className="font-mono text-xs">{JSON.stringify(open.room.lastState)}</p>}
               </div>
+              {open.runHistory && <NativeRunHistory run={open.runHistory} />}
               <Transcript items={open.transcript} agents={open.agents} usage={open.usage} />
               <ActionAudit history={open.actionHistory || []} />
               {open.learningArtifact && <section className="rounded-md border border-border bg-card p-3"><h2 className="mb-2 text-sm font-medium">Room learning artifact</h2><LearningArtifactView report={open.learningArtifact} /></section>}

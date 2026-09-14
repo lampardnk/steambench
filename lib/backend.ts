@@ -191,6 +191,10 @@ export type LearningEdit = {
   decision?: number | null
   message: string
   sourcePath?: string | null
+  /** Verified candidate IDs used by a run-end synthesis edit. */
+  sourceCandidates?: string[]
+  /** Runtime lane that compacted those candidates into the artifact. */
+  synthesizedBy?: string | null
   operation?: string
   artifact: string
   beforeHash: string
@@ -208,6 +212,64 @@ export type LearningArtifactReport = {
    * Live room summaries intentionally omit patches to stay small. */
   edits?: LearningEdit[]
   diff?: string
+}
+
+export type RunEntity = {
+  id: string
+  name: string
+  kind: 'card' | 'relic' | 'potion'
+  floor: number | null
+  upgraded: boolean
+  enchantment: string | null
+  type: string | null
+  rarity: string | null
+  cost: string | number | null
+  description: string | null
+}
+
+export type RunFloor = {
+  floor: number
+  nodeType: string
+  title: string
+  turns: number | null
+  hp: number | null
+  maxHp: number | null
+  gold: number | null
+  damage: number
+  healed: number
+  goldGained: number
+  goldLost: number
+  goldSpent: number
+  cardsGained: RunEntity[]
+  cardsRemoved: RunEntity[]
+  cardsUpgraded: RunEntity[]
+  relicsGained: RunEntity[]
+  relicsRemoved: RunEntity[]
+  potionsGained: RunEntity[]
+  potionsUsed: RunEntity[]
+  potionsDiscarded: RunEntity[]
+  choices: string[]
+}
+
+export type RunHistoryView = {
+  source: 'native-run' | 'sensor-history'
+  result: string
+  character: string
+  ascension: number | null
+  build: string | null
+  gameMode: string | null
+  seed: string | null
+  startedAt: number | null
+  durationSeconds: number | null
+  hp: number | null
+  maxHp: number | null
+  gold: number | null
+  killedBy: string | null
+  deck: RunEntity[]
+  relics: RunEntity[]
+  potions: RunEntity[]
+  badges: { name: string; rarity: string | null }[]
+  acts: { name: string; floors: RunFloor[] }[]
 }
 
 /** One objective from the curriculum ladder, as the player's runtime writes it. */

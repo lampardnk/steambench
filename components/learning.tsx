@@ -128,7 +128,8 @@ function ArtifactDocument({ title, content, empty }: { title: string; content: s
 
 function LearningEditRow({ edit }: { edit: LearningEdit }) {
   const actor = [...new Set([edit.agent || edit.lane, edit.role].filter(Boolean))].join(' · ')
-  return <details className="rounded-md border border-border bg-background p-2"><summary className={`cursor-pointer ${FOCUS}`}><span className="font-medium">{edit.message}</span><span className="ml-2 text-muted-foreground">{actor || 'unknown agent'}{edit.decision != null ? ` · decision ${edit.decision}` : ''} · {new Date(edit.at).toLocaleString()}</span></summary><div className="mt-2 space-y-1 border-t border-border pt-2"><p className="text-muted-foreground">{edit.beforeHash.slice(0, 12)} → {edit.afterHash.slice(0, 12)} · {edit.operation || 'edit'}{edit.sourcePath ? ` · legacy source ${edit.sourcePath}` : ''}</p><Patch text={edit.patch} /></div></details>
+  const sourceCount = edit.sourceCandidates?.length || 0
+  return <details className="rounded-md border border-border bg-background p-2"><summary className={`cursor-pointer ${FOCUS}`}><span className="font-medium">{edit.message}</span><span className="ml-2 text-muted-foreground">{actor || 'unknown agent'}{edit.decision != null ? ` · decision ${edit.decision}` : ''} · {new Date(edit.at).toLocaleString()}</span></summary><div className="mt-2 space-y-1 border-t border-border pt-2"><p className="text-muted-foreground">{edit.beforeHash.slice(0, 12)} → {edit.afterHash.slice(0, 12)} · {edit.operation || 'edit'}{edit.sourcePath ? ` · legacy source ${edit.sourcePath}` : ''}{edit.synthesizedBy ? ` · synthesized by ${edit.synthesizedBy} from ${sourceCount} verified candidate${sourceCount === 1 ? '' : 's'}` : ''}</p><Patch text={edit.patch} /></div></details>
 }
 
 function Objectives({ settings, curriculum, roomId, refreshKey }: { settings: Settings; curriculum?: Curriculum | null; roomId?: string; refreshKey: string }) {

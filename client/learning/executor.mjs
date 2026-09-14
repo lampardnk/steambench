@@ -143,7 +143,9 @@ export class Executor {
     error.after = after;
     throw error;
   }
-  async keepNote(action, { agent = 'unknown', role = null, decision = null } = {}) {
+  async keepNote(action, {
+    agent = 'unknown', role = null, decision = null, sourceCandidates = [], synthesizedBy = null,
+  } = {}) {
     const problem = noteProblem(action);
     if (problem) return { action, verified: false, error: `note not kept: ${problem}` };
     try {
@@ -156,8 +158,15 @@ export class Executor {
         role,
         decision,
         sourcePath: action.path || null,
+        sourceCandidates,
+        synthesizedBy,
       });
-      this.record({ type: 'learning_edit', agent, role, decision, artifact: LEARNING_ARTIFACT, beforeHash: edit.beforeHash, afterHash: edit.afterHash, message: edit.message, patch: edit.patch });
+      this.record({
+        type: 'learning_edit', agent, role, decision, artifact: LEARNING_ARTIFACT,
+        beforeHash: edit.beforeHash, afterHash: edit.afterHash, message: edit.message,
+        sourceCandidates: edit.sourceCandidates || [], synthesizedBy: edit.synthesizedBy || null,
+        patch: edit.patch,
+      });
       return {
         action,
         verified: true,

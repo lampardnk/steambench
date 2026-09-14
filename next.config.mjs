@@ -14,6 +14,13 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.spire-codex.com',
+        pathname: '/cards-full/stable/**',
+      },
+    ],
   },
 }
 

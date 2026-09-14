@@ -6,8 +6,8 @@ import { ROLES, LANE, Roster, encounterLane } from '../client/learning/agents.mj
 import { ROLE_ACTIONS } from '../client/learning/state.mjs';
 import { UsageLedger, contextUsed } from '../server/lib/usage.js';
 
-test('the runtime has strategist and encounter roles with no actuator lane', () => {
-  assert.deepEqual(Object.keys(ROLES), ['room', 'strategist', 'combat', 'curriculum', 'critic']);
+test('the runtime has scoped playing roles and a run-end synthesis role with no actuator lane', () => {
+  assert.deepEqual(Object.keys(ROLES), ['room', 'strategist', 'combat', 'curriculum', 'critic', 'synthesis']);
   assert.equal('actuator' in LANE, false);
   assert.ok(ROLE_ACTIONS.strategist.has('menu_select'));
   assert.ok(ROLE_ACTIONS.combat.has('play_card'));
