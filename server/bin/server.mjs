@@ -8,61 +8,28 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { RoomManager } from '../lib/rooms.js';
 import { startGateway } from '../lib/gateway.js';
-import { NVIDIA_BUFFER_CAPS } from '../lib/wolf.js';
 import { SUPPORTED_GAMES } from '../lib/steam.js';
 import { PROFILE as learningProfile } from '../lib/learning-profile.mjs';
+import { loadServerConfig } from '../lib/config.mjs';
+import { learningReadiness } from '../lib/readiness.mjs';
 import * as library from '../lib/library.js';
 import { WEB_ALLOWLIST } from '../lib/web.js';
 
 const env = process.env;
 const log = (...a) => console.log(new Date().toISOString(), ...a);
-const TOKEN = env.STEAMBENCH_TOKEN;
-if (!TOKEN) { console.error('STEAMBENCH_TOKEN is required'); process.exit(2); }
 const here = path.dirname(fileURLToPath(import.meta.url));
-import { learningReadiness } from '../lib/readiness.mjs';
-const learningKey = env[learningProfile.apiKeyEnv] || '';
-
-const cfg = {
-  log,
-  wolfSocket: env.WOLF_SOCKET_PATH || '/etc/wolf/wolf.sock',
-  wolfConfigFile: env.WOLF_CFG_FILE || '/etc/wolf/cfg/config.toml',
-  wolfContainer: env.WOLF_CONTAINER || 'steambench-wolf',
-  runtimeDir: env.STEAMBENCH_RUNTIME_DIR || '/etc/wolf',
-  hostRuntimeDir: env.STEAMBENCH_HOST_RUNTIME_DIR || '/etc/wolf',
-  roomsDir: env.STEAMBENCH_ROOMS_DIR || '/etc/wolf/rooms',
-  roomsRel: env.STEAMBENCH_ROOMS_REL || 'rooms',
-  // The docker daemon resolves bind mounts on the host, so player containers need the host path of the rooms dir.
-  hostRoomsDir: env.STEAMBENCH_HOST_ROOMS_DIR || path.join(env.STEAMBENCH_HOST_RUNTIME_DIR || '/etc/wolf', 'rooms'),
-  historyDir: env.STEAMBENCH_HISTORY_DIR || '/etc/steambench/history',
-  loginTemplateDir: env.STEAMBENCH_LOGIN_TEMPLATE || '/etc/wolf/steam-login',
-  cacheDir: env.STEAMBENCH_CACHE_DIR || '/etc/wolf/cache',
-  mediaDir: env.STEAMBENCH_MEDIA_DIR || '/etc/wolf/media',
-  hostMediaDir: env.STEAMBENCH_HOST_MEDIA_DIR || path.join(env.STEAMBENCH_HOST_RUNTIME_DIR || '/etc/wolf', 'media'),
-  skillsDir: env.STEAMBENCH_SKILLS_SRC || path.join(here, '..', 'skills'),
-  modDir: env.STEAMBENCH_MOD_DIR || '/opt/sts2mcp',
-  hostSteam: env.STEAMBENCH_HOST_STEAM || '/host/steam',
-  hostSteamOriginalPath: env.STEAMBENCH_HOST_STEAM_PATH || '',
-  hostSts2: env.STEAMBENCH_HOST_STS2 || '/host/sts2',
-  roomImage: env.STEAMBENCH_ROOM_IMAGE || 'ghcr.io/games-on-whales/steam:edge',
-  roomExtraEnv: (env.STEAMBENCH_ROOM_ENV || '').split(';').map((s) => s.trim()).filter(Boolean),
-  learningImage: learningProfile.image,
-  learningProfile,
-  learningKey,
-  gatewayForAgents: env.STEAMBENCH_GATEWAY_FOR_AGENTS || 'host.docker.internal:28771',
-  renderNode: env.WOLF_RENDER_NODE || '/dev/dri/renderD128',
-  bufferCaps: env.WOLF_VIDEO_BUFFER_CAPS || NVIDIA_BUFFER_CAPS,
-  roomWidth: Number(env.STEAMBENCH_ROOM_WIDTH || 1280), roomHeight: Number(env.STEAMBENCH_ROOM_HEIGHT || 720), roomFps: Number(env.STEAMBENCH_ROOM_FPS || 60),
-  streamWidth: Number(env.STEAMBENCH_STREAM_WIDTH || 1280), streamHeight: Number(env.STEAMBENCH_STREAM_HEIGHT || 720), streamFps: Number(env.STEAMBENCH_STREAM_FPS || 30), streamQuality: Number(env.STEAMBENCH_STREAM_QUALITY || 80),
-  streamBitrateKbps: Number(env.STEAMBENCH_STREAM_BITRATE || 4000),
-  stillsFps: Number(env.STEAMBENCH_STILLS_FPS || 2),
-  fragmentMs: Number(env.STEAMBENCH_FRAGMENT_MS || 500),
-  audioBitrate: Number(env.STEAMBENCH_AUDIO_BITRATE || 128),
-  portBase: Number(env.STEAMBENCH_PORT_BASE || 39000),
-  maxRooms: Number(env.STEAMBENCH_MAX_ROOMS || 4),
-  finishGraceS: Number(env.STEAMBENCH_FINISH_GRACE_S || 90),
-};
-const PORT = Number(env.PORT || 8787);
-const GATEWAY_PORT = Number(env.STEAMBENCH_GATEWAY_PORT || 28771);
+let config;
+try {
+  // This must run before RoomManager construction or either server listener is
+  // started: malformed dimensions/ports should fail fast and leave no runtime
+  // integration partially initialized.
+  config = loadServerConfig({ env, here, log });
+} catch (error) {
+  console.error(`configuration error: ${error.message}`);
+  process.exit(2);
+}
+const { token: TOKEN, port: PORT, gatewayPort: GATEWAY_PORT } = config;
+const cfg = config;
 if (!cfg.learningKey) log(`${learningProfile.apiKeyEnv} is absent; the built-in player is unready`);
 
 const manager = new RoomManager(cfg);
@@ -155,6 +122,14 @@ const server = http.createServer(async (req, res) => {
       const sub = parts[3];
       if (!sub && req.method === 'GET') return json(res, 200, { ...room.summary(), transcript: room.agent?.transcript || [], agents: room.agent?.agents || [], usage: room.agent?.usage?.snapshot || {}, actionHistory: room.actionHistory, log: room.log });
       if (!sub && req.method === 'DELETE') { await manager.remove(room.id, { keepHome: url.searchParams.get('keepHome') === '1', reason: 'deleted by user' }); return json(res, 200, { ok: true, archive: room.archiveDir ? path.basename(room.archiveDir) : null }); }
+      if ((sub === 'learning-artifact' || sub === 'learning') && req.method === 'GET') {
+        return json(res, 200, room.learningArtifactReport({ includeContent: true }));
+      }
+      if ((sub === 'learning-artifact' || sub === 'learning') && req.method === 'POST') {
+        const body = await readJson(req);
+        if (typeof body.content !== 'string') return json(res, 400, { error: 'learning artifact content must be text' });
+        return json(res, 200, room.setLearningArtifactInput(body.content));
+      }
       if (sub === 'setup' && req.method === 'POST') { const body = await readJson(req); return json(res, 200, await room.applySetup(body)); }
       if (sub === 'objectives' && req.method === 'GET') return json(res, 200, library.objectivePage(path.join(room.home, 'skills', room.setup?.game || 'sts2', 'scratchpad', 'objectives.json'), Object.fromEntries(url.searchParams)));
       if (sub === 'incidents' && req.method === 'GET') return json(res, 200, library.incidentPage(path.join(room.home, 'skills', room.setup?.game || 'sts2', 'scratchpad'), Object.fromEntries(url.searchParams)));

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { api, type Curriculum, type Objective, type Settings } from '@/lib/backend'
+import { api, type Curriculum, type LearningArtifactReport, type LearningEdit, type Objective, type Settings } from '@/lib/backend'
 import { Button } from '@/components/ui/button'
 
 export type Commit = {
@@ -31,12 +31,12 @@ export type Rescue = {
 type RescuePage = { incidents: Rescue[]; total: number; nextOffset: number | null }
 
 const STATUS_LABEL: Record<string, string> = { A: 'added', M: 'changed', D: 'removed', R: 'renamed' }
-const VIEWS = { objectives: 'objectives', rescues: 'ui rescues', commits: 'history', files: 'current notes' } as const
+const VIEWS = { artifact: 'room artifact', objectives: 'objectives', rescues: 'ui rescues', commits: 'history', files: 'current notes' } as const
 const FOCUS = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 type View = keyof typeof VIEWS
 
 export function Learning({ settings, curriculum, refreshKey, roomId }: { settings: Settings; curriculum?: Curriculum | null; refreshKey?: string | number; roomId?: string }) {
-  const [view, setView] = useState<View>(curriculum ? 'objectives' : 'commits')
+  const [view, setView] = useState<View>(roomId ? 'artifact' : curriculum ? 'objectives' : 'commits')
   const [revision, setRevision] = useState(0)
   const refresh = `${refreshKey ?? ''}:${revision}`
 
@@ -44,15 +44,18 @@ export function Learning({ settings, curriculum, refreshKey, roomId }: { setting
     <div className="min-w-0 text-sm">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="flex rounded-md border border-border p-0.5 text-xs" role="group" aria-label="Learning views">
-          {(Object.keys(VIEWS) as View[]).map((tab) => (
+          {(Object.keys(VIEWS) as View[]).filter((tab) => tab !== 'artifact' || Boolean(roomId)).map((tab) => (
             <Button key={tab} variant="ghost" size="xs" aria-pressed={view === tab} onClick={() => setView(tab)} className={view === tab ? 'bg-muted font-medium' : 'text-muted-foreground'}>
               {VIEWS[tab]}
             </Button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">The skill library persists across rooms.</p>
+        <p className="text-xs text-muted-foreground">{roomId ? 'One artifact in → one artifact out; strategy guides remain a read-only baseline.' : 'The strategy library is a read-only baseline; room artifacts are reviewed separately.'}</p>
         <div className="flex-1" />
         <Button variant="outline" size="xs" onClick={() => setRevision((value) => value + 1)}>refresh</Button>
+      </div>
+      <div hidden={view !== 'artifact'}>
+        {view === 'artifact' && <LearningArtifactPanel settings={settings} roomId={roomId} refreshKey={refresh} />}
       </div>
       <div hidden={view !== 'objectives'}>
         {view === 'objectives' && <Objectives settings={settings} curriculum={curriculum} roomId={roomId} refreshKey={refresh} />}
@@ -66,6 +69,66 @@ export function Learning({ settings, curriculum, refreshKey, roomId }: { setting
       {view === 'files' && <FileBrowser settings={settings} refreshKey={refresh} />}
     </div>
   )
+}
+
+/** Show the complete room artifact and the chronological, attributed edits. */
+export function LearningArtifactPanel({ settings, roomId, refreshKey }: { settings: Settings; roomId?: string; refreshKey?: string | number }) {
+  const [report, setReport] = useState<LearningArtifactReport | null>(null)
+  const [busy, setBusy] = useState(Boolean(roomId))
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!roomId) { setReport(null); setBusy(false); return }
+    let current = true
+    setBusy(true)
+    setError('')
+    api<LearningArtifactReport>(settings, `/api/rooms/${encodeURIComponent(roomId)}/learning-artifact`)
+      .then((result) => { if (current) setReport(result) })
+      .catch((err) => { if (current) setError((err as Error).message) })
+      .finally(() => { if (current) setBusy(false) })
+    return () => { current = false }
+  }, [settings, roomId, refreshKey])
+
+  if (!roomId) return <p className="p-2 text-xs text-muted-foreground">Open a room to inspect its learning artifact.</p>
+  if (busy && !report) return <p role="status" className="p-2 text-xs text-muted-foreground">Loading room artifact…</p>
+  if (error) return <p role="alert" className="p-2 text-xs text-destructive">{error}</p>
+  if (!report) return null
+  return <LearningArtifactView report={report} />
+}
+
+export function LearningArtifactView({ report }: { report: LearningArtifactReport }) {
+  const edits = report.edits || []
+  return (
+    <div className="space-y-3 text-xs">
+      <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+        <div className="font-medium">One artifact in → one artifact out</div>
+        <p className="mt-1 text-muted-foreground">Input {report.input.provided ? 'provided by the operator' : 'blank by default'} · {edits.length || report.output.edits} attributed edit{(edits.length || report.output.edits) === 1 ? '' : 's'} · output hash <span className="font-mono">{report.output.hash.slice(0, 16)}</span></p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <ArtifactDocument title="Input artifact" content={report.input.content || ''} empty="Blank (the default for a new room)." />
+        <ArtifactDocument title="Output artifact" content={report.output.content || ''} empty="No learning entries were recorded." />
+      </div>
+      <details className="rounded-md border border-border bg-card p-3" open={edits.length > 0}>
+        <summary className="cursor-pointer font-medium">Agent edit history ({edits.length || report.output.edits})</summary>
+        <div className="mt-2 space-y-2">
+          {edits.length ? edits.map((edit) => <LearningEditRow key={edit.id} edit={edit} />) : report.output.edits ? <p className="text-muted-foreground">Edit details are available from the full room artifact endpoint.</p> : <p className="text-muted-foreground">No agent edited the artifact.</p>}
+        </div>
+      </details>
+      <details className="rounded-md border border-border bg-card p-3">
+        <summary className="cursor-pointer font-medium">Input → output diff</summary>
+        <div className="mt-2"><Patch text={report.diff || ''} /></div>
+      </details>
+    </div>
+  )
+}
+
+function ArtifactDocument({ title, content, empty }: { title: string; content: string; empty: string }) {
+  return <div className="min-w-0 rounded-md border border-border bg-card p-3"><div className="font-medium">{title}</div><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-background p-2 font-mono text-[11px]">{content || empty}</pre></div>
+}
+
+function LearningEditRow({ edit }: { edit: LearningEdit }) {
+  const actor = [...new Set([edit.agent || edit.lane, edit.role].filter(Boolean))].join(' · ')
+  return <details className="rounded-md border border-border bg-background p-2"><summary className={`cursor-pointer ${FOCUS}`}><span className="font-medium">{edit.message}</span><span className="ml-2 text-muted-foreground">{actor || 'unknown agent'}{edit.decision != null ? ` · decision ${edit.decision}` : ''} · {new Date(edit.at).toLocaleString()}</span></summary><div className="mt-2 space-y-1 border-t border-border pt-2"><p className="text-muted-foreground">{edit.beforeHash.slice(0, 12)} → {edit.afterHash.slice(0, 12)} · {edit.operation || 'edit'}{edit.sourcePath ? ` · legacy source ${edit.sourcePath}` : ''}</p><Patch text={edit.patch} /></div></details>
 }
 
 function Objectives({ settings, curriculum, roomId, refreshKey }: { settings: Settings; curriculum?: Curriculum | null; roomId?: string; refreshKey: string }) {
@@ -85,7 +148,7 @@ function Objectives({ settings, curriculum, roomId, refreshKey }: { settings: Se
           ) : <p className="mt-1 text-xs text-muted-foreground">No open objective. The curriculum proposes the next one on the player&apos;s next decision.</p>}
         </div>
       )}
-      {curriculum && <p className="text-xs text-muted-foreground"><span className="font-medium text-success">{curriculum.completed} completed</span> · <span className="font-medium text-warning">{curriculum.failed} abandoned</span>. A separate critic decides which.</p>}
+      {curriculum && <p className="text-xs text-muted-foreground"><span className="font-medium text-success">{curriculum.completed} completed</span> · <span className="font-medium text-warning">{curriculum.abandoned} abandoned</span>. A separate critic decides which.</p>}
       {/* Objectives belong to the room that played them: a ladder merged across
           rooms handed each new run a frontier from seeds that no longer exist. */}
       {roomId && <History key={roomId} settings={settings} endpoint={`/api/rooms/${encodeURIComponent(roomId)}/objectives`} kind="objectives" title="Objective history" refreshKey={refreshKey} />}

@@ -17,6 +17,7 @@
 // deterministic, so the same screen always retrieves the same notes.
 import fs from 'node:fs';
 import path from 'node:path';
+import { LEARNING_ARTIFACT } from '../../server/lib/learning-artifact.mjs';
 
 export const STAGED_NOTES = 'scratchpad.md';
 const MAX_RETRIEVED = 24;
@@ -119,10 +120,9 @@ export function indexNotes(skillDir) {
     for (const entry of fs.readdirSync(path.join(base, relative), { withFileTypes: true })) {
       const next = relative ? `${relative}/${entry.name}` : entry.name;
       if (entry.isDirectory()) { if (!['scratchpad', 'learned', '.git', '.objectives'].includes(entry.name)) walk(next); continue; }
-      // scratchpad.md holds notes the player proposed but nobody has merged.
-      // Indexing it would hand every later room exactly the unreviewed guesses
-      // the staging file exists to keep out.
-      if (next === STAGED_NOTES) continue;
+      // The room's one writable learning artifact is shown explicitly in its
+      // context and is never treated as a baseline strategy note.
+      if (next === STAGED_NOTES || next === LEARNING_ARTIFACT) continue;
       if (!entry.isFile() || !next.endsWith('.md') || MOMENT_IN_PATH.test(next)) continue;
       try {
         const stat = fs.statSync(path.join(base, next));

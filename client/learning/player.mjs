@@ -7,12 +7,13 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { VERSION, assertCompatibleSensor, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
 import { Curriculum } from './curriculum.mjs';
 import { indexNotes, retrieve } from './retrieval.mjs';
+import { LEARNING_ARTIFACT, readArtifact } from '../../server/lib/learning-artifact.mjs';
 
 // Actions that read or write knowledge and never mutate the game. A decision made
 // only of these cannot change the game, which matters twice below: an unchanged
@@ -50,7 +51,8 @@ import { PROFILE } from './profile.mjs';
 import { learningDelta, saveIncident } from './incidents.mjs';
 
 const directory = process.env.STEAMBENCH_LEARNING_SCRATCHPAD || '/workspace/skills/sts2/scratchpad';
-// The skill tree outlives the room through the server's git library; scratchpad/ does not.
+// The strategy baseline outlives the room through the server's git library;
+// this room's learning.md and scratchpad/ are archived with the run instead.
 const skillDir = path.dirname(directory);
 fs.mkdirSync(directory, { recursive: true });
 let checkpoint = null;
@@ -59,7 +61,7 @@ if (checkpoint?.version !== VERSION) checkpoint = null;
 const sessionId = randomUUID().slice(0, 8);
 const emit = event => process.stdout.write(JSON.stringify(event) + '\n');
 const usage = { requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 0, modelLatencyMs: 0, ...checkpoint?.usage };
-const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8'))]);
+const policyHash = digest([PROFILE, ...['strategist.txt', 'combat.txt', 'handoff.txt', 'curriculum.txt', 'critic.txt', 'player.mjs', 'planner.mjs', 'executor.mjs', 'state.mjs', 'agents.mjs', 'context.mjs', 'curriculum.mjs', 'retrieval.mjs', 'encounter.mjs', 'pacing.mjs', 'memory.mjs', 'incidents.mjs', 'profile.mjs', 'models.json', 'settings.json'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8')), fs.readFileSync(new URL('../../server/lib/learning-artifact.mjs', import.meta.url), 'utf8')]);
 const catalog = new ObservationCatalog(directory);
 const started = checkpoint?.started || Date.now();
 let totalActions = checkpoint?.totalActions ?? checkpoint?.totalInputs ?? 0;
@@ -315,7 +317,7 @@ async function run(task) {
       lastState = state;
       observation = state;
       build = compatibility(state, policyHash);
-      if (!state.build?.game || !state.build?.mod || state.sensor_error) throw new Error('STS2MCP structured-state extension is missing or incompatible; install the matching mod build');
+      assertCompatibleSensor(state);
       accepted = acceptedLessons(memorySeed, build);
       const current = stateId(state);
       // A refinement round and a note-writing decision both deliberately send
@@ -370,6 +372,10 @@ async function run(task) {
       // thing that closes an objective; a failure's critique goes straight into
       // the next decision, which is where Voyager gets most of its value.
       const notes = learnedFiles(skillDir).filter(file => file.endsWith('.md'));
+      // This is the room's single writable learning document. It is kept out of
+      // baseline note retrieval and passed explicitly so every lane can build on
+      // the previous lane's durable, seed-independent advice.
+      const learningArtifact = readArtifact(skillDir);
       if (!refining && !fight && curriculum.dueForCheck(state, decision)) {
         const checked = await curriculum.verify(state, { decision, evidence }).catch(error => {
           record({ type: 'critic_failure', error: error.message });
@@ -393,9 +399,9 @@ async function run(task) {
 
       const counters = { consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet };
       const context = role === 'combat'
-        ? combatContext({ state, briefing: fight.briefing, scratchpad: combatMemory, retrieved, lastResult, instructions, notes, counters })
+        ? combatContext({ state, briefing: fight.briefing, scratchpad: combatMemory, retrieved, lastResult, instructions, notes, learningArtifact, counters })
         : role === 'strategist'
-          ? strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1: act1Timer.summary(), counters, freshRunVerified, resumeExistingRun })
+          ? strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, learningArtifact, act1: act1Timer.summary(), counters, freshRunVerified, resumeExistingRun })
           : null;
       objectiveCheck = null;
       if (context) {
@@ -521,7 +527,7 @@ async function run(task) {
       const batchActions = executor.actions;
       executionMetrics.screenshots++;
       beforeImage = await gateway.call({ op: 'screenshot', format: 'jpeg' }).catch(() => null);
-      const result = await executor.execute(plan, state, { allowContinue: role === 'strategist' && resumeExistingRun && freshRunVerified });
+      const result = await executor.execute(plan, state, { allowContinue: role === 'strategist' && resumeExistingRun && freshRunVerified, agent: lane, role, decision });
       executionMetrics.batches++;
       executionMetrics.completedActions += result.completed.length;
       record({ type: 'decision_result', agent: lane, plan, completed: result.completed, error: result.error, latencyMs: Date.now() - batchStarted, sensorCalls: executionMetrics.sensors - batchSensors, actions: executor.actions - batchActions });

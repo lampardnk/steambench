@@ -61,7 +61,8 @@ do_build() {
         dotnet build STS2_MCP.csproj -c Release -o /src/out -p:STS2GameDir=/game
     [[ -f "$BUILD_DLL" ]] || die "build produced no DLL"
     sha256sum "$BUILD_DLL" | tee "$RUNTIME_DIR/local-build.sha256"
-    echo "built $BUILD_DLL from $FORK_URL @ $FORK_COMMIT; run: $0 install"
+    echo "built $BUILD_DLL from $FORK_URL @ $FORK_COMMIT"
+    echo "next (room learning artifact): $REPO_DIR/host/build_learning_mod.sh"
 }
 
 do_install() {

@@ -1,9 +1,8 @@
 import { migrateStrategy, DIARY_PATH } from './strategy-migration.mjs';
-// Persistent skill library. A room used to get a throwaway copy of the skill
-// template and lose everything it wrote when the room was deleted; only the
-// separately reviewed accepted.json survived. The library is one git repository
-// that outlives every room, so what the player learns accumulates and each
-// room's contribution is readable as an ordinary commit.
+import { LEARNING_ARTIFACT } from './learning-artifact.mjs';
+// Persistent strategy library. It is one read-only baseline that outlives every
+// room. A room's learning.md is deliberately kept outside this repository and
+// archived with that room; a human may curate durable strategy changes here.
 //
 // Layout: <runtimeDir>/learning/library/<skill>/ mirrors what a room mounts at
 // /workspace/skills/<skill>/, minus scratchpad/, which is per-run state and is
@@ -13,11 +12,23 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 
 const RUN_STATE = new Set(['scratchpad', '.git', '.objectives']);
-// The one path a room may add to the library: notes it proposes for review.
+// Legacy proposal path retained for explicit/manual migrations only. Normal
+// room lifecycle code never copies this file back into the shared library.
 export const STAGED_NOTES = 'scratchpad.md';
 const TEMPLATE_PATHS = '.template-paths.json';
 const AUTHOR = 'steambench library <library@steambench.local>';
 const MAX_DIFF = 200000;
+const mutationQueues = new Map();
+
+function serializeMutation(root, operation) {
+  const previous = mutationQueues.get(root) || Promise.resolve();
+  let queued;
+  queued = previous.catch(() => {}).then(operation).finally(() => {
+    if (mutationQueues.get(root) === queued) mutationQueues.delete(root);
+  });
+  mutationQueues.set(root, queued);
+  return queued;
+}
 
 export function libraryDir(cfg) { return path.join(cfg.runtimeDir, 'learning', 'library'); }
 
@@ -57,7 +68,10 @@ function copyKnowledge(from, to, { overwrite = true, includeProposals = true } =
       const next = path.join(relative, entry.name);
       const target = path.join(to, next);
       if (entry.isDirectory()) { fs.mkdirSync(target, { recursive: true }); walk(next); continue; }
-      if (!entry.isFile() || DIARY_PATH.test(next) || (!includeProposals && next === STAGED_NOTES)) continue;
+      // A room's learning artifact is intentionally never part of the shared
+      // baseline. It is initialized from operator input for each room and is
+      // archived as that room's output instead of inherited by the next seed.
+      if (!entry.isFile() || DIARY_PATH.test(next) || next === LEARNING_ARTIFACT || (!includeProposals && next === STAGED_NOTES)) continue;
       if (!overwrite && fs.existsSync(target)) continue;
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.copyFileSync(path.join(from, next), target);
@@ -110,14 +124,17 @@ function pruneEmptyDirs(root) {
  *
  * Template files used to be only ever *added*, so that a newer image could not
  * overwrite what the player had since written. The player can no longer write
- * the library at all - it stages proposals into scratchpad.md and a human
- * merges them - so that protection now only preserved staleness: a library
+ * the library at all, so that protection now only preserved staleness: a library
  * seeded once kept its first copy of every template file forever, including
  * biome rosters missing their wiki.gg corrections. Curate templates in the repo; anything the
  * template does not provide is left untouched.
  */
-export async function ensureSkill(cfg, skill, templateDir) {
+export function ensureSkill(cfg, skill, templateDir) {
   const root = libraryDir(cfg);
+  return serializeMutation(root, () => ensureSkillUnlocked(root, skill, templateDir));
+}
+
+async function ensureSkillUnlocked(root, skill, templateDir) {
   const target = path.join(root, skill);
   fs.mkdirSync(root, { recursive: true });
   const fresh = !fs.existsSync(path.join(root, '.git'));
@@ -172,7 +189,7 @@ async function renameLegacy(root, skill) {
   return commit_(root, `Rename ${legacy} to ${skill}: one skill per game`, { skill });
 }
 
-/** Give a room its own writable copy of the library's current knowledge. */
+/** Give a room its own copy of the library's read-only strategy baseline. */
 export function checkoutInto(cfg, skill, targetDir) {
   const source = path.join(libraryDir(cfg), skill);
   if (!fs.existsSync(source)) throw new Error(`skill library ${skill} has not been created yet`);
@@ -193,27 +210,34 @@ async function commit_(root, message, { skill, roomId, player } = {}) {
 }
 
 /**
- * Fold a room's staged notes back into the library. The player proposes notes
- * into scratchpad.md for a human to merge; nothing else it wrote leaves the room,
- * so the library only ever changes when a person changes it.
+ * Legacy explicit migration helper. Current rooms save their one learning.md
+ * artifact in the room archive and do not call this function. Keep this narrow
+ * compatibility path for operators migrating older scratchpad proposals.
  */
 export async function commitFromRoom(cfg, { skill, roomSkillDir, roomId, player, message }) {
   const root = libraryDir(cfg);
-  const target = path.join(root, skill);
-  if (!fs.existsSync(path.join(root, '.git')) || !fs.existsSync(roomSkillDir)) return null;
-  // The ONE thing a room contributes. It used to copy its whole tree back, which
-  // made every note it wrote a library fact the next room inherited, and undid
-  // any curation done while it ran: five diary notes deleted at 07:43 were
-  // restored byte-identical at 07:52 under a message saying the room had
-  // "learned" them. The player now proposes into scratchpad.md and a human
-  // merges; nothing else it touches leaves the room.
-  const staged = path.join(roomSkillDir, STAGED_NOTES);
-  if (fs.existsSync(staged)) fs.copyFileSync(staged, path.join(target, STAGED_NOTES));
-  // The objective ladder is per-room and stays with the room: its own scratchpad
-  // holds it while it runs and the room archive keeps it afterwards. Merging every
-  // room's objectives into one library-wide ledger gave each new room a frontier
-  // from runs it never played, on seeds that no longer exist.
-  return commit_(root, message, { skill, roomId, player });
+  return serializeMutation(root, async () => {
+    const target = path.join(root, skill);
+    if (!fs.existsSync(path.join(root, '.git')) || !fs.existsSync(roomSkillDir)) return null;
+    // Older operators can still import scratchpad.md explicitly. Append it with
+    // room provenance instead of replacing the existing file, so two imports can
+    // neither race Git's index nor silently erase one another.
+    const staged = path.join(roomSkillDir, STAGED_NOTES);
+    if (fs.existsSync(staged)) {
+      const destination = path.join(target, STAGED_NOTES);
+      const proposal = fs.readFileSync(staged, 'utf8').trim();
+      const existing = fs.existsSync(destination) ? fs.readFileSync(destination, 'utf8') : '';
+      if (proposal && !existing.includes(proposal)) {
+        const separator = existing.trim() ? '\n\n' : '';
+        fs.writeFileSync(destination, `${existing.replace(/\s+$/, '')}${separator}## Imported from room ${String(roomId || 'unknown').slice(0, 80)}\n\n${proposal}\n`);
+      }
+    }
+    // The objective ladder is per-room and stays with the room: its own scratchpad
+    // holds it while it runs and the room archive keeps it afterwards. Merging every
+    // room's objectives into one library-wide ledger gave each new room a frontier
+    // from runs it never played, on seeds that no longer exist.
+    return commit_(root, message, { skill, roomId, player });
+  });
 }
 
 /** Commit history, newest first, with the files each commit touched. */
@@ -255,7 +279,7 @@ export function tree(cfg, skill) {
       if (RUN_STATE.has(entry.name)) continue;
       const next = path.join(relative, entry.name);
       if (entry.isDirectory()) walk(next);
-      else if (entry.isFile()) files.push({ path: next, bytes: fs.statSync(path.join(base, next)).size });
+      else if (entry.isFile() && next !== LEARNING_ARTIFACT) files.push({ path: next, bytes: fs.statSync(path.join(base, next)).size });
     }
   };
   walk('');
@@ -265,17 +289,18 @@ export function tree(cfg, skill) {
 export function readFile(cfg, skill, relative) {
   const base = path.join(libraryDir(cfg), skill);
   const target = path.resolve(base, relative || '');
-  if (!target.startsWith(base + path.sep) || relative.split(path.sep).some(part => RUN_STATE.has(part))) throw new Error('path is outside the skill library');
+  if (!target.startsWith(base + path.sep) || relative === LEARNING_ARTIFACT || relative.split(path.sep).some(part => RUN_STATE.has(part))) throw new Error('path is outside the skill library');
   if (!fs.existsSync(target) || !fs.statSync(target).isFile()) throw new Error('no such file');
   if (fs.statSync(target).size > MAX_DIFF) throw new Error('file is too large to display');
   return fs.readFileSync(target, 'utf8');
 }
 
-const README = `# steambench skill library
+const README = `# steambench strategy library
 
-One git repository holding what the players know, kept across rooms. A room
-starts from this content and folds its edits back when it ends, so every change
-is an ordinary commit you can read.
+One git repository holding the reviewed strategy baseline, kept across rooms.
+Rooms receive a private copy of this content. Their one writable learning.md
+artifact is archived with the room and is never copied back automatically;
+human curation is required before durable strategy changes enter this library.
 
 Per-run state (\`scratchpad/\`) is deliberately not stored here: it belongs to a
 single run and is archived with that room.

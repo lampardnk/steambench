@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { api, type ActionEvent, type AgentInfo, type RoomSummary, type TranscriptItem, type UsageByLane } from '@/lib/backend'
+import { api, type ActionEvent, type AgentInfo, type LearningArtifactReport, type RoomSummary, type TranscriptItem, type UsageByLane } from '@/lib/backend'
 import { ActionAudit } from '@/components/action-audit'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { Transcript } from '@/components/transcript'
+import { LearningArtifactView } from '@/components/learning'
 
 type Entry = RoomSummary & { dir: string; reason: string; archivedAt: number; transcriptItems: number }
-type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; usage?: UsageByLane; actionHistory: ActionEvent[]; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
+type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; usage?: UsageByLane; actionHistory: ActionEvent[]; learningArtifact?: LearningArtifactReport | null; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
 
 export default function HistoryPage() {
   const [settings, setSettings, loaded] = useSettings()
@@ -76,6 +77,7 @@ export default function HistoryPage() {
               </div>
               <Transcript items={open.transcript} agents={open.agents} usage={open.usage} />
               <ActionAudit history={open.actionHistory || []} />
+              {open.learningArtifact && <section className="rounded-md border border-border bg-card p-3"><h2 className="mb-2 text-sm font-medium">Room learning artifact</h2><LearningArtifactView report={open.learningArtifact} /></section>}
               {open.scratchpad.length > 0 && (
                 <details className="rounded-md border border-border bg-card p-3 text-xs">
                   <summary className="cursor-pointer font-medium">scratchpad</summary>

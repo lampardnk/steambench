@@ -27,7 +27,11 @@ Ironclad Ascension 1 material lives under `ironclad/a1/`:
 
 Cross-character references live at the skill root: `ascension/` contains the
 Ascension table and `characters/` contains character facts. `scratchpad/` is
-run-local state and evidence; it is never durable game knowledge.
+run-local state and evidence; it is never durable game knowledge. The
+room-level `learning.md` beside this directory is the one writable learning
+artifact: it starts with optional operator input (otherwise empty), is shared
+by the agents during this run, and is archived as this room's output. It is not
+inherited automatically by another seed.
 
 ## Source-linked facts
 

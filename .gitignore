@@ -5,6 +5,7 @@ __v0_jsx-dev-runtime.ts
 .snowflake/
 .v0-trash/
 .vercel/
+.zvec-grep/
 
 # Environment variables
 .env*.local
@@ -21,6 +22,7 @@ __pycache__/
 server/node_modules/
 # raw agent session transcripts
 codex-session-*.md
+20??-??-??-*-session-*.txt
 
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo

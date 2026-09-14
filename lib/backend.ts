@@ -178,6 +178,36 @@ export type RoomSetup = {
   gameName?: string
   player: { kind: 'builtin'; name?: string }
   task: { ascension: number; character: string; prompt?: string }
+  /** Optional operator-provided seed-independent input for this room's artifact. */
+  learningArtifact?: string
+}
+
+export type LearningEdit = {
+  id: string
+  at: number
+  agent: string
+  lane?: string
+  role?: string | null
+  decision?: number | null
+  message: string
+  sourcePath?: string | null
+  operation?: string
+  artifact: string
+  beforeHash: string
+  afterHash: string
+  bytesBefore?: number
+  bytesAfter?: number
+  patch: string
+}
+
+export type LearningArtifactReport = {
+  path: string
+  input: { provided: boolean; hash: string; bytes: number; content?: string }
+  output: { hash: string; bytes: number; edits: number; content?: string }
+  /** Full edit entries are present on the room/archive artifact endpoint.
+   * Live room summaries intentionally omit patches to stay small. */
+  edits?: LearningEdit[]
+  diff?: string
 }
 
 /** One objective from the curriculum ladder, as the player's runtime writes it. */
@@ -197,8 +227,7 @@ export type Objective = {
 export type Curriculum = {
   active: Objective | null
   completed: number
-  failed: number
-  recent: Objective[]
+  abandoned: number
 }
 
 export type RoomSummary = {
@@ -221,8 +250,8 @@ export type RoomSummary = {
   agentStatus: string
   requiresResume?: boolean
   attention?: { id: string; error: string; path: string; decision: number; at: string; status: string } | null
-  /** Latest commit this room made to the persistent skill library. */
-  lastLibraryCommit?: { hash: string; message: string; by: string; at: number } | null
+  /** One room-scoped learning artifact; full content is available from its endpoint. */
+  learningArtifact?: LearningArtifactReport | null
   curriculum?: Curriculum | null
   frames: number
   lastFrameAt: number

@@ -24,8 +24,18 @@ import * as library from './library.js';
 import { webGet } from './web.js';
 import { validateSts2Action } from './sts2-actions.js';
 import { docker, runningContainers, allContainers, containerIp, rmForce, execDetached, execIn, restart as dockerRestart } from './docker.js';
+import { LEARNING_ARTIFACT, LEARNING_EDITS, MAX_LEARNING_ARTIFACT, artifactReport, initializeArtifact } from './learning-artifact.mjs';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleepUnlessAborted = (ms, signal) => {
+  if (!signal) return sleep(ms);
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { signal.removeEventListener('abort', aborted); resolve(); }, ms);
+    const aborted = () => { clearTimeout(timer); reject(signal.reason || new Error('operation aborted')); };
+    signal.addEventListener('abort', aborted, { once: true });
+  });
+};
 
 export const STS2_GET_ALLOWLIST = {
   '/': [],
@@ -292,7 +302,13 @@ export class RoomManager extends EventEmitter {
       result: null,
       verification: 'unknown',
     }));
-    return { room: read('room.json'), transcript: read('transcript.json') || [], agents: read('agents.json') || [], usage: read('usage.json') || {}, actionHistory: read('action-history.json') || legacyHistory(), scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })), gameLog: text('godot.log') };
+    return {
+      room: read('room.json'), transcript: read('transcript.json') || [], agents: read('agents.json') || [],
+      usage: read('usage.json') || {}, actionHistory: read('action-history.json') || legacyHistory(),
+      learningArtifact: read('learning-artifact.json'),
+      scratchpad: listFiles(path.join(base, 'scratchpad')).map((f) => ({ name: f, text: text(path.join('scratchpad', f)) })),
+      gameLog: text('godot.log'),
+    };
   }
 }
 
@@ -308,6 +324,12 @@ export class Room extends EventEmitter {
     this.createdAt = Date.now();
     this.log = [];
     this.setup = null; this.login = null; this.finish = null;
+    // A room's learning document is initialized from operator input (or empty)
+    // and is never sourced from the persistent strategy library.
+    this.learningArtifactInput = '';
+    this.learningArtifactInitialized = false;
+    this.learningRunStarted = false;
+    this._learningArtifactSummary = null;
     this.lobbyId = null; this.sessionId = null; this.clientId = null; this.roomContainer = null; this.roomIp = null;
     this.jpegPort = 0; this.videoPingPort = 0; this.audioPingPort = 0;
     // mp4mux advertises no stream header, so the fragmented streams go through
@@ -321,6 +343,8 @@ export class Room extends EventEmitter {
     this.hostHome = path.join(this.cfg.hostRoomsDir, id);
     this.reader = null; this.media = null; this.mediaAudio = null; this.agent = null; this.playerImage = null;
     this.actionHistory = [];
+    this.totalActionCount = 0;
+    this._finishPromise = null; this._archivePromise = null; this._destroyPromise = null; this.finishTimer = null;
     this.loginQr = null; this.qrPoint = null; this.qrSeenAt = 0; this.qrReloads = 0; this.qrReloadedAt = 0; this.loginSince = Date.now(); this.loginReused = false;
     this.gameReady = false; this.destroyed = false; this.loops = new Set();
     this.lastState = null;
@@ -338,7 +362,10 @@ export class Room extends EventEmitter {
       lobbyId: this.lobbyId, roomContainer: this.roomContainer, roomIp: this.roomIp, playerImage: this.playerImage,
       agentStatus: this.agent?.status || 'stopped', requiresResume: Boolean(this.agent?.requiresResume), frames: this.reader?.frames || 0, lastFrameAt: this.reader?.latestAt || 0,
       attention: this.agent?.attention || null,
-      lastLibraryCommit: this.lastLibraryCommit || null,
+      // Content and the edit timeline are available from the room artifact
+      // endpoint; the live summary carries hashes/counts so websocket updates
+      // remain small while still making changes visible.
+      learningArtifact: this.learningArtifactReport({ includeContent: false, includeEdits: false }),
       curriculum: this.curriculum(),
       act1Timer: this.act1Timer(),
       media: {
@@ -346,7 +373,7 @@ export class Room extends EventEmitter {
         audioReady: Boolean(this.mediaAudio?.init), audioCodecs: this.mediaAudio?.codecs || '', audioFragments: this.mediaAudio?.fragments || 0,
         width: this.cfg.streamWidth, height: this.cfg.streamHeight,
       },
-      lastAction: this.actionHistory[this.actionHistory.length - 1] || null, actionCount: this.actionHistory.length,
+      lastAction: this.actionHistory[this.actionHistory.length - 1] || null, actionCount: this.totalActionCount,
       lastState: this.lastState, log: this.log.slice(-40),
     };
   }
@@ -505,6 +532,34 @@ export class Room extends EventEmitter {
 
   library() { return libraryView(this.home); }
 
+  /** The room-scoped learning document and its attributed edit history. */
+  learningArtifactReport({ includeContent = true, includeEdits = true } = {}) {
+    if (includeContent || includeEdits) return artifactReport(this.roomSkillDir, { input: this.learningArtifactInput, includeContent, includeEdits });
+    const skillDir = this.roomSkillDir;
+    const revision = [LEARNING_ARTIFACT, path.join('scratchpad', LEARNING_EDITS)].map(relative => {
+      try { const stat = fs.statSync(path.join(skillDir, relative)); return `${stat.mtimeMs}:${stat.size}`; }
+      catch { return '-'; }
+    }).join('|');
+    if (this._learningArtifactSummary?.revision === revision) return this._learningArtifactSummary.report;
+    const report = artifactReport(skillDir, { input: this.learningArtifactInput, includeContent: false, includeEdits: false, includeDiff: false });
+    this._learningArtifactSummary = { revision, report };
+    return report;
+  }
+
+  setLearningArtifactInput(content) {
+    if (typeof content !== 'string' || Buffer.byteLength(content, 'utf8') > MAX_LEARNING_ARTIFACT) {
+      throw new Error(`learning artifact input must be text of at most ${MAX_LEARNING_ARTIFACT} UTF-8 bytes`);
+    }
+    if (this.learningRunStarted || (this.learningArtifactInitialized && this.stage !== 'setup' && this.stage !== 'login' && this.stage !== 'creating' && this.stage !== 'error')) {
+      throw new Error('learning artifact input can only be changed before the run starts');
+    }
+    this.learningArtifactInput = content;
+    this._learningArtifactSummary = null;
+    if (this.learningArtifactInitialized && this.roomSkillDir) initializeArtifact(this.roomSkillDir, content);
+    this.emit('room', this.summary());
+    return this.learningArtifactReport({ includeContent: true });
+  }
+
   // ---- stage: setup ---------------------------------------------------------
   validateSetup(setup) {
     if (!setup || typeof setup !== 'object') throw new Error('setup must be an object');
@@ -518,13 +573,19 @@ export class Room extends EventEmitter {
     const character = String(task.character || 'Ironclad');
     if (!CHARACTERS.includes(character)) throw new Error(`task.character must be one of ${CHARACTERS.join(', ')}`);
     const prompt = task.prompt ? String(task.prompt).slice(0, 4000) : '';
-    return { game, player: { kind: 'builtin', name: this.cfg.learningProfile.name }, task: { ascension, character, prompt } };
+    const learningArtifact = setup.learningArtifact ?? task.learningArtifact ?? this.learningArtifactInput ?? '';
+    if (typeof learningArtifact !== 'string' || Buffer.byteLength(learningArtifact, 'utf8') > MAX_LEARNING_ARTIFACT) throw new Error(`learningArtifact must be text of at most ${MAX_LEARNING_ARTIFACT} UTF-8 bytes`);
+    return { game, player: { kind: 'builtin', name: this.cfg.learningProfile.name }, task: { ascension, character, prompt }, learningArtifact };
   }
 
   async applySetup(setup) {
     const valid = this.validateSetup(setup);
     if (!['login', 'setup', 'error'].includes(this.stage) && !(this.stage === 'creating')) throw new Error(`room is ${this.stage}; setup can only be changed before installation`);
     this.setup = valid;
+    this.learningArtifactInput = valid.learningArtifact || '';
+    this._learningArtifactSummary = null;
+    this.learningArtifactInitialized = false;
+    this.learningRunStarted = false;
     this._log(`setup: game=${valid.game} player=${valid.player.name} task=${valid.task.character} A${valid.task.ascension}`);
     if (this.stage === 'setup') { this.setStage('installing', 'preparing game and player'); this._install().catch((e) => this.setStage('error', e.message)); }
     else this.emit('room', this.summary());
@@ -556,36 +617,39 @@ export class Room extends EventEmitter {
     const gameDir = path.join(steamRoot(this.home), 'steamapps', 'common', game.installdir);
     const mods = path.join(gameDir, 'mods');
     fs.mkdirSync(mods, { recursive: true });
-    // Prefer the build made against this game version (host/install_sts2mcp.sh
-    // build). The published 0.4.0 release does not load on v0.111 and fails
+    // Use the room-facing learning build made against this game version. The
+    // published 0.4.0 release does not load on v0.111 and fails
     // with a ReflectionTypeLoadException, which looks from the outside like the
     // game simply never coming up.
     const modSources = [path.join(this.cfg.modDir, 'learning-out')];
     for (const f of ['STS2_MCP.dll', 'STS2_MCP.json']) {
       const src = modSources.map((d) => path.join(d, f)).find((p2) => fs.existsSync(p2));
       if (src) fs.copyFileSync(src, path.join(mods, f));
-      else if (f.endsWith('.dll')) throw new Error(`the STS2MCP mod is missing: build it with host/install_sts2mcp.sh build`);
+      else if (f.endsWith('.dll')) throw new Error('the STS2MCP learning mod is missing: build it with host/build_learning_mod.sh');
     }
     this._log(`installed the game mod from ${path.dirname(modSources.find((d) => fs.existsSync(path.join(d, 'STS2_MCP.dll'))) || '')}`);
     fs.writeFileSync(path.join(mods, 'STS2_MCP.conf'), JSON.stringify({ port: this.modPort }, null, 2) + '\n');
     const skills = path.join(this.home, 'skills');
     fs.rmSync(skills, { recursive: true, force: true });
-    // One skill per game, shared by every player kind. Knowledge comes from the
-    // persistent library, which the image template only seeds, so a room inherits
-    // what earlier rooms learned instead of starting blank.
+    // One read-only strategy baseline per game, shared by every player kind. The
+    // room's writable learning artifact is initialized separately below, so an
+    // earlier room's output can never become this seed's input implicitly.
     const skillSource = game.skill;
-    this.librarySkill = skillSource;
     const roomSkillDir = path.join(skills, game.skill);
     try {
       const ready = await library.ensureSkill(this.cfg, skillSource, path.join(this.cfg.skillsDir, skillSource));
       library.checkoutInto(this.cfg, skillSource, roomSkillDir);
       this._log(`skills from the persistent library${ready.commit ? ` (${ready.commit})` : ''}`);
     } catch (e) {
-      this.librarySkill = null;
       this._log(`skill library unavailable, using the image template only: ${e.message}`);
       fs.cpSync(path.join(this.cfg.skillsDir, skillSource), roomSkillDir, { recursive: true });
     }
     fs.mkdirSync(path.join(roomSkillDir, 'scratchpad'), { recursive: true });
+    // Never copy learning.md from the image or persistent library. Each room
+    // gets exactly one artifact, with explicit operator input or an empty file.
+    initializeArtifact(roomSkillDir, this.learningArtifactInput || '');
+    this.learningArtifactInitialized = true;
+    this._log(`learning artifact initialized ${this.learningArtifactInput ? 'from operator input' : 'empty'} (${LEARNING_ARTIFACT})`);
     const modsInRoom = path.join(steamRoot('/room'), 'steamapps', 'common', game.installdir, 'mods');
     try { await docker(['run', '--rm', '-v', `${this.hostHome}:/room`, 'alpine', 'chown', '-R', '1000:1000', '/room/skills', modsInRoom]); } catch (e) { this._log(`chown: ${e.message}`); }
     if (this.destroyed) return;
@@ -747,7 +811,8 @@ export class Room extends EventEmitter {
     // replaced them - so nothing in front of any agent says the point is to
     // finish the three acts. A ladder of objectives can only aim at what the
     // standing task says the run is for.
-    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. The point of the run is to win it: reach and defeat the Act 3 Boss, which ends the run in victory. Use live state, the strategy guide and source-linked factual notes to make adaptive decisions. Keep learning proposals reusable and brief; do not write a run diary. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
+    const kickoff = `Start a fresh Slay the Spire 2 singleplayer run as ${t.character}, Ascension ${t.ascension}. Abandon any pre-existing run first; never Continue. The point of the run is to win it: reach and defeat the Act 3 Boss, which ends the run in victory. Use live state, the strategy guide and source-linked factual notes to make adaptive decisions. The room has exactly one writable learning artifact at /workspace/skills/${this.setup.game}/${LEARNING_ARTIFACT}; it starts with operator input or blank and is the only place a learn action writes. Record only concise, seed-independent advice that should survive across seeds; never write a run diary, floor/map/offer/HP/outcome details, or additional learning files. The runtime records each edit with its agent lane, role, decision, hashes and diff, and reports one artifact in and one artifact out when the room ends. Report any issue to the supervisor before further game input; do not experiment around failures. The runtime owns evidence, controls and completion.${t.prompt ? `\n\nAdditional instructions: ${t.prompt}` : ''}`;
+    this.learningRunStarted = true;
     this.setStage('playing', `${t.character} · Ascension ${t.ascension}`);
     if (!resume) agent.prompt(kickoff, { from: 'steambench' }).catch((e) => this._log(`kickoff failed: ${e.message}`));
     else this.setDetail('learning player reloaded; awaiting explicit supervisor resume');
@@ -771,13 +836,6 @@ export class Room extends EventEmitter {
 
   async _watchPlaying() {
     if (this.stage !== 'playing') return false;
-    // A player that edits its skill files without committing still shows up on
-    // the dashboard, once the edit has stopped moving.
-    const edited = this._skillEditedAt();
-    if (edited && Date.now() - edited > 45000 && edited !== this._committedEditAt) {
-      this._committedEditAt = edited;
-      await this.commitLibrary({ by: 'room', message: `Uncommitted notes from room ${this.id}` }).catch((e) => this._log(`skill library commit failed: ${e.message}`));
-    }
     try {
       const r = await this._sts2Fetch('/api/v1/singleplayer', { format: 'json' });
       try { const s = JSON.parse(r.body); this.lastState = pickState(s); } catch { /* keep last */ }
@@ -792,6 +850,15 @@ export class Room extends EventEmitter {
   // ---- stage: finished --------------------------------------------------------
   async finishRun({ result, summary, by = 'player' }) {
     if (this.finish) return this.finish;
+    if (this._finishPromise) return this._finishPromise;
+    const pending = this._finishRun({ result, summary, by });
+    this._finishPromise = pending;
+    try { return await pending; }
+    finally { if (this._finishPromise === pending) this._finishPromise = null; }
+  }
+
+  async _finishRun({ result, summary, by }) {
+    if (this.destroyed) throw new Error('room is being deleted');
     // Keep the game's own view next to the player's claim: a player that says
     // it died while the mod still reports a live run is worth seeing. Ask the mod now
     // rather than trusting the 15-second poll: a death arrives between two polls, and a
@@ -802,6 +869,7 @@ export class Room extends EventEmitter {
       state = pickState(JSON.parse(fresh.body));
       this.lastState = state;
     } catch (e) { this._log(`could not re-read the game before finishing; using the last poll: ${e.message}`); }
+    if (this.destroyed) throw new Error('room is being deleted');
     this.finish = {
       result, summary: String(summary || '').slice(0, 2000), by, at: Date.now(),
       gameState: state || null,
@@ -811,10 +879,11 @@ export class Room extends EventEmitter {
     this.setStage('finished', `${result}: room closes in ${this.cfg.finishGraceS}s`);
     // Archive a moment later so the player's own run_over call (and anything it
     // says afterwards) is part of the transcript we keep.
-    setTimeout(() => {
+    this.finishTimer = setTimeout(() => {
+      this.finishTimer = null;
       this.archive('run finished')
-        .catch((e) => this._log(`archive failed: ${e.message}`))
-        .then(() => this.m.remove(this.id, { reason: 'run finished' }).catch(() => {}));
+        .then(() => this.m.remove(this.id, { reason: 'run finished' }).catch((e) => this._log(`room cleanup failed: ${e.message}`)))
+        .catch((e) => this.setStage('error', `archive failed; room preserved: ${e.message}`));
     }, this.cfg.finishGraceS * 1000);
     return this.finish;
   }
@@ -826,30 +895,18 @@ export class Room extends EventEmitter {
   }
 
   /**
-   * Fold the room's knowledge edits into the persistent library. The player
-   * supplies its own message through the gateway; the fallback only runs when
-   * files have been sitting changed and uncommitted.
+   * Kept as a compatibility shim for older supervisor clients. Learning is no
+   * longer copied into or committed to the shared strategy library: the room
+   * artifact is already durable in its own archive and its report is explicit.
    */
-  async commitLibrary({ message, by = 'player' } = {}) {
-    if (!this.librarySkill || !this.roomSkillDir) return null;
-    const hash = await library.commitFromRoom(this.cfg, {
-      skill: this.librarySkill, roomSkillDir: this.roomSkillDir, roomId: this.id,
-      player: this.setup?.player.name, message,
-    });
-    if (hash) {
-      this.lastLibraryCommit = { hash, message, by, at: Date.now() };
-      this._log(`skill library commit ${hash}: ${message}`);
-      this.emit('room', this.summary());
-      this.m.emit('rooms');
-    }
-    return hash;
+  async commitLibrary({ message = '', by = 'player' } = {}) {
+    const report = this.learningArtifactReport({ includeContent: false, includeEdits: false });
+    this._log(`learning artifact saved (${report.output.edits} edit${report.output.edits === 1 ? '' : 's'}; requested by ${by}${message ? `: ${String(message).slice(0, 120)}` : ''})`);
+    this.emit('room', this.summary());
+    return null;
   }
 
-  /**
-   * The room's live objective ladder. The library copy only updates when the
-   * room commits, so the dashboard reads this one to show what the player is
-   * working towards right now. Cached on mtime: summary() is called often.
-   */
+  /** The room's live objective ladder, cached on mtime for frequent summaries. */
   act1Timer() {
     try {
       const timer = JSON.parse(fs.readFileSync(path.join(this.roomSkillDir, 'scratchpad', 'act1-timer.json'), 'utf8'));
@@ -876,24 +933,16 @@ export class Room extends EventEmitter {
     return this._curriculum;
   }
 
-  /** Newest knowledge-file mtime, so an uncommitted edit can settle first. */
-  _skillEditedAt() {
-    const base = this.roomSkillDir;
-    if (!base || !fs.existsSync(base)) return 0;
-    let newest = 0;
-    const walk = (dir, top) => {
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (top && (entry.name === 'scratchpad' || entry.name === '.git')) continue;
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) walk(full, false);
-        else if (entry.isFile()) newest = Math.max(newest, fs.statSync(full).mtimeMs);
-      }
-    };
-    try { walk(base, true); } catch { /* room home may be going away */ }
-    return newest;
+  async archive(reason) {
+    if (this.archiveDir) return this.archiveDir;
+    if (this._archivePromise) return this._archivePromise;
+    const pending = this._archive(reason);
+    this._archivePromise = pending;
+    try { return await pending; }
+    finally { if (this._archivePromise === pending) this._archivePromise = null; }
   }
 
-  async archive(reason) {
+  async _archive(reason) {
     const dir = path.join(this.cfg.historyDir, `${new Date(this.createdAt).toISOString().replace(/[:.]/g, '-')}-${this.id}`);
     fs.mkdirSync(dir, { recursive: true });
     const meta = { ...this.summary(), log: this.log, reason, archivedAt: Date.now(), transcriptItems: this.agent?.transcript.length || 0 };
@@ -907,10 +956,14 @@ export class Room extends EventEmitter {
     if (this.reader?.latest) fs.writeFileSync(path.join(dir, 'last-frame.jpg'), this.reader.latest);
     const scratch = path.join(this.home, 'skills', this.setup?.game || 'sts2', 'scratchpad');
     if (fs.existsSync(scratch)) fs.cpSync(scratch, path.join(dir, 'scratchpad'), { recursive: true });
-    // Last chance to keep what this room learned: the home is deleted next.
-    const state = this.lastState;
-    await this.commitLibrary({ by: 'room', message: `Keep what room ${this.id} learned${state?.floor != null ? ` up to act ${state.act ?? '?'} floor ${state.floor}` : ''}` })
-      .catch((e) => this._log(`skill library commit failed: ${e.message}`));
+    // The learning artifact is the one room-in/room-out document. Keep both a
+    // machine-readable report (including attributed edits and hashes) and the
+    // plain markdown output for quick inspection. It is never copied to the
+    // shared strategy library or inherited by a later seed.
+    const learning = this.learningArtifactReport({ includeContent: true });
+    fs.writeFileSync(path.join(dir, 'learning-artifact.json'), JSON.stringify(learning, null, 2));
+    fs.writeFileSync(path.join(dir, LEARNING_ARTIFACT), learning.output.content || '');
+    fs.writeFileSync(path.join(dir, 'learning-diff.patch'), learning.diff || '');
     const gameLog = path.join(this.home, '.local', 'share', 'SlayTheSpire2', 'logs', 'godot.log');
     if (fs.existsSync(gameLog)) fs.copyFileSync(gameLog, path.join(dir, 'godot.log'));
     this.archiveDir = dir;
@@ -984,8 +1037,17 @@ export class Room extends EventEmitter {
     return { ok: true };
   }
 
-  async destroy({ keepHome = false, reason = '' } = {}) {
+  async destroy(options = {}) {
+    if (this._destroyPromise) return this._destroyPromise;
+    const pending = this._destroy(options);
+    this._destroyPromise = pending;
+    try { return await pending; }
+    finally { if (this.stage !== 'deleted' && this._destroyPromise === pending) this._destroyPromise = null; }
+  }
+
+  async _destroy({ keepHome = false, reason = '' } = {}) {
     this.destroyed = true;
+    if (this.finishTimer) { clearTimeout(this.finishTimer); this.finishTimer = null; }
     for (const t of this.loops) clearTimeout(t);
     if (!this.archiveDir && (this.agent || this.actionHistory.length)) { try { await this.archive(reason || 'deleted'); } catch (e) { this._log(`archive failed: ${e.message}`); } }
     this.setStage('deleting', reason);
@@ -1014,14 +1076,12 @@ export class Room extends EventEmitter {
   async gatewayOp(op, request) {
     if (this.setup?.player.kind === 'builtin' && (this.agent?.attention || this.agent?.requiresResume) && ['sts2-action', 'room-finish'].includes(op)) throw new GatewayError('supervisor_required', 'pending incident or restored checkpoint requires explicit supervisor review before gameplay');
     switch (op) {
-      case 'hello': return { room: this.id, stage: this.stage, ops: ['sts2-get', 'sts2-action', 'screenshot', 'room-finish', 'skill-commit', 'web-get'] };
+      case 'hello': return { room: this.id, stage: this.stage, ops: ['sts2-get', 'sts2-action', 'screenshot', 'room-finish', 'web-get'] };
       case 'skill-commit': {
         const message = String(request.message || '').trim();
         if (message.length < 3 || message.length > 200) throw new GatewayError('invalid_message', 'a commit message of 3-200 characters is required');
-        if (!this.librarySkill) throw new GatewayError('library_unavailable', 'this room has no persistent skill library');
-        const hash = await this.commitLibrary({ message, by: 'player' });
-        this._committedEditAt = this._skillEditedAt();
-        return hash ? { committed: true, commit: hash, message } : { committed: false, detail: 'no knowledge file changed since the last commit' };
+        await this.commitLibrary({ message, by: 'player' });
+        return { committed: false, artifact: this.learningArtifactReport({ includeContent: false, includeEdits: false }), detail: 'room learning is saved automatically; shared strategy notes require human curation' };
       }
       case 'web-get': return webGet(request);
       case 'sts2-get': return this._sts2Get(request);
@@ -1054,10 +1114,10 @@ export class Room extends EventEmitter {
       else if (k === 'limit') { if (!Number.isInteger(v) || v < 1 || v > 50) throw new GatewayError('invalid_query', 'limit must be an integer between 1 and 50'); params[k] = String(v); }
       else if (k === 'query') { if (typeof v !== 'string' || !v.trim() || v.length > 200) throw new GatewayError('invalid_query', 'query must be a non-empty string of at most 200 characters'); params[k] = v; }
     }
-    return this._sts2Fetch(p, params);
+    return this._sts2Fetch(p, params, request.signal);
   }
 
-  async _sts2Fetch(p, params) {
+  async _sts2Fetch(p, params, signal) {
     if (!this.roomIp) throw new GatewayError('sts2_unavailable', 'room is not running yet');
     const qs = new URLSearchParams(params).toString();
     const url = `http://${this.roomIp}:${this.fwdPort}${p}${qs ? `?${qs}` : ''}`;
@@ -1068,10 +1128,16 @@ export class Room extends EventEmitter {
     // saying no and is returned at once.
     let last = null;
     for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt) await sleep(300);
+      signal?.throwIfAborted();
+      if (attempt) await sleepUnlessAborted(300, signal);
       let res;
-      try { res = await fetch(url, { signal: AbortSignal.timeout(10000) }); }
-      catch (e) { last = new GatewayError('sts2_unavailable', `STS2MCP mod not reachable in the room (${e.cause?.code || e.name}); is the game running with the mod enabled?`); continue; }
+      const attemptSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000);
+      try { res = await fetch(url, { signal: attemptSignal }); }
+      catch (e) {
+        if (signal?.aborted) throw signal.reason || e;
+        last = new GatewayError('sts2_unavailable', `STS2MCP mod not reachable in the room (${e.cause?.code || e.name}); is the game running with the mod enabled?`);
+        continue;
+      }
       let body;
       try { body = await readBoundedResponse(res); }
       catch (error) { if (error.code === 'sts2_too_large') throw error; last = new GatewayError('sts2_unavailable', `STS2MCP response was interrupted (${error.message})`); continue; }
@@ -1082,16 +1148,22 @@ export class Room extends EventEmitter {
     throw last;
   }
 
+  _recordAction(action, params) {
+    const audit = { id: crypto.randomUUID(), t: Date.now(), action, params, acknowledgement: 'dispatching', result: null, verification: 'pending' };
+    this.actionHistory.push(audit);
+    this.totalActionCount++;
+    if (this.actionHistory.length > ACTION_HISTORY_MAX) this.actionHistory.shift();
+    this.emit('action', audit);
+    return audit;
+  }
+
   async _sts2Action(request) {
     if (!this.roomIp) throw new GatewayError('sts2_unavailable', 'room is not running yet');
     let params;
     try { params = validateSts2Action(request.action, request.params); }
     catch (error) { throw new GatewayError(error.code || 'invalid_action', error.message, error.details); }
     const action = request.action;
-    const audit = { id: crypto.randomUUID(), t: Date.now(), action, params, acknowledgement: 'dispatching', result: null, verification: 'pending' };
-    this.actionHistory.push(audit);
-    if (this.actionHistory.length > ACTION_HISTORY_MAX) this.actionHistory.shift();
-    this.emit('action', audit);
+    const audit = this._recordAction(action, params);
     const url = `http://${this.roomIp}:${this.fwdPort}/api/v1/singleplayer`;
     let response;
     try {

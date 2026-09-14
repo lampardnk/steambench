@@ -9,7 +9,7 @@ const MAX_ITEMS = 400;
 // player is the authority the moment it speaks.
 const DEFAULT_AGENTS = [{ id: 'room', role: 'room', label: 'Room', title: 'The operator, the runtime, and the run itself.', status: 'open', decisions: 0 }];
 const DEFAULT_LANE = 'room';
-const MAX_TEXT = 20000;
+export const MAX_TEXT = 20000;
 const MAX_RESULT = 4000;
 
 export class PiAgent extends EventEmitter {
@@ -214,12 +214,26 @@ export class PiAgent extends EventEmitter {
 
   _appendDelta(kind, delta, lane = DEFAULT_LANE) {
     if (!delta) return;
+    const incoming = typeof delta === 'string' ? delta : String(delta);
     if (!this.current.has(lane)) this.current.set(lane, { thinking: null, text: null });
     const open = this.current.get(lane);
     let item = open[kind];
     if (!item) { item = this._push({ kind, agent: lane, text: '' }); open[kind] = item; }
-    if (item.text.length < MAX_TEXT) item.text += delta;
-    this.emit('delta', { id: item.id, kind, agent: lane, delta });
+    // The browser applies deltas optimistically. Emit only the suffix that was
+    // accepted into the bounded transcript, otherwise its live copy grows past
+    // the server's persisted text even though a later item event is truncated.
+    const currentLength = Math.min(item.text.length, MAX_TEXT);
+    if (item.text.length > MAX_TEXT) item.text = item.text.slice(0, MAX_TEXT);
+    const accepted = incoming.slice(0, Math.max(0, MAX_TEXT - currentLength));
+    if (accepted) item.text += accepted;
+    this.emit('delta', {
+      id: item.id,
+      kind,
+      agent: lane,
+      delta: accepted,
+      truncated: accepted.length < incoming.length,
+      ...(accepted.length < incoming.length ? { dropped: incoming.length - accepted.length, limit: MAX_TEXT } : {}),
+    });
   }
 
   _system(text, agent = DEFAULT_LANE) { this._push({ kind: 'system', agent, text }); }

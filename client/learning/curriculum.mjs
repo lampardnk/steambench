@@ -14,20 +14,19 @@
 // 60% HP") spans many decisions, so the critic must also be able to answer
 // pending; only success and failure close an objective.
 //
-// The ladder lives in the skill library at learned/curriculum.json, so the
-// objectives one room completed and failed are inherited by the next.
+// The ladder lives in this room's scratchpad. It survives a player reload and
+// is archived for inspection, but a different room starts its own ladder: only
+// operator-supplied learning.md content is ever carried across seeds.
 import fs from 'node:fs';
 import path from 'node:path';
 import { digest } from './state.mjs';
 import { PROFILE } from './profile.mjs';
 
 const SCHEMA = 1;
-const MAX_HISTORY = 60;
 // Voyager re-queries the curriculum after four rounds of failed refinement.
 const MAX_ATTEMPTS = 3;
 // Cheap guards on the auxiliary calls: an objective is checked at real progress
 // boundaries, and never more than once every few decisions.
-const CHECK_EVERY = 12;
 const MIN_CHECK_GAP = 3;
 // The auxiliary calls run on the same model as the decision, which answers in
 // tens of seconds. At 15 seconds every propose and every verify timed out, so
@@ -117,8 +116,8 @@ export class Curriculum {
    * different map, different offers, different fights. An objective the
    * previous room left open therefore describes a situation that no longer
    * exists and can never be met, so it is closed here rather than left for the
-   * critic to keep failing. The completed and failed lists are the part meant
-   * to cross rooms, and they are untouched.
+   * critic to keep failing. Completed and abandoned entries remain available
+   * for the rest of this room and in its archive.
    */
   retireForeignObjective() {
     const objective = this.active;

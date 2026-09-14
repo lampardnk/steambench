@@ -1,12 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Executor, resolveMcpAction } from '../client/learning/executor.mjs';
-import { compactState, hasVerifiedProgress, planIdentity, plannerGuidance, reasoningTier, recoverableSuffixFailure, repairObservation, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
+import { SENSOR_VERSION, assertCompatibleSensor, compactState, hasVerifiedProgress, planIdentity, plannerGuidance, reasoningTier, recoverableSuffixFailure, repairObservation, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
 
 const card = (instance_id, index, name = `Card ${instance_id}`, extra = {}) => ({ instance_id, index, id: name.toUpperCase().replaceAll(' ', '_'), name, cost: '1', target_type: 'None', can_play: true, description: 'Deal 6 damage.', ...extra });
 const enemy = (entity_id = 'JAW_WORM_0') => ({ entity_id, combat_id: 0, name: 'Jaw Worm', hp: 40, block: 0 });
 const combat = (hand = [card(10, 0), card(11, 1)]) => ({ state_type: 'monster', run: { act: 1, floor: 1 }, player: { hp: 80, energy: 3, hand, potions: [] }, battle: { round: 1, turn: 'player', is_play_phase: true, enemies: [enemy()] }, build: { game: 'g', mod: 'm' } });
 const plan = (state, actions) => ({ observation: stateId(state), summary: 'fixture', note: 'fixture', actions });
+test('the player accepts only the exact structured-state sensor contract', () => {
+  const compatible = { build: { game: 'g', mod: 'm' }, sensor_version: SENSOR_VERSION };
+  assert.equal(assertCompatibleSensor(compatible), compatible);
+  assert.throws(() => assertCompatibleSensor({ ...compatible, sensor_version: SENSOR_VERSION - 1 }), /sensor contract mismatch/);
+  assert.throws(() => assertCompatibleSensor({ build: compatible.build }), /sensor contract mismatch/);
+  assert.throws(() => assertCompatibleSensor({ ...compatible, sensor_error: 'broken' }), /missing or incompatible/);
+});
 test('continue is permitted only for an explicitly verified resume', () => {
   const menu = { state_type: 'menu', menu_screen: 'main', options: ['continue', 'abandon_run'], build: { game: 'g', mod: 'm' } };
   const continued = plan(menu, [{ type: 'menu_select', option: 'continue' }]);

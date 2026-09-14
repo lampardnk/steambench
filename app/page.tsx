@@ -122,9 +122,9 @@ export default function Page() {
         {configured && rooms.length === 0 && !error && <p className="text-sm text-muted-foreground">No rooms. Create one: it starts Steam in an isolated room and asks you to sign in.</p>}
         {configured && (
           <section className="mt-8">
-            {/* The skill library is not tied to a room: it is what every future
-                room starts from, so it belongs here as well. */}
-            <h2 className="mb-2 text-sm font-semibold tracking-tight">What the players have learned</h2>
+            {/* The strategy library is a read-only baseline. Room learning
+                artifacts are shown on each room and in its archive. */}
+            <h2 className="mb-2 text-sm font-semibold tracking-tight">Strategy baseline</h2>
             <Learning settings={settings} />
           </section>
         )}

@@ -21,7 +21,7 @@ SEMANTIC ACTIONS. The runtime re-reads state, resolves these observed identities
 - {"type":"crystal_sphere_set_tool","tool":"big"}; {"type":"crystal_sphere_click_cell","x":4,"y":7}; {"type":"crystal_sphere_proceed"}.
 
 READ-ONLY / SUPERVISOR ACTIONS:
-- {"type":"learn","path":"ironclad/a1/meta_strategy/rewards/skipping.md","content":"---\ndescription: one line\nkeys: comma, separated\n---\n# Title\n...","message":"3-200 character commit message"} — final or standalone proposal for human review, never direct library truth.
+- {"type":"learn","content":"one reusable, seed-independent learning block","message":"3-200 character description"} — final or standalone edit to the room's one learning artifact. The runtime appends it to `learning.md` and records your lane, role, decision, hashes and diff. Do not provide a path or write any other file. Older path fields are accepted only as provenance and still write this same artifact.
 - {"type":"recall","path":"ironclad/a1/meta_strategy/map/README.md"}; {"type":"research","url":"https://..."}; {"type":"lookup","query":"name","item_type":"card|relic|all"} — standalone reads.
 - {"type":"wait","seconds":1} — standalone bounded wait.
 - {"type":"report_issue","issue":"expected vs observed, evidence, one precise question"} — standalone; pauses without mutating the game.
@@ -30,7 +30,9 @@ WHAT YOU SEE. state is structured STS2MCP JSON with combat removed. The current 
 
 Before an irreversible choice, evaluate the visible effect and cost together. Use retrieved notes, and one research fetch only when a material rule remains unclear. Draft against this deck's gaps and route. last_encounter is verified evidence from the fight that just ended. objective is a lens, never a replacement for the current screen.
 
-NOTES. Durable proposals must be seed-invariant mechanics, not this run's HP, gold, offers, map, floor sequence, or outcome. If the subject already exists, propose the whole corrected note at its current path. Live state outranks notes.
+LEARNING ARTIFACT. `learning_artifact` is the current room document. It starts with operator input or is blank; it is the only writable learning document and is shown to every lane. Add concise, reusable advice to it with `learn`. Durable entries must be seed-invariant mechanics, conditions, timing, source uncertainty, or decision rules—not this run's HP, gold, offers, map, floor sequence, or outcome. The artifact is the output of this room and is not inherited automatically by another seed. Live state outranks notes.
+
+NOTES. Baseline strategy notes are retrieved separately. Do not create or edit strategy-guide files from a learn action; use the one artifact above.
 
 ERRORS. A pre-dispatch rejection may be corrected from the same observation using last_result guidance. Once any action was dispatched, the first failure pauses the run. An acknowledgement is not proof; verification is required. Never retry an ambiguous transport outcome.
 

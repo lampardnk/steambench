@@ -7,6 +7,7 @@
 // request, only these hosts are reachable, and nothing the page says is treated
 // as an instruction. Live mod state always outranks a fetched page.
 import { GatewayError } from './gateway.js';
+import deadlines from './gateway-deadlines.cjs';
 
 // Reference sites: slaythespire2.net and slaythespire.wiki.gg.
 // slaythespire2.net serves several game versions from the same paths, so fetches to it
@@ -14,9 +15,9 @@ import { GatewayError } from './gateway.js';
 export const WEB_ALLOWLIST = ['slaythespire2.net', 'slaythespire.wiki.gg'];
 export const REFERENCE_VERSION = 'beta';
 export const INSTALLED_BUILD = 'v0.111.0';
-const MAX_BYTES = 2 * 1024 * 1024;
-const MAX_TEXT = 12000;
-const TIMEOUT_MS = 15000;
+export const MAX_BYTES = 2 * 1024 * 1024;
+export const MAX_TEXT = 12000;
+export const TIMEOUT_MS = deadlines.INNER_OPERATION_TIMEOUTS_MS['web-get'];
 
 const cache = new Map(); // url -> { at, result }
 const CACHE_MS = 6 * 60 * 60 * 1000;
@@ -40,6 +41,77 @@ export function htmlToText(html) {
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
     .split('\n').map(line => line.trim()).join('\n')
     .trim();
+}
+
+function tooLarge(maximum = MAX_BYTES) {
+  return new GatewayError('web_too_large', `page exceeds ${maximum} bytes`);
+}
+
+/**
+ * Read a fetch response without ever buffering more than the configured byte
+ * limit. The test-only text() fallback is retained for minimal Response-like
+ * objects, but real fetch responses take the streaming path.
+ */
+export async function readBoundedResponse(response, maximum = MAX_BYTES, signal) {
+  const body = response?.body;
+  if (body?.getReader) {
+    const reader = body.getReader();
+    const chunks = [];
+    let bytes = 0;
+    try {
+      while (true) {
+        if (signal?.aborted) throw signal.reason || new Error('response read was aborted');
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = Buffer.from(value);
+        bytes += chunk.byteLength;
+        if (bytes > maximum) {
+          await reader.cancel().catch(() => {});
+          throw tooLarge(maximum);
+        }
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks, bytes).toString('utf8');
+    } finally {
+      reader.releaseLock?.();
+    }
+  }
+
+  // Some test doubles and older fetch implementations expose a Node stream
+  // rather than a WHATWG reader. Keep the same bound for that shape too.
+  if (body && typeof body[Symbol.asyncIterator] === 'function') {
+    const chunks = [];
+    let bytes = 0;
+    for await (const value of body) {
+      if (signal?.aborted) throw signal.reason || new Error('response read was aborted');
+      const chunk = Buffer.from(value);
+      bytes += chunk.byteLength;
+      if (bytes > maximum) {
+        body.destroy?.();
+        throw tooLarge(maximum);
+      }
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks, bytes).toString('utf8');
+  }
+
+  if (typeof response?.text !== 'function') throw new Error('response has no readable body');
+  const raw = await response.text();
+  if (Buffer.byteLength(raw, 'utf8') > maximum) throw tooLarge(maximum);
+  return raw;
+}
+
+function combinedSignal(externalSignal, timeoutSignal) {
+  if (!externalSignal) return timeoutSignal;
+  if (externalSignal.aborted) return externalSignal;
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([externalSignal, timeoutSignal]);
+  // Node versions without AbortSignal.any are still supported by forwarding
+  // both abort events into a local controller.
+  const controller = new AbortController();
+  const abort = (event) => controller.abort(event?.target?.reason || new Error('web request aborted'));
+  externalSignal.addEventListener('abort', abort, { once: true });
+  timeoutSignal.addEventListener('abort', abort, { once: true });
+  return controller.signal;
 }
 
 function checkUrl(raw) {
@@ -68,22 +140,32 @@ export async function webGet(request) {
   if (cached && Date.now() - cached.at < CACHE_MS) return { ...cached.result, cached: true };
 
   let response;
+  const signal = combinedSignal(request?.signal, AbortSignal.timeout(TIMEOUT_MS));
   try {
     response = await fetch(url.href, {
       redirect: 'follow',
       headers: { 'User-Agent': 'steambench-player/1.0 (game reference lookup)', Accept: 'text/html,text/plain' },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal,
     });
   } catch (e) {
     throw new GatewayError('web_unavailable', `could not reach ${url.hostname} (${e.cause?.code || e.name})`);
   }
   if (!response.ok) throw new GatewayError('web_status', `${url.hostname} returned HTTP ${response.status}`, { status: response.status });
   const type = response.headers.get('content-type') || '';
-  if (!/text\/html|text\/plain|application\/json/.test(type)) throw new GatewayError('web_type', `unsupported content type: ${type.split(';')[0] || 'unknown'}`);
-  const raw = await response.text();
-  if (raw.length > MAX_BYTES) throw new GatewayError('web_too_large', 'page exceeds 2 MiB');
+  if (!/text\/html|text\/plain|application\/json/i.test(type)) throw new GatewayError('web_type', `unsupported content type: ${type.split(';')[0] || 'unknown'}`);
+  const declaredLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BYTES) {
+    try { await response.body?.cancel?.(); } catch { /* the body is already being rejected */ }
+    throw tooLarge();
+  }
+  let raw;
+  try { raw = await readBoundedResponse(response, MAX_BYTES, signal); }
+  catch (error) {
+    if (error instanceof GatewayError) throw error;
+    throw new GatewayError('web_unavailable', `could not read ${url.hostname} (${error.cause?.code || error.name || 'stream error'})`);
+  }
 
-  const text = /json/.test(type) ? raw : htmlToText(raw);
+  const text = /json/i.test(type) ? raw : htmlToText(raw);
   const result = {
     url: response.url || url.href,
     host: url.hostname,

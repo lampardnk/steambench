@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { appendArtifactEdit, LEARNING_ARTIFACT } from '../../server/lib/learning-artifact.mjs';
 import { indexNotes, MAX_NOTE_IN_CONTEXT } from './retrieval.mjs';
 import { isCombat, noteProblem, planIdentity, ready, semanticIdentity, settleAnimation, stateId, uncertainCard, validatePlan } from './state.mjs';
 
 export const MAX_NOTE = MAX_NOTE_IN_CONTEXT;
-export const SCRATCHPAD_NOTE = 'scratchpad.md';
-export const PROPOSALS_HEADER = ['# Proposed factual corrections', '', 'Unreviewed, seed-invariant mechanics only.', 'Not retrieved or inherited until a human curates them.', '', '---', ''].join('\n');
+export const SCRATCHPAD_NOTE = LEARNING_ARTIFACT;
+export const PROPOSALS_HEADER = ['# Room learning artifact', '', 'Seed-independent advice recorded during this run.', 'Run-specific observations belong in scratchpad/.', '', ''].join('\n');
 export function learnedFiles(skillDir) { return indexNotes(skillDir).map(item => item.path).sort(); }
 
 const QUIESCE_MS = 150;
@@ -142,16 +143,30 @@ export class Executor {
     error.after = after;
     throw error;
   }
-  async keepNote(action) {
+  async keepNote(action, { agent = 'unknown', role = null, decision = null } = {}) {
     const problem = noteProblem(action);
     if (problem) return { action, verified: false, error: `note not kept: ${problem}` };
     try {
       if (!this.skillDir) throw new Error('this room has no skill library');
-      const file = path.join(path.resolve(this.skillDir), SCRATCHPAD_NOTE);
-      const entry = [`## ${action.path}`, '', `- proposed: ${new Date().toISOString()}`, `- message: ${action.message}`, '', action.content.trim(), '', '---', ''].join('\n');
-      fs.appendFileSync(file, (fs.existsSync(file) ? '' : PROPOSALS_HEADER) + entry);
-      const response = await this.call({ op: 'skill-commit', message: action.message });
-      return { action, verified: true, staged: SCRATCHPAD_NOTE, proposed_path: action.path, commit: response?.commit || null, committed: Boolean(response?.committed) };
+      const edit = appendArtifactEdit(this.skillDir, {
+        content: action.content,
+        message: action.message,
+        agent,
+        lane: agent,
+        role,
+        decision,
+        sourcePath: action.path || null,
+      });
+      this.record({ type: 'learning_edit', agent, role, decision, artifact: LEARNING_ARTIFACT, beforeHash: edit.beforeHash, afterHash: edit.afterHash, message: edit.message, patch: edit.patch });
+      return {
+        action,
+        verified: true,
+        artifact: LEARNING_ARTIFACT,
+        beforeHash: edit.beforeHash,
+        afterHash: edit.afterHash,
+        editId: edit.id,
+        edit,
+      };
     } catch (error) { return { action, verified: false, error: `note not kept: ${error.message}` }; }
   }
   notePath(relative) {
@@ -160,7 +175,7 @@ export class Executor {
     if (!target.startsWith(base + path.sep)) throw new Error('note path escapes skill directory');
     return target;
   }
-  async execute(plan, observation, { allowContinue = false } = {}) {
+  async execute(plan, observation, { allowContinue = false, agent = 'unknown', role = null, decision = null } = {}) {
     validatePlan(plan, observation, { allowContinue });
     let state = await this.observe();
     if (planIdentity(state, plan) !== planIdentity(observation, plan)) {
@@ -176,7 +191,7 @@ export class Executor {
       let acknowledgement = null;
       try {
         if (['learn', 'recall', 'research', 'lookup', 'wait'].includes(action.type)) {
-          if (action.type === 'learn') completed.push(await this.keepNote(action));
+          if (action.type === 'learn') completed.push(await this.keepNote(action, { agent, role, decision }));
           else if (action.type === 'recall') {
             if (!action.path) completed.push({ action, verified: true, learned_files: learnedFiles(this.skillDir) });
             else { const file = this.notePath(action.path); if (!fs.existsSync(file)) throw new Error(`no learned note at ${action.path}`); const text = fs.readFileSync(file, 'utf8'); completed.push({ action, verified: true, path: action.path, truncated: text.length > MAX_NOTE, text: text.slice(0, MAX_NOTE) }); }
@@ -233,7 +248,7 @@ export class Executor {
         return { completed, error: error.message, code: error.code, state: after, ...(error.code === 'stale_observation' ? { staleState: after } : {}), failedActionDispatched: this.actions > actionsBefore, outcomeUnknown: error.code === 'sts2_action_outcome_unknown' };
       }
     }
-    if (note) completed.push(await this.keepNote(note));
+    if (note) completed.push(await this.keepNote(note, { agent, role, decision }));
     this.record({ type: 'plan_result', before: observation, after: state, completed });
     return { completed, state };
   }

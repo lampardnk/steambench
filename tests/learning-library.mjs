@@ -1,6 +1,6 @@
-// The skill library must outlive rooms: a room inherits earlier knowledge,
-// commits its own under the player's message, and never loses a note when the
-// room home is deleted. Per-run scratchpad state must stay out of it.
+// The skill library is a curated, read-only baseline for rooms. A room's one
+// learning.md starts independently, remains outside the library, and survives
+// room deletion through its archive. Per-run scratchpad state also stays out.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -29,8 +29,9 @@ assert.ok(!fs.existsSync(path.join(first.dir, 'scratchpad')), 'per-run state sta
 // --- a room proposes, and cannot write the library ------------------------
 // The player used to commit its whole tree back, so every note it wrote became a
 // fact the next room inherited - and any curation done while it ran was undone:
-// five diary notes deleted at 07:43 came back byte-identical at 07:52. A room now
-// contributes exactly one file, scratchpad.md, for a human to merge.
+// five diary notes deleted at 07:43 came back byte-identical at 07:52. The
+// compatibility helper still stages an explicitly supplied scratchpad.md, but
+// normal rooms now keep one learning.md artifact in their own archive.
 const roomOne = path.join(root, 'room-one', 'skills', 'sts2');
 library.checkoutInto(cfg, 'sts2', roomOne);
 assert.ok(fs.existsSync(path.join(roomOne, 'ironclad', 'a1', 'meta_strategy', 'rewards', 'README.md')));
@@ -44,6 +45,20 @@ fs.writeFileSync(path.join(roomOne, 'ironclad', 'a1', 'meta_strategy', 'rewards'
 fs.writeFileSync(path.join(roomOne, 'scratchpad.md'), '# Staged notes\n\n## ironclad/a1/act1/normal/wriggler.md\n\nEmpower then Strategic.\n');
 const commit = await library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: roomOne, roomId: 'aaaa1111', player: 'STS2-Pi-Luna', message: 'Stage what room aaaa1111 proposed' });
 assert.ok(commit);
+
+// Explicit legacy imports are serialized and appended. They must not recreate
+// the old last-room-wins behavior or contend on Git's index.
+const legacyImports = ['second reusable proposal', 'third reusable proposal'].map((content, index) => {
+  const dir = path.join(root, `legacy-import-${index}`);
+  library.checkoutInto(cfg, 'sts2', dir);
+  fs.writeFileSync(path.join(dir, 'scratchpad.md'), content + '\n');
+  return library.commitFromRoom(cfg, { skill: 'sts2', roomSkillDir: dir, roomId: `legacy-${index}`, player: 'STS2-Pi-Luna', message: `Import legacy proposal ${index}` });
+});
+await Promise.all(legacyImports);
+const retainedProposals = fs.readFileSync(path.join(first.dir, 'scratchpad.md'), 'utf8');
+assert.match(retainedProposals, /Empower then Strategic/);
+assert.match(retainedProposals, /second reusable proposal/);
+assert.match(retainedProposals, /third reusable proposal/);
 
 fs.rmSync(path.join(root, 'room-one'), { recursive: true, force: true });
 assert.ok(fs.existsSync(path.join(first.dir, 'scratchpad.md')), 'the proposal survives the room');
@@ -185,20 +200,22 @@ const executor = new Executor({
   },
 });
 executor.sleep = async () => {};
-// A note is a PROPOSAL: it lands in scratchpad.md under the path it argues for,
-// and that path is never opened. Writing the library directly is what filled it
-// with one run's guesses and six notes about the same reward screen.
+// A note is an append to the room's one learning artifact. A legacy path is
+// retained only as provenance; it never opens or creates a second guide file.
 const carvings = '---\ndescription: How to judge Wood Carvings\nkeys: wood carvings, event\n---\nJudge the options by the deck the act demands.\n';
 const wrote = await executor.execute(plan([{ type: 'learn', path: 'ironclad/a1/act1/unknown/wood-carvings.md', content: carvings, message: 'Record how to judge Wood Carvings' }]), state);
 assert.equal(wrote.error, undefined);
-assert.equal(wrote.completed[0].commit, 'abc1234567');
-assert.equal(wrote.completed[0].staged, 'scratchpad.md');
-assert.equal(wrote.completed[0].proposed_path, 'ironclad/a1/act1/unknown/wood-carvings.md');
+assert.equal(wrote.completed[0].artifact, 'learning.md');
+assert.equal(wrote.completed[0].edit.agent, 'unknown');
+assert.equal(wrote.completed[0].edit.sourcePath, 'ironclad/a1/act1/unknown/wood-carvings.md');
+assert.ok(wrote.completed[0].beforeHash);
+assert.ok(wrote.completed[0].afterHash);
 assert.ok(!fs.existsSync(path.join(roomTwo, 'ironclad', 'a1', 'act1', 'unknown', 'wood-carvings.md')), 'the argued-for path is a label, never opened');
-const staged = fs.readFileSync(path.join(roomTwo, 'scratchpad.md'), 'utf8');
-assert.match(staged, /## ironclad\/a1\/act1\/unknown\/wood-carvings\.md/);
-assert.match(staged, /Judge the options by the deck the act demands/);
-assert.deepEqual(calls.filter((c) => c.op === 'skill-commit'), [{ op: 'skill-commit', message: 'Record how to judge Wood Carvings' }]);
+const artifact = fs.readFileSync(path.join(roomTwo, 'learning.md'), 'utf8');
+assert.match(artifact, /## Record how to judge Wood Carvings/);
+assert.match(artifact, /Judge the options by the deck the act demands/);
+assert.match(artifact, /proposed guide path: ironclad\/a1\/act1\/unknown\/wood-carvings\.md/);
+assert.deepEqual(calls.filter((c) => c.op === 'skill-commit'), []);
 
 // A note may close a plan, recording what that plan just verified.
 const withNote = plan([
@@ -209,12 +226,14 @@ validatePlan(withNote, state);
 const both = await executor.execute(withNote, state);
 assert.equal(both.error, undefined);
 assert.equal(both.completed.length, 2);
-assert.equal(both.completed[1].commit, 'abc1234567');
-// Both proposals accumulate in the one file, newest last, and neither reached a note.
-const afterTwo = fs.readFileSync(path.join(roomTwo, 'scratchpad.md'), 'utf8');
+assert.equal(both.completed[1].artifact, 'learning.md');
+assert.equal(both.completed[1].edit.agent, 'unknown');
+// Both edits accumulate in the one file, newest last, and neither reached a note.
+const afterTwo = fs.readFileSync(path.join(roomTwo, 'learning.md'), 'utf8');
 assert.match(afterTwo, /Compare the current reachable nodes/);
 assert.ok(afterTwo.indexOf('wood-carvings') < afterTwo.indexOf('route-selection.md'), 'appended in order');
 assert.ok(!fs.existsSync(path.join(roomTwo, 'ironclad', 'a1', 'meta_strategy', 'map', 'route-selection.md')));
+assert.equal(calls.filter((c) => c.op === 'skill-commit').length, 0);
 
 // The same badly formed note reaches the executor as a result, and the plan's
 // other verified work survives it.
@@ -270,7 +289,7 @@ assert.deepEqual(learnedFiles(roomTwo), [
   'ironclad/a1/meta_strategy/rewards/README.md',
 ]);
 
-console.log(JSON.stringify({ result: 'passed', verified: ['seed', 'inherit', 'commit-back', 'run state excluded', 'the template is authoritative for what it ships', 'a note the template has moved leaves no copy behind', 'git-style history', 'path escapes', 'a learn action only ever stages a proposal', 'the library is human-curated: a room can neither add, edit nor resurrect a note', 'recall/research', 'a note may close a semantic action plan', 'a bad note never ends a run', 'note areas', 'seed-specific notes refused', 'front matter required', 'single reference site pinned to beta'], gameActions: 1 }));
+console.log(JSON.stringify({ result: 'passed', verified: ['seed', 'inherit', 'explicit legacy staging', 'run state excluded', 'the template is authoritative for what it ships', 'a note the template has moved leaves no copy behind', 'git-style history', 'path escapes', 'one room learning artifact', 'attributed edits', 'no automatic library commit', 'the library is human-curated: a room can neither add, edit nor resurrect a note', 'recall/research', 'a note may close a semantic action plan', 'a bad note never ends a run', 'note areas', 'seed-specific notes refused', 'front matter required', 'single reference site pinned to beta'], gameActions: 1 }));
 
 
 // --- a legacy <skill>-astra library is renamed, not stranded ---------------

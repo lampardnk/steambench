@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Allowlisted host process gateway for the steambench Pi container.
+"""Deprecated compatibility gateway for the steambench Pi container.
 
 The gateway deliberately exposes a small JSON-lines API instead of the host
 PID namespace or Docker socket. Start it on the host, not in the container.
 Run it as the game owner for inspection/logs/input, or as root when ptrace and
 process memory access are required.
+
+The supported player path is the server's scoped JSON-line gateway
+(``server/lib/gateway.js``). This host bridge remains only for local operators
+and older clients; keep its STS2 action contract in parity with the server
+contract and do not add new gameplay capabilities here.
 """
 
 from __future__ import annotations
@@ -64,7 +69,7 @@ STS2_ACTION_SCHEMAS: dict[str, dict[str, tuple[str, Any]]] = {
     "claim_reward": {"index": ("index", None)}, "select_card_reward": {"card_index": ("index", None)},
     "skip_card_reward": {}, "proceed": {}, "choose_event_option": {"index": ("index", None)},
     "advance_dialogue": {}, "choose_rest_option": {"index": ("index", None)},
-    "shop_purchase": {"index": ("index", None)}, "choose_map_node": {"index": ("index", None)},
+    "shop_back": {}, "shop_purchase": {"index": ("index", None)}, "choose_map_node": {"index": ("index", None)},
     "select_card": {"index": ("index", None)}, "confirm_selection": {}, "cancel_selection": {},
     "select_bundle": {"index": ("index", None)}, "confirm_bundle_selection": {}, "cancel_bundle_selection": {},
     "select_relic": {"index": ("index", None)}, "skip_relic_selection": {},

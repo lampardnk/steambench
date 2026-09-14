@@ -1,9 +1,22 @@
 import crypto from 'node:crypto';
 import { PROFILE } from './profile.mjs';
+import { STS2_ACTION_NAMES } from '../../server/lib/sts2-actions.js';
+import { MAX_LEARNING_EDIT, MAX_LEARNING_MESSAGE } from '../../server/lib/learning-artifact.mjs';
 
 export const VERSION = PROFILE.checkpointVersion;
 export const SENSOR_VERSION = 8;
 export const digest = value => crypto.createHash('sha256').update(JSON.stringify(value) ?? 'null').digest('hex').slice(0, 16);
+
+export function assertCompatibleSensor(state) {
+  if (!state?.build?.game || !state?.build?.mod || state.sensor_error) {
+    throw new Error('STS2MCP structured-state extension is missing or incompatible; install the matching mod build');
+  }
+  if (state.sensor_version !== SENSOR_VERSION) {
+    const received = state.sensor_version == null ? 'missing' : JSON.stringify(state.sensor_version);
+    throw new Error(`STS2MCP sensor contract mismatch: expected ${SENSOR_VERSION}, received ${received}; install the matching mod build`);
+  }
+  return state;
+}
 
 const contentIdentity = value => {
   if (Array.isArray(value)) return value.map(contentIdentity);
@@ -193,11 +206,6 @@ export function ready(state) {
     default: return true;
   }
 }
-export function unbuiltMenu(state) { return state?.state_type === 'menu' && !Array.isArray(state.options) && !Array.isArray(state.menu?.options); }
-export function leftMap() { return false; }
-export function focusIdentity() { return null; }
-export function needsScreenshot() { return false; }
-
 export function situationKey(state) {
   const compact = compactState(state);
   return [compact.run, compact.state_type, compact.player?.hp, compact.player?.gold, compact.player?.relics, compact.player?.potions, compact.player?.hand, compact.map?.current_position, compact.map?.next_options, compact.rewards, compact.card_reward, compact.card_select, compact.hand_select, compact.bundle_select, compact.relic_select, compact.treasure, compact.event, compact.rest_site, compact.shop, compact.crystal_sphere];
@@ -248,17 +256,25 @@ export function plannerGuidance(message) {
   return 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.';
 }
 export function noteProblem(action) {
-  if (typeof action?.path !== 'string' || !/^[a-z0-9][a-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('//') || action.path.includes('..')) return 'learn.path must be a lowercase .md path inside the strategy guide';
-  if (!/^(?:ironclad\/a1\/(?:debugging|meta_strategy|act[123])\/|characters\/|ascension\/)/.test(action.path)) return 'use the strategy guide hierarchy; scratchpad and objective history are not strategy';
-  if (MOMENT_IN_PATH.test(action.path)) return `learn.path names one moment of this run (${action.path}); write a seed-invariant mechanic instead`;
-  if (typeof action.content !== 'string' || !action.content.trim() || action.content.length > 8000) return 'learn.content must be 1-8000 characters';
-  if (!/^---\r?\n[\s\S]*?\bdescription:\s*\S[\s\S]*?\r?\n---/.test(action.content) || !/\bkeys:\s*\S/.test(action.content.slice(0, 600))) return 'learn.content must open with front matter carrying description and keys';
-  if (typeof action.message !== 'string' || action.message.trim().length < 3 || action.message.length > 200) return 'learn.message must be a 3-200 character commit message';
+  // New plans write one room-level artifact and therefore do not need a path.
+  // Accept the old path as optional provenance for older images/checkpoints, but
+  // never open it: the executor always writes learning.md.
+  if (action?.path !== undefined) {
+    if (typeof action.path !== 'string' || !/^[a-z0-9][a-z0-9/_-]{0,110}\.md$/.test(action.path) || action.path.includes('//') || action.path.includes('..')) return 'learn.path must be a lowercase .md path inside the strategy guide';
+    if (!/^(?:ironclad\/a1\/(?:debugging|meta_strategy|act[123])\/|characters\/|ascension\/)/.test(action.path)) return 'use the strategy guide hierarchy; scratchpad and objective history are not strategy';
+    if (MOMENT_IN_PATH.test(action.path)) return `learn.path names one moment of this run (${action.path}); write a seed-invariant mechanic instead`;
+  }
+  if (typeof action.content !== 'string' || !action.content.trim() || Buffer.byteLength(action.content, 'utf8') > MAX_LEARNING_EDIT) return `learn.content must be 1-${MAX_LEARNING_EDIT} UTF-8 bytes`;
+  // Legacy path-based proposals were individual retrievable notes and retain
+  // their front-matter guard. Artifact entries are plain markdown blocks; the
+  // surrounding artifact is intentionally not parsed as a note index.
+  if (action?.path !== undefined && (!/^---\r?\n[\s\S]*?\bdescription:\s*\S[\s\S]*?\r?\n---/.test(action.content) || !/\bkeys:\s*\S/.test(action.content.slice(0, 600)))) return 'learn.content must open with front matter carrying description and keys';
+  if (typeof action.message !== 'string' || action.message.trim().length < 3 || action.message.length > MAX_LEARNING_MESSAGE) return `learn.message must be a 3-${MAX_LEARNING_MESSAGE} character edit description`;
   return null;
 }
 export function energyCost(cost) { const value = typeof cost === 'string' && /^\d+$/.test(cost.trim()) ? Number(cost) : cost; return Number.isInteger(value) && value >= 0 ? value : null; }
 
-export const GAME_ACTIONS = new Set(['menu_select', 'play_card', 'use_potion', 'discard_potion', 'end_turn', 'combat_select_card', 'combat_confirm_selection', 'claim_reward', 'select_card_reward', 'skip_card_reward', 'proceed', 'shop_back', 'choose_event_option', 'advance_dialogue', 'choose_rest_option', 'shop_purchase', 'choose_map_node', 'select_card', 'confirm_selection', 'cancel_selection', 'select_bundle', 'confirm_bundle_selection', 'cancel_bundle_selection', 'select_relic', 'skip_relic_selection', 'claim_treasure_relic', 'crystal_sphere_set_tool', 'crystal_sphere_click_cell', 'crystal_sphere_proceed']);
+export const GAME_ACTIONS = new Set(STS2_ACTION_NAMES);
 const COMMON = ['learn', 'recall', 'research', 'lookup', 'wait', 'report_issue'];
 const PLAN_ACTION_FIELDS = Object.freeze({
   menu_select: ['type', 'option', 'seed'], play_card: ['type', 'card', 'target'],

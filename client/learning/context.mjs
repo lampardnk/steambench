@@ -28,7 +28,7 @@ export function combatState(state) {
   return compact;
 }
 
-export function strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, act1, counters, freshRunVerified, resumeExistingRun = false }) {
+export function strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, learningArtifact = '', act1, counters, freshRunVerified, resumeExistingRun = false }) {
   const mapUnchanged = Boolean(strategy && lastResult?.after?.map_id && lastResult.after.map_id === mapId(state));
   return {
     task: task.slice(0, 3000),
@@ -39,16 +39,18 @@ export function strategistContext({ state, task, ladder, objectiveCheck, retriev
     state: strategistState(state, { mapUnchanged }),
     strategy, ...ladder, objective_check: objectiveCheck, retrieved_notes: retrieved,
     last_encounter: lastEncounter, act1_timer: act1, accepted_lessons: accepted,
+    learning_artifact: learningArtifact,
     known_notes: notes.slice(0, 60), last_result: lastResult,
     user_instructions: instructions.slice(-3), ...counters,
   };
 }
 
-export function combatContext({ state, briefing, scratchpad, retrieved, lastResult, instructions, notes, counters }) {
+export function combatContext({ state, briefing, scratchpad, retrieved, lastResult, instructions, notes, learningArtifact = '', counters }) {
   return {
     briefing, observation_id: stateId(state), state: combatState(state), encounter_scratchpad: scratchpad,
     retrieved_notes: retrieved,
     known_notes: notes.filter(path => /\/(?:normal|elite|boss|ancient|potion)\//.test(path) || /meta_strategy\/(?:buffs|debuffs|mechanics|keywords|cards|relics)\//.test(path)).slice(0, 40),
+    learning_artifact: learningArtifact,
     last_result: lastResult, user_instructions: instructions.slice(-2), ...counters,
   };
 }

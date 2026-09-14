@@ -135,5 +135,83 @@ try {
     globalThis.fetch = async () => { calls++; return { status: 404, text: async () => 'no', headers: { get: () => 'text/plain' } }; };
     await assert.rejects(() => room._sts2Fetch('/api/v1/nope', {}), /returned 404/);
     assert.equal(calls, 1, 'a 4xx is not retried');
+
+    // A read abandoned by its gateway client stops at the fetch boundary and
+    // is not retried in the background.
+    calls = 0;
+    const controller = new AbortController();
+    globalThis.fetch = async (_url, { signal }) => {
+      calls++;
+      return new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+    };
+    const cancelled = room._sts2Get({ path: '/api/v1/singleplayer', query: {}, signal: controller.signal });
+    controller.abort(new Error('fixture client disconnected'));
+    await assert.rejects(cancelled, /fixture client disconnected/);
+    assert.equal(calls, 1, 'an aborted GET is not retried');
   } finally { globalThis.fetch = realFetch; }
+}
+
+// Terminal room operations are single-flight. Two callers must observe the
+// same result without duplicating the final sensor read, archive, or teardown.
+{
+  const lifecycleManager = new EventEmitter();
+  lifecycleManager.cfg = { ...manager.cfg, finishGraceS: 3600 };
+  lifecycleManager.remove = async () => true;
+  const finishing = new Room(lifecycleManager, { id: 'f1f1f1f1', name: 'Concurrent finish' });
+  finishing.stage = 'playing';
+  finishing.setup = room.setup;
+  let finishReads = 0;
+  let releaseFinish;
+  const finishGate = new Promise(resolve => { releaseFinish = resolve; });
+  finishing._sts2Fetch = async () => {
+    finishReads++;
+    await finishGate;
+    return { body: JSON.stringify({ state_type: 'game_over', run: { act: 1, floor: 9 }, player: { hp: 0, max_hp: 80 } }) };
+  };
+  const firstFinish = finishing.finishRun({ result: 'lost', summary: 'first caller' });
+  const secondFinish = finishing.finishRun({ result: 'won', summary: 'racing caller' });
+  releaseFinish();
+  const [firstResult, secondResult] = await Promise.all([firstFinish, secondFinish]);
+  assert.strictEqual(firstResult, secondResult);
+  assert.equal(firstResult.summary, 'first caller');
+  assert.equal(finishReads, 1);
+  clearTimeout(finishing.finishTimer);
+
+  const preservationManager = new EventEmitter();
+  preservationManager.cfg = { ...manager.cfg, finishGraceS: 0 };
+  let removedAfterArchiveFailure = 0;
+  preservationManager.remove = async () => { removedAfterArchiveFailure++; };
+  const preservation = new Room(preservationManager, { id: 'a2c41ve0', name: 'Preserve failed archive' });
+  preservation.stage = 'playing';
+  preservation.setup = room.setup;
+  preservation._sts2Fetch = async () => ({ body: JSON.stringify({ state_type: 'game_over', run: { act: 1, floor: 9 }, player: { hp: 0 } }) });
+  preservation.archive = async () => { throw new Error('disk unavailable'); };
+  await preservation.finishRun({ result: 'lost', summary: 'archive must finish before cleanup' });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(removedAfterArchiveFailure, 0);
+  assert.equal(preservation.stage, 'error');
+  assert.match(preservation.detail, /room preserved/);
+
+  for (const method of ['archive', 'destroy']) {
+    const candidate = new Room(lifecycleManager, { id: `${method}12`.slice(0, 8), name: method });
+    let calls = 0;
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    candidate[`_${method}`] = async () => { calls++; await gate; return `${method}-result`; };
+    const a = candidate[method]({ reason: 'first' });
+    const b = candidate[method]({ reason: 'second' });
+    release();
+    assert.deepEqual(await Promise.all([a, b]), [`${method}-result`, `${method}-result`]);
+    assert.equal(calls, 1, `${method} ran exactly once`);
+  }
+}
+
+// Retention is bounded for memory, but the public count remains the true total.
+{
+  const counted = new Room(manager, { id: 'c0a17ed0', name: 'Counted actions' });
+  for (let index = 0; index < 305; index++) counted._recordAction('end_turn', {});
+  assert.equal(counted.actionHistory.length, 300);
+  assert.equal(counted.summary().actionCount, 305);
 }

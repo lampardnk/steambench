@@ -37,6 +37,11 @@ export const STS2_ACTION_SCHEMAS = Object.freeze({
   crystal_sphere_proceed: {},
 });
 
+// This is the canonical gameplay-action surface shared by the gateway and the
+// player. Keeping the names derived from the wire schema prevents a new action
+// from being accepted by one side while remaining unknown to the other.
+export const STS2_ACTION_NAMES = Object.freeze(Object.keys(STS2_ACTION_SCHEMAS));
+
 export function validateSts2Action(action, params) {
   if (typeof action !== 'string' || !(action in STS2_ACTION_SCHEMAS)) {
     const error = new Error('action is not allowlisted');

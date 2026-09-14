@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 
+// Deprecated compatibility CLI. The supported player runtime uses the scoped
+// server gateway directly; retain this host bridge for local operators and
+// older integrations until they migrate.
+
 const fs = require("node:fs");
 const path = require("node:path");
 const { parseGateway, endpointFromEnv, callGateway } = require(path.join(__dirname, "gateway_client.js"));
 
 function usage() {
-  console.log(`Usage: steambench-host [--socket PATH | --gateway HOST:PORT] OPERATION [ARGS...]
+  console.log(`Usage (deprecated compatibility bridge): steambench-host [--socket PATH | --gateway HOST:PORT] OPERATION [ARGS...]
 
 Read-only:
   list
@@ -40,12 +44,6 @@ The host gateway validates every PID against the Steam/STS2 allowlist.`);
 function integer(value, label) {
   if (!/^\d+$/.test(value || "")) throw new Error(`${label} must be an integer`);
   return Number(value);
-}
-
-function number(value, label) {
-  const parsed = Number(value);
-  if (value === undefined || value === "" || Number.isNaN(parsed)) throw new Error(`${label} must be a number`);
-  return parsed;
 }
 
 function requestFor(args) {

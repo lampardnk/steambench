@@ -94,12 +94,13 @@ The player runtime (`client/learning/`) is configured as follows:
 
 ---
 
-## 5. Skills & Persistent Learning Library
+## 5. Skills & Room Learning Artifact
 
-- **Skill Template & Library:** Shared template at `server/skills/sts2/`. Persistent knowledge is committed to the Git repository at `.runtime/wolf/learning/library/sts2/`.
-- **Scratchpad:** Ephemeral single-run state stored at `scratchpad/` (e.g. `facts.json`, `run.md`, `incidents/`). Archived upon room completion and never inherited across seeds.
-- **Seed Invariance:** Durable notes must be seed-invariant (mechanics, bestiary intent graphs, card synergies, semantic decision rules) rather than transcripts of specific floor rolls.
-- **Retrieval:** Frontmatter `description` and `keys` are indexed by `client/learning/retrieval.mjs` to inject relevant notes into fresh model decisions.
+- **Skill Template & Library:** The shared template at `server/skills/sts2/` is maintained as a curated Git-backed baseline at `.runtime/wolf/learning/library/sts2/`. Rooms receive it read-only; their agents never commit into it automatically.
+- **One Learning Artifact:** Every room has one writable `learning.md`. It starts with optional operator input (blank by default), all agents append reusable advice to it, and the room archives it as the output together with per-agent edit attribution. Nothing copies it into a later room unless a human explicitly supplies it as that room's input.
+- **Scratchpad:** Ephemeral single-run state stored at `scratchpad/` (e.g. `facts.json`, `run.md`, `incidents/`). Archived upon room completion and never inherited across seeds. `scratchpad/learning-edits.jsonl` is attribution telemetry for `learning.md`, not a second learning artifact.
+- **Seed Invariance:** `learning.md` must contain seed-independent mechanics, bestiary intent graphs, card synergies, and semantic decision rules—not transcripts of specific floor rolls.
+- **Retrieval:** Frontmatter `description` and `keys` from the curated baseline are indexed by `client/learning/retrieval.mjs`; the current room's full `learning.md` is supplied directly to its agents.
 
 ---
 

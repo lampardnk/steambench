@@ -4,9 +4,13 @@
 the room and **never inherited across seeds**: every run is a different map,
 different offers and different rolls, so nothing here is read by a later room.
 
-`skills/sts2/scratchpad.md`, one level up, is reserved for proposed factual
-corrections for human review. It is not retrieved or copied into later rooms.
-No encounter diary, run verdict, or advice for the next seed belongs there.
+`skills/sts2/learning.md`, one level up, is the room's one writable learning
+artifact. It starts with optional operator input (otherwise empty), receives
+seed-independent advice from the agents, and is archived as this room's output.
+It is not retrieved from or copied into later rooms automatically. The
+run-local `learning-edits.jsonl` sidecar records each agent's lane, role,
+decision, timestamp, hashes and readable diff; it is audit metadata, not a
+second learning artifact.
 
 ## What is in here
 
@@ -30,11 +34,14 @@ No encounter diary, run verdict, or advice for the next seed belongs there.
 ## What belongs in the library instead
 
 Anything true of the seed is worthless next run: a map roll, an offer, a turn
-transcript. What transfers goes to a human as a proposal in `scratchpad.md`,
-and a human decides whether it joins the library:
+transcript. What transfers belongs in the room's `learning.md` only as concise,
+seed-independent advice. A human can explicitly choose that room's output as
+the next room's input; nothing is inherited implicitly:
 
 - How a semantic choice behaves and what transition it produces → the relevant `meta_strategy/` or act-specific note.
 - What an act can put in front of you → `ironclad/a1/act1/{normal,elite,boss,unknown,ancient,potion}/`.
 - Rules that hold across runs → `ironclad/a1/meta_strategy/{buffs,debuffs,mechanics,map,keywords,cards,relics,restsite,merchant,rewards,deck_archetypes,playbook}/`.
 
-No narrative run diaries or end-of-run strategic reflections are generated. Structured checkpoints and incident evidence stay with this run; they are never inherited as game knowledge.
+No narrative run diaries or end-of-run strategic reflections are generated.
+Structured checkpoints and incident evidence stay with this run; they are never
+inherited as game knowledge.

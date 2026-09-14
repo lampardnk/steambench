@@ -206,9 +206,9 @@ export default function RoomPage() {
               <section className="rounded-lg border border-border bg-card p-3">
                 <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <span className="text-sm font-medium text-foreground">Learning</span>
-                  {room.lastLibraryCommit && (
-                    <span title={room.lastLibraryCommit.message}>
-                      · latest commit <span className="font-mono">{room.lastLibraryCommit.hash.slice(0, 7)}</span>
+                  {room.learningArtifact && (
+                    <span title={`input ${room.learningArtifact.input.hash.slice(0, 12)} → output ${room.learningArtifact.output.hash.slice(0, 12)}`}>
+                      · artifact {room.learningArtifact.output.edits} edit{room.learningArtifact.output.edits === 1 ? '' : 's'} · <span className="font-mono">{room.learningArtifact.output.hash.slice(0, 7)}</span>
                     </span>
                   )}
                 </div>
@@ -216,7 +216,7 @@ export default function RoomPage() {
                   settings={settings}
                   roomId={room.id}
                   curriculum={room.curriculum}
-                  refreshKey={`${room.lastLibraryCommit?.hash || ''}:${room.curriculum?.active?.id || ''}`}
+                  refreshKey={`${room.learningArtifact?.output.hash || ''}:${room.curriculum?.active?.id || ''}`}
                 />
               </section>
 
@@ -245,6 +245,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
   const [character, setCharacter] = useState('Ironclad')
   const [ascension, setAscension] = useState(1)
   const [prompt, setPrompt] = useState('')
+  const [learningArtifact, setLearningArtifact] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -268,7 +269,7 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
     try {
       await api(settings, `/api/rooms/${room.id}/setup`, {
         method: 'POST',
-        body: JSON.stringify({ game, player: { kind: 'builtin' }, task: { character, ascension, prompt } }),
+        body: JSON.stringify({ game, player: { kind: 'builtin' }, task: { character, ascension, prompt }, learningArtifact }),
       })
       onDone({ ...room, stage: 'installing' })
     } catch (e) {
@@ -315,6 +316,11 @@ function SetupForm({ settings, room, onDone }: { settings: ReturnType<typeof use
       <label className="mt-3 flex flex-col gap-1">
         <span className="text-xs text-muted-foreground">Extra instructions for the player (optional)</span>
         <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} className="rounded-md border border-border bg-background px-2 py-1" placeholder="e.g. prefer a Strength build; skip shops" />
+      </label>
+      <label className="mt-3 flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">Learning artifact input (optional)</span>
+        <span className="text-xs text-muted-foreground">Starts blank by default. Add only seed-independent advice you want this room to use; the room returns one attributed artifact after the run.</span>
+        <textarea value={learningArtifact} onChange={(e) => setLearningArtifact(e.target.value)} rows={5} className="rounded-md border border-border bg-background px-2 py-1 font-mono text-xs" placeholder="Leave blank for a fresh learning artifact…" />
       </label>
       {err && <p className="mt-2 text-destructive">{err}</p>}
       <button disabled={busy} onClick={submit} className="mt-3 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-50">
