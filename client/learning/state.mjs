@@ -226,6 +226,22 @@ const DIFF_FIELDS = [
 ];
 export function stateDiff(before, after) { return Object.fromEntries(DIFF_FIELDS.flatMap(([name, read]) => read(before) === read(after) ? [] : [[name, { was: read(before), now: read(after) }]])); }
 export function hasVerifiedProgress(result) { return Array.isArray(result?.completed) && result.completed.some(item => item?.verified === true); }
+/**
+ * A rejected plan needs the new error, but it must not erase the last action
+ * this lane actually completed. That evidence is especially important after a
+ * selection confirmation: if the following model call times out, the next call
+ * still needs to know that the overlay was already resolved.
+ */
+export function refinementResult(error, guidance, round, previous = null) {
+  const lastVerifiedResult = hasVerifiedProgress(previous) ? previous : previous?.last_verified_result;
+  return {
+    error,
+    refine_round: round,
+    no_input_sent: true,
+    guidance,
+    ...(lastVerifiedResult ? { last_verified_result: lastVerifiedResult } : {}),
+  };
+}
 export function recoverableSuffixFailure(result) {
   return Boolean(result?.error
     && result.code !== 'stale_observation'
@@ -251,6 +267,7 @@ export function plannerGuidance(message) {
   if (/stale or missing observation ID/i.test(message || '')) return 'The observation token was missing, stale, or malformed. Copy the exact 8-character lowercase observation_id into the observation field with no UUID suffix or punctuation. No gameplay action was dispatched; answer from the SAME observation, or report the issue when evidence is insufficient.';
   if (OUT_OF_BUDGET.test(message || '')) return 'The previous response ran out of budget before a plan arrived. No gameplay action was dispatched. Answer from the SAME observation with a concise valid plan, or report the issue when evidence is insufficient.';
   if (STANDALONE_PLAN.test(message || '')) return 'A standalone gameplay action was combined with another gameplay action. Return either the deterministic card-play prefix only, or exactly one standalone action; never include end_turn with play_card or another mutation.';
+  if (/combat_confirm_selection requires an active hand_select/i.test(message || '')) return 'The current observation explicitly has hand_select: null, so there is no combat selection to confirm. Do not repeat combat_confirm_selection or carry selection state forward from an earlier observation; plan only from the cards, resources, and enemies in the current observation.';
   if (/card reward cannot be skipped|select_card_reward\.card|unknown card reward/i.test(message || '')) return 'Match the action to state_type. For card_select, use select_card with one observed numeric instance_id, or cancel_selection when can_cancel is true. Use select_card_reward/skip_card_reward only for card_reward.';
   if (UNKNOWN_IDENTITY.test(message || '')) return 'That action named an identity the screen never published. Copy the semantic_id of the observed item exactly as it appears, character for character; never rebuild it from the item\'s name, shorten it, or carry one over from an earlier screen. No gameplay action was dispatched; answer again from the SAME observation using an identity you can see in it.';
   return 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.';
@@ -377,8 +394,15 @@ export function validatePlan(plan, state, { role = null, allowContinue = false }
       if (action.type === 'use_potion' && potion.can_use !== true) throw new Error(`potion in slot ${action.slot} is not currently usable`);
       if (action.type === 'use_potion' && potion.target_type === 'AnyEnemy' && !state.battle?.enemies?.some(enemy => enemy.entity_id === action.target && enemy.hp > 0)) throw new Error('unknown potion target');
       if (action.type === 'use_potion' && potion.target_type !== 'AnyEnemy' && action.target != null) throw new Error(`${potion.name || `potion in slot ${action.slot}`} takes no explicit target`);
-    } else if (action.type === 'combat_select_card') { integer(action.card, 'combat_select_card.card'); if (!present(state.hand_select?.cards, action.card, 'instance_id')) throw new Error('unknown selectable combat card instance'); }
-    else if (action.type === 'combat_confirm_selection' && state.hand_select?.can_confirm !== true) throw new Error('combat selection cannot be confirmed yet');
+    } else if (action.type === 'combat_select_card') {
+      integer(action.card, 'combat_select_card.card');
+      if (!state.hand_select) throw new Error('combat_select_card requires an active hand_select; the current observation has none');
+      if (!present(state.hand_select.cards, action.card, 'instance_id')) throw new Error('unknown selectable combat card instance');
+    }
+    else if (action.type === 'combat_confirm_selection') {
+      if (!state.hand_select) throw new Error('combat_confirm_selection requires an active hand_select; the current observation has none');
+      if (state.hand_select.can_confirm !== true) throw new Error('combat_confirm_selection requires hand_select.can_confirm to be true');
+    }
     else if (action.type === 'end_turn' && (!isCombat(state) || !ready(state))) throw new Error('turn cannot be ended from the current state');
     else if (action.type === 'claim_reward') { string(action.reward, 'claim_reward.reward'); if (!(state.rewards?.items || []).some(item => semanticIdentity('reward', item) === action.reward)) throw new Error('unknown reward'); }
     else if (action.type === 'select_card_reward') { string(action.card, 'select_card_reward.card'); if (!(state.card_reward?.cards || []).some(item => semanticIdentity('card_reward', item) === action.card)) throw new Error('unknown card reward'); }

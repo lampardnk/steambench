@@ -19,6 +19,7 @@ test('role projections expose only structured information needed by that role', 
   const combat = combatState(state);
   assert.equal(strategist.ui, undefined); assert.equal(strategist.battle, undefined); assert.equal(strategist.player.hand, undefined);
   assert.equal(combat.ui, undefined); assert.equal(combat.map, undefined); assert.equal(combat.deck, undefined);
+  assert.equal(combat.hand_select, null, 'a resolved combat selection is explicit rather than omitted');
 });
 test('encounters close on post-combat monster frames without battle data', () => {
   const fight = { floor: 2 };

@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, assertCompatibleSensor, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { VERSION, assertCompatibleSensor, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, refinementResult, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
@@ -216,7 +216,7 @@ async function run(task) {
   const refine = (error, guidance, lane = LANE.strategist) => {
     if (refines >= 2) throw new Error(`${error} (${refines} refinement rounds already spent without reaching a usable plan)`);
     refines++;
-    lastResult = { error, refine_round: refines, no_input_sent: true, guidance };
+    lastResult = refinementResult(error, guidance, refines, laneResults[lane]);
     laneResults[lane] = lastResult;
     record({ type: 'refine', agent: lane, round: refines, error });
     saveMetrics();

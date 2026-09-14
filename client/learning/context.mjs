@@ -21,6 +21,10 @@ export function strategistState(state, { mapUnchanged = false } = {}) {
 
 export function combatState(state) {
   const compact = without(compactState(state), ['map', 'deck']);
+  // JSON omission is easy to mistake for an unchanged overlay after a model
+  // timeout. Publish the negative fact explicitly so a resolved hand-select
+  // cannot be carried forward from an earlier observation.
+  if (compact.hand_select === undefined) compact.hand_select = null;
   if (compact.player) {
     compact.player = { ...compact.player };
     for (const pile of ['draw_pile', 'discard_pile', 'exhaust_pile']) delete compact.player[pile];

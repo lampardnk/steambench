@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Executor, resolveMcpAction } from '../client/learning/executor.mjs';
-import { SENSOR_VERSION, assertCompatibleSensor, compactState, hasVerifiedProgress, planIdentity, plannerGuidance, reasoningTier, recoverableSuffixFailure, repairObservation, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
+import { SENSOR_VERSION, assertCompatibleSensor, compactState, hasVerifiedProgress, planIdentity, plannerGuidance, reasoningTier, recoverableSuffixFailure, refinementResult, repairObservation, repairPlan, semanticIdentity, stateId, validatePlan } from '../client/learning/state.mjs';
 
 const card = (instance_id, index, name = `Card ${instance_id}`, extra = {}) => ({ instance_id, index, id: name.toUpperCase().replaceAll(' ', '_'), name, cost: '1', target_type: 'None', can_play: true, description: 'Deal 6 damage.', ...extra });
 const enemy = (entity_id = 'JAW_WORM_0') => ({ entity_id, combat_id: 0, name: 'Jaw Worm', hp: 40, block: 0 });
@@ -20,6 +20,28 @@ test('continue is permitted only for an explicitly verified resume', () => {
   assert.throws(() => validatePlan(continued, menu), /only permitted when resuming/);
   assert.doesNotThrow(() => validatePlan(continued, menu, { role: 'strategist', allowContinue: true }));
   assert.throws(() => validatePlan(continued, menu, { role: 'strategist', allowContinue: false }), /only permitted when resuming/);
+});
+
+test('a resolved combat selection stays resolved across a later refinement', () => {
+  const current = combat([card(133, 0, 'Whirlwind+'), card(135, 1, 'Unrelenting+'), card(136, 2, 'Defend+')]);
+  const staleConfirmation = plan(current, [{ type: 'combat_confirm_selection' }]);
+  assert.throws(
+    () => validatePlan(staleConfirmation, current, { role: 'combat' }),
+    /requires an active hand_select; the current observation has none/,
+  );
+  assert.match(plannerGuidance('combat_confirm_selection requires an active hand_select; the current observation has none'), /hand_select: null/);
+  assert.match(plannerGuidance('combat_confirm_selection requires an active hand_select; the current observation has none'), /Do not repeat/);
+  const active = { ...current, state_type: 'hand_select', hand_select: { cards: [], can_confirm: true } };
+  assert.doesNotThrow(() => validatePlan(plan(active, [{ type: 'combat_confirm_selection' }]), active, { role: 'combat' }));
+
+  const verifiedConfirmation = {
+    completed: [{ action: { type: 'combat_confirm_selection' }, verified: true }],
+    after: { state_type: 'boss', energy: 3 },
+  };
+  const timeout = refinementResult('combat exceeded 120-second deadline', 'answer concisely', 1, verifiedConfirmation);
+  const rejectedRepeat = refinementResult('combat_confirm_selection requires an active hand_select', 'read the current state', 2, timeout);
+  assert.equal(timeout.last_verified_result, verifiedConfirmation);
+  assert.equal(rejectedRepeat.last_verified_result, verifiedConfirmation);
 });
 
 function fixture(initial, mutate) {
