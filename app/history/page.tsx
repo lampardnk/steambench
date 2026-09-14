@@ -1,7 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { api, type ActionEvent, type AgentInfo, type LearningArtifactReport, type RoomSummary, type RunHistoryView, type TranscriptItem, type UsageByLane } from '@/lib/backend'
+import {
+  api,
+  type ActionEvent,
+  type AgentInfo,
+  type LearningArtifactReport,
+  type RoomSummary,
+  type RunHistoryView,
+  type TranscriptItem,
+  type UsageByLane,
+} from '@/lib/backend'
 import { ActionAudit } from '@/components/action-audit'
 import { SettingsBar, useSettings } from '@/components/settings-bar'
 import { Transcript } from '@/components/transcript'
@@ -9,7 +18,17 @@ import { LearningArtifactView } from '@/components/learning'
 import { NativeRunHistory } from '@/components/run-history'
 
 type Entry = RoomSummary & { dir: string; reason: string; archivedAt: number; transcriptItems: number }
-type Detail = { room: Entry; transcript: TranscriptItem[]; agents?: AgentInfo[]; usage?: UsageByLane; actionHistory: ActionEvent[]; learningArtifact?: LearningArtifactReport | null; runHistory?: RunHistoryView | null; scratchpad: { name: string; text: string | null }[]; gameLog: string | null }
+type Detail = {
+  room: Entry
+  transcript: TranscriptItem[]
+  agents?: AgentInfo[]
+  usage?: UsageByLane
+  actionHistory: ActionEvent[]
+  learningArtifact?: LearningArtifactReport | null
+  runHistory?: RunHistoryView | null
+  scratchpad: { name: string; text: string | null }[]
+  gameLog: string | null
+}
 
 export default function HistoryPage() {
   const [settings, setSettings, loaded] = useSettings()
@@ -55,10 +74,15 @@ export default function HistoryPage() {
           <ul className="flex flex-col gap-2">
             {entries.map((e) => (
               <li key={e.dir}>
-                <button onClick={() => show(e.dir)} className={`w-full rounded-md border border-border p-3 text-left text-sm hover:bg-muted ${open?.room.dir === e.dir ? 'bg-muted' : 'bg-card'}`}>
+                <button
+                  onClick={() => show(e.dir)}
+                  className={`w-full rounded-md border border-border p-3 text-left text-sm hover:bg-muted ${open?.room.dir === e.dir ? 'bg-muted' : 'bg-card'}`}
+                >
                   <div className="font-medium">{e.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {new Date(e.archivedAt).toLocaleString()} · {e.setup ? `${e.setup.task.character} A${e.setup.task.ascension}` : 'no task'} · {e.finish ? `run ${e.finish.result}` : e.reason} · {e.actionCount || 0} actions
+                    {new Date(e.archivedAt).toLocaleString()} ·{' '}
+                    {e.setup ? `${e.setup.task.character} A${e.setup.task.ascension}` : 'no task'} ·{' '}
+                    {e.finish ? `run ${e.finish.result}` : e.reason} · {e.actionCount || 0} actions
                   </div>
                 </button>
               </li>
@@ -74,12 +98,24 @@ export default function HistoryPage() {
                     {open.room.finish.result}: {open.room.finish.summary}
                   </p>
                 )}
-                {open.room.lastState && <p className="font-mono text-xs">{JSON.stringify(open.room.lastState)}</p>}
+                {open.room.lastState && (
+                  <details className="mt-2 text-xs text-muted-foreground">
+                    <summary className="cursor-pointer">final recorded sensor state</summary>
+                    <pre className="mt-2 overflow-auto whitespace-pre-wrap font-mono text-[11px]">
+                      {JSON.stringify(open.room.lastState, null, 2)}
+                    </pre>
+                  </details>
+                )}
               </div>
               {open.runHistory && <NativeRunHistory run={open.runHistory} />}
               <Transcript items={open.transcript} agents={open.agents} usage={open.usage} />
               <ActionAudit history={open.actionHistory || []} />
-              {open.learningArtifact && <section className="rounded-md border border-border bg-card p-3"><h2 className="mb-2 text-sm font-medium">Room learning artifact</h2><LearningArtifactView report={open.learningArtifact} /></section>}
+              {open.learningArtifact && (
+                <section className="rounded-md border border-border bg-card p-3">
+                  <h2 className="mb-2 text-sm font-medium">Room learning artifact</h2>
+                  <LearningArtifactView report={open.learningArtifact} />
+                </section>
+              )}
               {open.scratchpad.length > 0 && (
                 <details className="rounded-md border border-border bg-card p-3 text-xs">
                   <summary className="cursor-pointer font-medium">scratchpad</summary>
@@ -93,7 +129,9 @@ export default function HistoryPage() {
               )}
               <details className="rounded-md border border-border bg-card p-3 text-xs">
                 <summary className="cursor-pointer font-medium">room log</summary>
-                <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[11px]">{open.room.log?.join('\n')}</pre>
+                <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-[11px]">
+                  {open.room.log?.join('\n')}
+                </pre>
               </details>
             </div>
           )}

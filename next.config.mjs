@@ -20,6 +20,26 @@ const nextConfig = {
         hostname: 'cdn.spire-codex.com',
         pathname: '/cards-full/stable/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'cdn.spire-codex.com',
+        pathname: '/characters/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cdn.spire-codex.com',
+        pathname: '/ui/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cdn.spire-codex.com',
+        pathname: '/relics/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cdn.spire-codex.com',
+        pathname: '/potions/**',
+      },
     ],
   },
 }
