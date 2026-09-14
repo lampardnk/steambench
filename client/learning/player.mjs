@@ -325,7 +325,13 @@ async function run(task) {
     try {
       const answer = await planner.ask({
         role: 'synthesis', agent: synthesisLane, prompt: ROLES.synthesis.prompt,
-        context: synthesisContext(skillDir, candidates), deadlineMs: 60000,
+        // Synthesis uses the same max-reasoning model as gameplay. A completed
+        // run with 61 verified candidates produced no artifact because this
+        // auxiliary call was killed at the old 60-second boundary before its
+        // first response event. Give the mandatory finalization call the full
+        // configured planner budget; it cannot mutate the game and still fails
+        // safely before room-finish if the provider never answers.
+        context: synthesisContext(skillDir, candidates), deadlineMs: PROFILE.plannerDeadlineMs,
       });
       const edits = validateSynthesis(answer, candidates);
       const completed = [];

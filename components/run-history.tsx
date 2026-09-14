@@ -278,7 +278,11 @@ function CardLink({
 }) {
   const meta = cardMeta(entity, catalog)
   const label = cardLabel(entity, prefix)
-  const tone = entity.enchantment ? 'text-fuchsia-300' : entity.upgraded ? 'text-emerald-300' : 'text-slate-100'
+  const tone = entity.enchantment
+    ? 'text-fuchsia-600 dark:text-fuchsia-300'
+    : entity.upgraded
+      ? 'text-emerald-600 dark:text-emerald-300'
+      : 'text-foreground'
   return (
     <span className="group/card relative inline-flex min-w-0">
       {wikiLink(
@@ -286,7 +290,7 @@ function CardLink({
           <TinyCard entity={entity} catalog={catalog} character={character} />
           <span className="truncate">{label}</span>
         </>,
-        `flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-xs transition-colors hover:bg-white/5 ${tone} ${compact ? 'border border-white/10 bg-black/20 pr-2' : ''}`,
+        `flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-xs transition-colors hover:bg-muted ${tone} ${compact ? 'border border-border bg-background pr-2' : ''}`,
         `Open the Slay the Spire 2 wiki for ${label}`,
       )}
       <span
@@ -595,13 +599,10 @@ export function NativeRunHistory({ run }: { run: RunHistoryView }) {
   const totalFloors = run.acts.reduce((sum, act) => sum + act.floors.length, 0)
   const potionSlots = Math.max(3, run.potions.length)
   return (
-    <section className="text-slate-100">
+    <section className="text-foreground">
       <div
-        className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-slate-900/90 px-4 py-3"
-        style={{
-          borderColor: `color-mix(in srgb, ${characterColor} 50%, transparent)`,
-          background: `color-mix(in srgb, ${characterColor} 7%, rgb(15 23 42))`,
-        }}
+        className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-transparent px-4 py-3"
+        style={{ borderColor: `color-mix(in srgb, ${characterColor} 50%, transparent)` }}
       >
         <h2 className="flex items-baseline gap-3 font-serif text-xl font-semibold">
           <span className={resultTone}>
@@ -613,14 +614,14 @@ export function NativeRunHistory({ run }: { run: RunHistoryView }) {
             `Open the Slay the Spire 2 wiki for ${run.character}`,
           )}
         </h2>
-        <span className="text-xs text-slate-400">Ascension {run.ascension ?? 0}</span>
+        <span className="text-xs text-muted-foreground">Ascension {run.ascension ?? 0}</span>
       </div>
 
       <div
-        className="rounded-xl border bg-[radial-gradient(circle_at_top,#26364b_0%,#17202f_38%,#090d16_100%)] p-4 shadow-xl sm:p-5"
+        className="rounded-xl border bg-transparent p-4 shadow-xl sm:p-5"
         style={{ borderColor: `color-mix(in srgb, ${characterColor} 45%, transparent)` }}
       >
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-white/10 pb-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border pb-3">
           {wikiLink(
             <GameImage
               sources={[`${CDN}/characters/character_icon_${character}.webp`]}
@@ -651,7 +652,7 @@ export function NativeRunHistory({ run }: { run: RunHistoryView }) {
               run.potions[index] ? (
                 <EntityIcon key={index} entity={run.potions[index]} catalog={catalog} size="size-5" />
               ) : (
-                <span key={index} className="size-5 rounded-sm border border-dashed border-white/15" />
+                <span key={index} className="size-5 rounded-sm border border-dashed border-border" />
               ),
             )}
           </span>
@@ -666,11 +667,11 @@ export function NativeRunHistory({ run }: { run: RunHistoryView }) {
               A{run.ascension}
             </TopStat>
           )}
-          <span className="w-full text-left text-[10px] leading-tight text-slate-400 sm:ml-auto sm:w-auto sm:text-right">
+          <span className="w-full text-left text-[10px] leading-tight text-muted-foreground sm:ml-auto sm:w-auto sm:text-right">
             {run.startedAt && <time className="block">{new Date(run.startedAt).toLocaleString()}</time>}
             {run.seed && (
               <span className="block">
-                Seed · <span className="font-mono text-slate-300">{run.seed}</span>
+                Seed · <span className="font-mono text-foreground">{run.seed}</span>
               </span>
             )}
             <span className="block">
@@ -680,14 +681,14 @@ export function NativeRunHistory({ run }: { run: RunHistoryView }) {
           </span>
         </div>
 
-        <p className="my-4 font-serif text-sm italic text-slate-300">“{quote}”</p>
+        <p className="my-4 font-serif text-sm italic text-muted-foreground">“{quote}”</p>
         <div className="mb-5 space-y-2" aria-label="Run path">
           {run.acts.map((act, index) => (
             <div
               key={`${act.name}-${index}`}
               className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[7rem_minmax(0,1fr)]"
             >
-              <h3 className="truncate font-serif text-xs text-slate-300">{act.name}</h3>
+              <h3 className="truncate font-serif text-xs text-muted-foreground">{act.name}</h3>
               <div className="flex flex-wrap gap-1.5">
                 {act.floors.map((floor) => (
                   <MapNode key={floor.floor} floor={floor} />
@@ -698,8 +699,8 @@ export function NativeRunHistory({ run }: { run: RunHistoryView }) {
         </div>
 
         <div className="mb-4">
-          <h3 className="mb-2 text-xs text-slate-400">
-            <span className="font-semibold text-slate-300">Relics ({run.relics.length})</span>
+          <h3 className="mb-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Relics ({run.relics.length})</span>
           </h3>
           <div className="flex flex-wrap gap-1">
             {run.relics.map((entity, index) => (
@@ -708,8 +709,8 @@ export function NativeRunHistory({ run }: { run: RunHistoryView }) {
           </div>
         </div>
         <div>
-          <h3 className="mb-2 text-xs text-slate-400">
-            <span className="font-semibold text-slate-300">Cards ({run.deck.length})</span>
+          <h3 className="mb-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Cards ({run.deck.length})</span>
           </h3>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3 lg:grid-cols-4">
             {cards.map(({ entity, count }, index) => (
@@ -768,10 +769,13 @@ export function NativeRunHistory({ run }: { run: RunHistoryView }) {
               {run.relics.map((entity, index) => (
                 <span
                   key={`${entity.id}-${index}`}
-                  className="rounded border border-border bg-background px-2 py-1 text-xs text-amber-600 dark:text-amber-300"
+                  className="inline-flex items-center gap-1.5 rounded border border-border bg-background py-1 pl-1 pr-2 text-xs"
                 >
-                  {wikiLink(entity.name)}
-                  {entity.floor != null && <span className="ml-1 text-muted-foreground">F{entity.floor}</span>}
+                  <EntityIcon entity={entity} catalog={catalog} size="size-7" />
+                  <span>
+                    {wikiLink(entity.name, 'text-amber-600 dark:text-amber-300')}
+                    {entity.floor != null && <span className="ml-1 text-muted-foreground">F{entity.floor}</span>}
+                  </span>
                 </span>
               ))}
             </div>

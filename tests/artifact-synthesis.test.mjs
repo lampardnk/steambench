@@ -66,4 +66,6 @@ test('the mandatory synthesis attempt occurs before room-finish and is failure-i
   const finish = source.indexOf("gateway.call({ op: 'room-finish'");
   assert.ok(call > 0 && finish > call, 'artifact synthesis must be attempted before room-finish');
   assert.match(source.slice(call, finish), /Learning artifact synthesis failed safely/);
+  assert.match(source, /context: synthesisContext\(skillDir, candidates\), deadlineMs: PROFILE\.plannerDeadlineMs/);
+  assert.doesNotMatch(source, /context: synthesisContext\(skillDir, candidates\), deadlineMs: 60000/);
 });

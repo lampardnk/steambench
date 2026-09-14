@@ -144,4 +144,6 @@ test('the run view links to the requested wiki and contains no similar-runs sect
   assert.match(source, /ui\/run_history_card/)
   assert.match(source, /characters\/character_icon_/)
   assert.match(source, /group-focus-within/)
+  assert.doesNotMatch(source, /radial-gradient/)
+  assert.match(source, /<EntityIcon entity=\{entity\} catalog=\{catalog\} size="size-7" \/>/)
 })
