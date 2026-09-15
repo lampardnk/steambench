@@ -76,6 +76,19 @@ curl -fsS -H "Authorization: Bearer $STEAMBENCH_TOKEN" http://127.0.0.1:8787/api
 node host/learning-player.mjs status <ROOM_ID>
 ```
 
+### Quick Backend Restart
+
+Restart only the backend while leaving Wolf and the tunnel running:
+
+```sh
+host/restart_backend.sh
+```
+
+Use `host/restart_backend.sh --build` after backend source changes. The script
+refuses to restart while it detects a live room because backend startup clears
+in-memory rooms and reconnects Wolf sessions. After inspecting the room, pass
+`--force` only when losing that active run is intentional.
+
 For operational safety rules, runtime paths, and troubleshooting procedures, see [AGENTS.md](AGENTS.md).
 
 The host process bridge (`host/process_gateway.py` with
