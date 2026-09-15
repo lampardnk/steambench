@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Restart only steambench-server. Wolf and the Cloudflare tunnel stay up.
+# Restart steambench-server without touching Wolf, then ensure the dashboard's
+# Cloudflare quick tunnel is live and report only its current, verified URL.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,7 +16,8 @@ Usage: host/restart_backend.sh [--build] [--force]
            active in-memory rooms and terminates their Wolf sessions.
 
 Without --build, the existing server container is restarted in place.
-Wolf and steambench-tunnel are not restarted.
+Wolf is never restarted. The tunnel is left alone when healthy, but is started
+or repaired when needed so the URL printed at the end is publicly reachable.
 EOF
 }
 
@@ -36,6 +38,59 @@ done
 command -v docker >/dev/null || die 'docker is required'
 command -v curl >/dev/null || die 'curl is required'
 cd "$ROOT"
+
+TUNNEL_URL=''
+TUNNEL_HEALTH=''
+
+wait_for_tunnel() {
+  local attempts="$1"
+  local started_at url public_health
+  started_at="$(DOCKER_CONTEXT=default docker inspect --format '{{.State.StartedAt}}' steambench-tunnel 2>/dev/null || true)"
+  [[ -n "$started_at" ]] || return 1
+  for ((attempt = 0; attempt < attempts; attempt++)); do
+    # Restrict logs to this container start. Reading the last URL from the full
+    # log printed a 21-hour-old quick-tunnel URL after the container had exited.
+    url="$(DOCKER_CONTEXT=default docker logs --since "$started_at" steambench-tunnel 2>&1 \
+      | grep -oE 'https://[^ ]+\.trycloudflare\.com' \
+      | tail -n 1 || true)"
+    if [[ -n "$url" ]]; then
+      # The host resolver can lag behind public Cloudflare DNS for a new quick
+      # tunnel. DNS-over-HTTPS verifies the same public route the dashboard
+      # uses instead of rejecting a healthy URL during local DNS propagation.
+      public_health="$(curl -fsS --max-time 10 \
+        --doh-url https://cloudflare-dns.com/dns-query \
+        -H 'Origin: https://steambench.dev' \
+        "$url/api/health" 2>/dev/null || true)"
+      if [[ "$public_health" == *'"ok":true'* ]]; then
+        TUNNEL_URL="$url"
+        TUNNEL_HEALTH="$public_health"
+        return 0
+      fi
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+ensure_tunnel() {
+  local running
+  running="$(DOCKER_CONTEXT=default docker inspect --format '{{.State.Running}}' steambench-tunnel 2>/dev/null || true)"
+  if [[ "$running" != true ]]; then
+    echo 'Starting steambench-tunnel...'
+    DOCKER_CONTEXT=default docker compose --profile tunnel up -d --no-deps tunnel
+  fi
+
+  if wait_for_tunnel 15; then
+    return 0
+  fi
+
+  echo 'Tunnel did not pass public health; restarting only steambench-tunnel...' >&2
+  DOCKER_CONTEXT=default docker compose --profile tunnel restart tunnel
+  wait_for_tunnel 45 || {
+    DOCKER_CONTEXT=default docker logs --tail 80 steambench-tunnel >&2 || true
+    die 'tunnel did not expose a publicly healthy URL within 90 seconds'
+  }
+}
 
 # Server startup is destructive: RoomManager discards in-memory rooms and
 # reconnecting to Wolf terminates its previous sessions. Check both the API and
@@ -82,10 +137,9 @@ for _ in $(seq 1 45); do
   slots="$(printf '%s' "$health" | sed -n 's/.*"observerSlots":[[:space:]]*\([0-9][0-9]*\).*/\1/p')"
   if [[ -n "$slots" && "$slots" -gt 0 ]]; then
     echo "Backend ready: $health"
-    tunnel="$(DOCKER_CONTEXT=default docker logs steambench-tunnel 2>&1 \
-      | grep -oE 'https://[^ ]+\.trycloudflare\.com' \
-      | tail -n 1 || true)"
-    [[ -n "$tunnel" ]] && echo "Tunnel: $tunnel"
+    ensure_tunnel
+    echo "Public tunnel ready: $TUNNEL_HEALTH"
+    echo "Tunnel: $TUNNEL_URL"
     exit 0
   fi
   sleep 2

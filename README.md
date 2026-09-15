@@ -78,7 +78,7 @@ node host/learning-player.mjs status <ROOM_ID>
 
 ### Quick Backend Restart
 
-Restart only the backend while leaving Wolf and the tunnel running:
+Restart the backend while leaving Wolf running:
 
 ```sh
 host/restart_backend.sh
@@ -87,7 +87,9 @@ host/restart_backend.sh
 Use `host/restart_backend.sh --build` after backend source changes. The script
 refuses to restart while it detects a live room because backend startup clears
 in-memory rooms and reconnects Wolf sessions. After inspecting the room, pass
-`--force` only when losing that active run is intentional.
+`--force` only when losing that active run is intentional. A healthy tunnel is
+left untouched; a stopped or publicly unreachable tunnel is started or repaired,
+and the script prints its URL only after the public health endpoint responds.
 
 For operational safety rules, runtime paths, and troubleshooting procedures, see [AGENTS.md](AGENTS.md).
 
