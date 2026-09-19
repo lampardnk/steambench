@@ -99,6 +99,26 @@ export async function saveSteamHomeCache({ home, cacheDir, log = () => {} }) {
   for (const rel of ['steam/steamapps/common', 'steam/steamapps/workshop', 'steam/logs', 'steam/appcache/httpcache']) {
     fs.rmSync(path.join(tmp, rel), { recursive: true, force: true });
   }
+  // Dropping `common` takes the files but leaves the manifests, and a manifest
+  // saying StateFlags 4 with nothing behind it is worse than no manifest: Steam
+  // believes the app is installed, refuses to download it, and fails at launch.
+  //
+  // The game survives that because its library is restored separately. Nothing
+  // else is. STS2 is a native Linux build, but Steam still runs it inside the
+  // Steam Linux Runtime (appid 1628350), which lives in `common` and is not
+  // cached - so every room seeded from this cache inherited a phantom runtime
+  // and died with "Compatibility tool failed" before the player ever started.
+  //
+  // Keep only manifests whose library this cache actually restores; let Steam
+  // fetch the rest in the room, where it can see for itself that they are gone.
+  const steamapps = path.join(tmp, 'steam', 'steamapps');
+  for (const entry of fs.existsSync(steamapps) ? fs.readdirSync(steamapps) : []) {
+    const appid = /^appmanifest_(\d+)\.acf$/.exec(entry)?.[1];
+    if (appid && !exists(cachePaths(cacheDir, appid).game)) {
+      fs.rmSync(path.join(steamapps, entry), { force: true });
+      log(`cache: dropping the manifest for ${appid}; its files are not cached, so the room will reinstall it`);
+    }
+  }
   const old = `${steamHome}.old`;
   fs.rmSync(old, { recursive: true, force: true });
   if (exists(steamHome)) fs.renameSync(steamHome, old);
