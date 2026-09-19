@@ -274,3 +274,29 @@ test('claiming a potion with a full belt is refused before dispatch', async () =
   const goldPlan = { observation: stateId(goldScreen), summary: 'take it', actions: [{ type: 'claim_reward', reward: semanticIdentity('reward', gold) }] };
   assert.equal(validatePlan(goldPlan, goldScreen, { role: 'strategist' }).actions.length, 1);
 });
+
+test('a game that restarts mid-run may take the continue it is offered', () => {
+  // Room 024de76b: the game exited at act 2 floor 21 and came back at the main
+  // menu with the run saved. The flag permitting `continue` is computed at
+  // startup and only ever cleared, so the running player could never reach it.
+  const menu = {
+    state_type: 'menu', menu_screen: 'main',
+    options: ['continue', 'abandon_run', 'multiplayer', 'compendium', 'timeline', 'settings', 'quit'],
+    build: { game: 'g', mod: 'm' },
+  };
+  const plan = { observation: stateId(menu), summary: 'restore the run', actions: [{ type: 'menu_select', option: 'continue' }] };
+  // Without permission the validator refuses, which is what the agent saw.
+  assert.throws(() => validatePlan(plan, menu, { role: 'strategist' }), /only permitted when resuming/);
+  // With it, the same plan is accepted.
+  assert.equal(validatePlan(plan, menu, { role: 'strategist', allowContinue: true }), plan);
+
+  // The re-arm condition itself: a verified run, the main menu, and the game
+  // offering to continue. Anything else leaves it alone.
+  const rearm = (state, fresh, last) => Boolean(fresh && state.state_type === 'menu' && state.menu_screen === 'main'
+    && (state.options || state.menu?.options || []).includes('continue') && last?.state_type !== 'game_over');
+  assert.equal(rearm(menu, true, { state_type: 'map' }), true);
+  assert.equal(rearm(menu, false, { state_type: 'map' }), false, 'an unverified run must not resume');
+  assert.equal(rearm(menu, true, { state_type: 'game_over' }), false, 'a finished run must not resume');
+  assert.equal(rearm({ ...menu, options: ['abandon_run', 'quit'] }, true, { state_type: 'map' }), false, 'no continue offered');
+  assert.equal(rearm({ ...menu, menu_screen: 'character_select' }, true, { state_type: 'map' }), false, 'not the main menu');
+});

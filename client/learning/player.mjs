@@ -431,6 +431,21 @@ async function run(task) {
       previous = current;
       if (state.menu_screen === 'character_select') sawCharacterSelect = true;
       if (state.run?.floor === 1 && sawCharacterSelect) freshRunVerified = true;
+      // A game that dies mid-run comes back at the main menu with `continue`
+      // advertised and the run saved on disk. The permission to take it was
+      // computed once at startup and is only ever cleared below, so a player
+      // that was already playing could never reach it again: room 024de76b
+      // sat at that menu while the agent - correctly - refused to guess,
+      // because its own state said resume_existing_run was false.
+      //
+      // Re-arm only where the evidence is unambiguous: a verified run, the
+      // main menu, and the game itself offering to continue.
+      if (!resumeExistingRun && freshRunVerified && state.state_type === 'menu' && state.menu_screen === 'main'
+          && (state.options || state.menu?.options || []).includes('continue')
+          && lastState?.state_type !== 'game_over') {
+        resumeExistingRun = true;
+        record({ type: 'resume_rearmed', decision, reason: 'the game restarted mid-run and is offering to continue' });
+      }
       if (resumeExistingRun && state.state_type !== 'menu') resumeExistingRun = false;
       const combatMemory = encounter.observe(state);
       fs.writeFileSync(path.join(directory, 'encounter.json'), JSON.stringify(combatMemory));
