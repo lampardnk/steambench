@@ -48,9 +48,12 @@ services:
     depends_on:
       - wolf
     environment:
-      # API token is local; the model provider key is passed only from the system environment.
+      # API token is local; the model provider keys are passed only from the system environment.
       - STEAMBENCH_TOKEN=${STEAMBENCH_TOKEN:?set STEAMBENCH_TOKEN in .env}
       - EXPLABS_API_KEY
+      # Optional. Absent, the player never consults the System One model and
+      # every decision takes the planner path, so this is not a required key.
+      - OPENROUTER_API_KEY
       - WOLF_SOCKET_PATH=/etc/wolf/wolf.sock
       - WOLF_CFG_FILE=/etc/wolf/cfg/config.toml
       - WOLF_VIDEO_PING_PORT=${WOLF_VIDEO_PING_PORT:-58100}
