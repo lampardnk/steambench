@@ -54,6 +54,27 @@ function transitionVerified(action, before, after) {
       && after.state_type === before.state_type
       && after.menu_screen === before.menu_screen
       && after.selected_character === action.option) return true;
+  // A selection screen that publishes no selection state cannot show that a
+  // card was picked. `card_select` publishes can_skip, screen_type, prompt,
+  // cards, preview_showing and preview_cards - nothing about what is selected -
+  // so on a multi-select screen ("Choose up to 2 cards to put into your Hand")
+  // a successful select_card leaves the observation byte-identical and the
+  // generic rule below can never be satisfied. That paused a live run twice in
+  // a row on decisions 36 and 37 while the screenshots showed the cards
+  // correctly selected.
+  //
+  // Where nothing observable is expected, the acknowledgement is the only
+  // evidence there is. This is not blind trust: the executor revalidates every
+  // action against fresh state before dispatch, confirm_selection still
+  // requires can_confirm, and the outcome of the whole selection is observable
+  // when the cards reach the hand. If the mod later publishes selection state,
+  // this reads it and verifies properly instead.
+  if (action.type === 'select_card') {
+    const cards = after.card_select?.cards || [];
+    const selection = card => card.selected ?? card.is_selected;
+    if (!cards.some(card => selection(card) !== undefined)) return true;
+    return cards.some(card => semanticIdentity('card', card) === action.card && selection(card) === true);
+  }
   if (stateId(before) === stateId(after)) return false;
   if (action.type === 'choose_map_node' && before.state_type === 'map' && after.state_type === 'map') {
     const selected = (before.map?.next_options || []).find(item => semanticIdentity('map', item) === action.node);

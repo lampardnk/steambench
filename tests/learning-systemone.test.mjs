@@ -202,3 +202,49 @@ test('retries share one budget, so a fast path can never outlast the planner it 
   assert.ok(sent.length < 4, `the budget must stop retrying; made ${sent.length} of 4 attempts`);
   assert.ok(Date.now() - started < 1000, 'the whole ask respects one deadline, not one per attempt');
 });
+
+test('a selection screen that publishes no selection state verifies on acknowledgement', async () => {
+  // Taken from room 024de76b decisions 36 and 37, where the screenshots showed
+  // the card correctly selected while the observation stayed byte-identical.
+  const { Executor } = await import('../client/learning/executor.mjs');
+  const cards = [{ instance_id: 24, index: 0, name: 'Strike' }, { instance_id: 31, index: 5, name: 'Shrug It Off' }];
+  const screen = {
+    state_type: 'card_select', run: { act: 1, floor: 4 }, player: { hp: 49, max_hp: 80 },
+    card_select: { cards, can_confirm: true, can_cancel: false, screen_type: 'NCombatPileCardSelectScreen', preview_showing: false },
+    build: { game: 'g', mod: 'm' }, sensor_version: 8,
+  };
+  const posts = [];
+  const executor = new Executor({
+    call: async (request) => {
+      if (request.op === 'sts2-get') return { body: JSON.stringify(screen) };
+      posts.push(request);
+      return { body: JSON.stringify({ ok: true }) };
+    },
+    verifyMs: 300, pollMs: 20,
+  });
+  const plan = { observation: stateId(screen), summary: 'pick one', actions: [{ type: 'select_card', card: 24 }] };
+  const result = await executor.execute(plan, screen, { role: 'strategist', agent: 'strategist', decision: 1 });
+  assert.equal(result.error, undefined, `select_card must not fail verification: ${result.error}`);
+  assert.equal(result.completed.length, 1);
+  assert.equal(result.completed[0].verified, true);
+  assert.equal(posts.length, 1);
+});
+
+test('once selection state is published, it is verified rather than assumed', async () => {
+  const { Executor } = await import('../client/learning/executor.mjs');
+  // The same screen, but the mod now reports which card is selected - and it
+  // reports the wrong one, so acknowledgement must no longer be enough.
+  const cards = [{ instance_id: 24, index: 0, name: 'Strike', selected: false }, { instance_id: 31, index: 5, name: 'Shrug It Off', selected: true }];
+  const screen = {
+    state_type: 'card_select', run: { act: 1, floor: 4 }, player: { hp: 49, max_hp: 80 },
+    card_select: { cards, can_confirm: true, can_cancel: false, screen_type: 'NCombatPileCardSelectScreen', preview_showing: false },
+    build: { game: 'g', mod: 'm' }, sensor_version: 8,
+  };
+  const executor = new Executor({
+    call: async (request) => (request.op === 'sts2-get' ? { body: JSON.stringify(screen) } : { body: JSON.stringify({ ok: true }) }),
+    verifyMs: 200, pollMs: 20,
+  });
+  const plan = { observation: stateId(screen), summary: 'pick one', actions: [{ type: 'select_card', card: 24 }] };
+  const result = await executor.execute(plan, screen, { role: 'strategist', agent: 'strategist', decision: 1 });
+  assert.match(String(result.error), /transition was not observed/);
+});
