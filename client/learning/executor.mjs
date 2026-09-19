@@ -69,6 +69,11 @@ function transitionVerified(action, before, after) {
   // requires can_confirm, and the outcome of the whole selection is observable
   // when the cards reach the hand. If the mod later publishes selection state,
   // this reads it and verifies properly instead.
+  // An idempotent setter has a postcondition, not a transition. Asking for the
+  // tool that is already selected changes nothing and is still exactly what was
+  // wanted, so requiring the state to differ fails a request that succeeded.
+  // Room 024de76b paused on this with tool already "big".
+  if (action.type === 'crystal_sphere_set_tool') return after.crystal_sphere?.tool === action.tool;
   if (action.type === 'select_card') {
     const cards = after.card_select?.cards || [];
     const selection = card => card.selected ?? card.is_selected;

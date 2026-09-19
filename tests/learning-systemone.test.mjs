@@ -300,3 +300,28 @@ test('a game that restarts mid-run may take the continue it is offered', () => {
   assert.equal(rearm({ ...menu, options: ['abandon_run', 'quit'] }, true, { state_type: 'map' }), false, 'no continue offered');
   assert.equal(rearm({ ...menu, menu_screen: 'character_select' }, true, { state_type: 'map' }), false, 'not the main menu');
 });
+
+test('asking for the crystal sphere tool already selected is satisfied, not failed', async () => {
+  // Room 024de76b decision 279: tool was already "big". An idempotent setter
+  // has a postcondition, not a transition.
+  const { Executor } = await import('../client/learning/executor.mjs');
+  const sphere = (tool) => ({
+    state_type: 'crystal_sphere', run: { act: 2, floor: 22 }, player: { hp: 60, max_hp: 80 },
+    crystal_sphere: { tool, grid_width: 11, grid_height: 11, can_use_big_tool: true, can_use_small_tool: true, cells: [], clickable_cells: [], can_proceed: false },
+    build: { game: 'g', mod: 'm' }, sensor_version: 8,
+  });
+  const run = async (state, tool) => {
+    const executor = new Executor({
+      call: async (request) => (request.op === 'sts2-get' ? { body: JSON.stringify(state) } : { body: JSON.stringify({ ok: true }) }),
+      verifyMs: 300, pollMs: 20,
+    });
+    const plan = { observation: stateId(state), summary: 'set the tool', actions: [{ type: 'crystal_sphere_set_tool', tool }] };
+    return executor.execute(plan, state, { role: 'strategist', agent: 'strategist', decision: 1 });
+  };
+  const already = await run(sphere('big'), 'big');
+  assert.equal(already.error, undefined, `already-selected must succeed: ${already.error}`);
+  assert.equal(already.completed[0].verified, true);
+  // A tool that never becomes the requested one still fails.
+  const stuck = await run(sphere('small'), 'big');
+  assert.match(String(stuck.error), /transition was not observed/);
+});
