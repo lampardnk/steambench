@@ -248,3 +248,29 @@ test('once selection state is published, it is verified rather than assumed', as
   const result = await executor.execute(plan, screen, { role: 'strategist', agent: 'strategist', decision: 1 });
   assert.match(String(result.error), /transition was not observed/);
 });
+
+test('claiming a potion with a full belt is refused before dispatch', async () => {
+  // Room 024de76b decision 265: STS2MCP accepted the claim, nothing happened,
+  // and the run paused for an operator. max_potion_slots makes it knowable.
+  const { plannerGuidance } = await import('../client/learning/state.mjs');
+  const potion = (slot, id) => ({ id, name: id, slot, can_use: true });
+  const reward = { index: 0, type: 'potion', description: "Gambler's Brew", potion_id: 'GAMBLERS_BREW' };
+  const screen = (potions) => ({
+    state_type: 'rewards', run: { act: 2, floor: 19 },
+    player: { hp: 73, max_hp: 80, gold: 170, max_potion_slots: 3, potions },
+    rewards: { items: [reward], can_proceed: true }, build: { game: 'g', mod: 'm' },
+  });
+  const full = screen([potion(0, 'FYSH_OIL'), potion(1, 'POWER_POTION'), potion(2, 'HEART_OF_IRON')]);
+  const plan = (state) => ({ observation: stateId(state), summary: 'take it', actions: [{ type: 'claim_reward', reward: semanticIdentity('reward', reward) }] });
+  assert.throws(() => validatePlan(plan(full), full, { role: 'strategist' }), /potion belt is full/);
+  // The guidance names both ways out, because both are legal here.
+  assert.match(plannerGuidance('the potion belt is full, so this potion cannot be claimed'), /discard_potion/);
+  assert.match(plannerGuidance('the potion belt is full, so this potion cannot be claimed'), /proceed/);
+  // A free slot still claims, and a non-potion reward is never blocked.
+  const room = screen([potion(0, 'FYSH_OIL')]);
+  assert.equal(validatePlan(plan(room), room, { role: 'strategist' }).actions.length, 1);
+  const gold = { index: 0, type: 'gold', amount: 25 };
+  const goldScreen = { ...full, rewards: { items: [gold], can_proceed: true } };
+  const goldPlan = { observation: stateId(goldScreen), summary: 'take it', actions: [{ type: 'claim_reward', reward: semanticIdentity('reward', gold) }] };
+  assert.equal(validatePlan(goldPlan, goldScreen, { role: 'strategist' }).actions.length, 1);
+});
