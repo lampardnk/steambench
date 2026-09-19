@@ -231,6 +231,63 @@ export function forcedMove(state) {
     default: return null;
   }
 }
+/**
+ * What the runtime has clicked on the selection screen in front of it.
+ *
+ * `card_select` publishes no selection state, so after a select_card nothing
+ * observable changes and the agent cannot tell what it has already picked.
+ * Accepting the acknowledgement (executor.mjs) stops that from halting the
+ * run, but leaves the agent blind: room 024de76b selected Inflame+, then
+ * Impervious, then Inflame+ again - toggling the first back off - and stalled
+ * on a screen asking for two cards.
+ *
+ * The runtime does know, because it dispatched every one of those clicks. This
+ * is that memory, modelled on the game's real toggle semantics: clicking a card
+ * that is already selected removes it. It resets whenever the screen changes,
+ * so a selection can never outlive the cards it was made against.
+ *
+ * It is evidence for the agent, not a rule imposed on it. The agent still
+ * decides what to select and when to confirm.
+ */
+export class SelectionMemory {
+  constructor() { this.key = null; this.selected = []; }
+  /** The identity of the screen a selection belongs to. */
+  static keyOf(state) {
+    const cards = state?.card_select?.cards;
+    if (String(state?.state_type || '').toLowerCase() !== 'card_select' || !Array.isArray(cards)) return null;
+    return digest([state.card_select.screen_type ?? null, cards.map(card => card?.instance_id ?? null)]);
+  }
+  /** Forget everything once the screen is gone or replaced. */
+  observe(state) {
+    const key = SelectionMemory.keyOf(state);
+    if (key !== this.key) { this.key = key; this.selected = []; }
+    return this;
+  }
+  /** Record a dispatched click, toggling as the game does. */
+  clicked(card) {
+    if (this.key == null) return this;
+    const at = this.selected.indexOf(card);
+    if (at >= 0) this.selected.splice(at, 1);
+    else this.selected.push(card);
+    return this;
+  }
+  /**
+   * What to tell the agent, or null when the screen publishes its own
+   * selection state and this guesswork is not needed.
+   */
+  report(state) {
+    if (this.key == null || SelectionMemory.keyOf(state) !== this.key) return null;
+    const cards = state.card_select.cards || [];
+    if (cards.some(card => (card.selected ?? card.is_selected) !== undefined)) return null;
+    const named = this.selected.map(id => ({ instance_id: id, name: cards.find(card => card.instance_id === id)?.name ?? null }));
+    return {
+      note: 'This screen does not report what is selected, so this is what the runtime has clicked on it. Selecting a card that is already in this list REMOVES it.',
+      selected: named,
+      count: named.length,
+    };
+  }
+}
+
 export function mapId(state) { return state?.state_type === 'map' ? digest(state.map) : null; }
 export function isCombat(state) { return Boolean(state?.battle && Array.isArray(state.player?.hand)); }
 export function isCardPlay(state) { return isCombat(state) && !/select|overlay|reward/.test(state.state_type); }
