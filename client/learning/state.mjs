@@ -182,6 +182,55 @@ export function reasoningTier(state, role) {
   if (role === 'combat' || isCombat(state)) return PROFILE.reasoning;
   return DELIBERATE_SCREENS.has(String(state?.state_type || '').toLowerCase()) ? 'medium' : 'low';
 }
+/**
+ * The action a screen leaves no choice about, or null.
+ *
+ * A screen offering exactly one option and nothing else a player could do has
+ * nothing to decide, yet the run spent a full model call on each of them.
+ *
+ * "One option" is not the same as "no alternative", and assuming it was got
+ * this wrong twice when replayed against the run: on a map with a single
+ * onward node the player drank a potion instead, and on a reward screen
+ * offering one potion it pressed proceed and left the potion behind. Both were
+ * real decisions this would have taken away.
+ *
+ * The guards below are each answering one of those. Replayed over the run they
+ * take 9 decisions, all 9 identical to what the player actually did. Dropping
+ * them would take 42 and get 2 wrong - a trade this deliberately refuses,
+ * because the entire case for answering a screen in code is that there was
+ * nothing to answer.
+ */
+export function forcedMove(state) {
+  if (!ready(state) || isCombat(state)) return null;
+  const only = (items) => (Array.isArray(items) && items.length === 1 ? items[0] : null);
+  switch (String(state?.state_type || '').toLowerCase()) {
+    case 'map': {
+      // Drinking before walking into a fight is a real tactic, and the run
+      // used it on exactly such a screen. Holding a potion makes this a choice.
+      if ((state.player?.potions || []).some(potion => potion?.name || potion?.id)) return null;
+      const option = only(state.map?.next_options);
+      const node = option && semanticIdentity('map', option);
+      return node == null ? null : { type: 'choose_map_node', node };
+    }
+    case 'rewards': {
+      // Proceeding leaves the reward behind, which the run did once with a
+      // potion it did not want. Every single-reward screen in that run could
+      // be proceeded past, so in practice this case is always a choice.
+      if (state.rewards?.can_proceed === true) return null;
+      const item = only(state.rewards?.items);
+      const reward = item && semanticIdentity('reward', item);
+      return reward == null ? null : { type: 'claim_reward', reward };
+    }
+    case 'event': {
+      if (state.event?.in_dialogue === true) return null;
+      const option = only(state.event?.options);
+      if (!option || option.is_locked) return null;
+      const chosen = semanticIdentity('event_option', option);
+      return chosen == null ? null : { type: 'choose_event_option', option: chosen };
+    }
+    default: return null;
+  }
+}
 export function mapId(state) { return state?.state_type === 'map' ? digest(state.map) : null; }
 export function isCombat(state) { return Boolean(state?.battle && Array.isArray(state.player?.hand)); }
 export function isCardPlay(state) { return isCombat(state) && !/select|overlay|reward/.test(state.state_type); }

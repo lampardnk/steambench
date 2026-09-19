@@ -1,1 +1,1 @@
-export { PROFILE } from '../../server/lib/learning-profile.mjs';
+export { PROFILE, SYSTEM_ONE } from '../../server/lib/learning-profile.mjs';

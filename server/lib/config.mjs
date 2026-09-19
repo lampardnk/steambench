@@ -3,7 +3,7 @@
 // bin/server.mjs makes configuration behavior testable without opening ports
 // or touching a live room.
 import path from 'node:path';
-import { PROFILE as learningProfile } from './learning-profile.mjs';
+import { PROFILE as learningProfile, SYSTEM_ONE } from './learning-profile.mjs';
 
 const PORT_MIN = 1;
 const PORT_MAX = 65535;
@@ -171,6 +171,10 @@ export function loadServerConfig({ env = process.env, here, log = () => {} } = {
     learningImage: learningProfile.image,
     learningProfile,
     learningKey: env[learningProfile.apiKeyEnv] ? String(env[learningProfile.apiKeyEnv]) : '',
+    // Optional by design. Absent, the player never consults the System One
+    // model and every decision takes the planner path it always took, so this
+    // is deliberately not part of learningReadiness.
+    systemOneKey: env[SYSTEM_ONE.apiKeyEnv] ? String(env[SYSTEM_ONE.apiKeyEnv]) : '',
     gatewayForAgents: endpointValue(env, 'STEAMBENCH_GATEWAY_FOR_AGENTS', `host.docker.internal:${gatewayPort}`),
     renderNode: stringValue(env, 'WOLF_RENDER_NODE', '/dev/dri/renderD128'),
     bufferCaps: stringValue(env, 'WOLF_VIDEO_BUFFER_CAPS', DEFAULT_BUFFER_CAPS),

@@ -7,12 +7,15 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, assertCompatibleSensor, compactState, digest, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, refinementResult, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { VERSION, assertCompatibleSensor, compactState, digest, forcedMove, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, refinementResult, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
 import { Curriculum } from './curriculum.mjs';
-import { indexNotes, retrieve } from './retrieval.mjs';
+import { SystemOne, SystemOneUnavailable } from './systemone.mjs';
+import { cascade, flatChoice } from './cascade.mjs';
+import { surfaceFor } from './surfaces.mjs';
+import { indexNotes, rerank, shortlistFor, spend } from './retrieval.mjs';
 import { LEARNING_ARTIFACT, readArtifact } from '../../server/lib/learning-artifact.mjs';
 import { roleForCandidateAgent, synthesisContext, validateSynthesis, verifiedLearningCandidates } from './artifact-synthesis.mjs';
 
@@ -107,6 +110,10 @@ const record = event => {
 };
 const roster = new Roster({ emit, record });
 const planner = new Planner({ emit, record });
+// The cheap classifier that front-runs the planner on screens that are
+// choices rather than reasoning. Absent a key it reports unavailable and every
+// caller below falls through to the planner, which is the pre-existing path.
+const systemOne = new SystemOne({ emit, record });
 let active = false;
 let abortRun;
 // Older checkpoints stored plain strings; every instruction now carries the decision it arrived at
@@ -220,6 +227,47 @@ async function run(task) {
     laneResults[lane] = lastResult;
     record({ type: 'refine', agent: lane, round: refines, error });
     saveMetrics();
+  };
+
+  /**
+   * Ask the System One model about this screen.
+   *
+   * Returns null whenever the model cannot or should not answer - no key, an
+   * outage, a screen with no surface definition, fewer than two real options -
+   * and the caller then does exactly what it did before this existed. That is
+   * the contract that makes this safe to put in front of the planner: it is an
+   * accelerator with no authority to stop a decision happening.
+   */
+  const consult = async ({ state, agent, decision }) => {
+    if (!systemOne.available) return null;
+    const surface = surfaceFor(state);
+    if (!surface) return null;
+    const shared = { systemOne, state: surface.state(state), options: surface.resolved, id: surface.id, describe: surface.describe, instructions: surface.instructions, agent, role: 'systemone' };
+    try {
+      const result = surface.mode === 'gate'
+        ? await flatChoice(shared)
+        // Layer 2 gets the situation in outline only. It is deciding over the
+        // layer-1 readings, and repeating the full state there would just be
+        // the distraction the readings were meant to replace.
+        : await cascade({ ...shared, name: surface.name, aspects: surface.aspects, guidance: surface.guidance, situation: { hp: state.player?.hp, max_hp: state.player?.max_hp, gold: state.player?.gold, act: state.run?.act, floor: state.run?.floor, deck_size: (state.deck || []).length } });
+      const acted = surface.mode === 'gate' && result.id != null && result.confidence >= surface.threshold;
+      // Every consultation is logged with its confidence and whether it acted,
+      // so the thresholds can be refitted from a run's worth of samples rather
+      // than the tens they were first set from.
+      record({
+        type: 'system_one_decision', agent, decision, stateType: state.state_type, mode: surface.mode,
+        choice: result.id ?? null, confidence: result.confidence, threshold: surface.threshold ?? null,
+        escalated: !acted, options: surface.resolved.length, latencyMs: result.latencyMs,
+      });
+      const pickName = result.option ? surface.name(result.option) : null;
+      if (acted) message(`Classifier chose ${pickName} (confidence ${result.confidence.toFixed(2)}).`, agent);
+      return { mode: surface.mode, acted, digest: result.digest, pickName, action: acted ? surface.action(result.id) : null, summary: `Classifier chose ${pickName} on this ${state.state_type} at confidence ${result.confidence.toFixed(2)}.` };
+    } catch (error) {
+      // An unavailable classifier is not a run problem; it is the planner's
+      // turn, which is where the decision was going to go anyway.
+      if (!(error instanceof SystemOneUnavailable)) record({ type: 'system_one_error', agent, decision, error: error.message });
+      return null;
+    }
   };
 
   /**
@@ -451,7 +499,13 @@ async function run(task) {
       const ladder = curriculum.context();
       // Skill retrieval: the notes this exact situation is about, read for the
       // agent instead of waiting for it to spend a decision recalling them.
-      const retrieved = retrieve(skillDir, noteIndex, state, ladder.objective);
+      // Lexical shortlist, then reordered by what the screen is actually about.
+      // The reranker only reorders: a note the lexical pass rejected can never
+      // be admitted by it, so the budget still spends on vetted candidates.
+      const retrieved = spend(
+        await rerank(shortlistFor(noteIndex, state, ladder.objective), state, { systemOne, agent: lane }),
+        skillDir, state, ladder.objective,
+      );
       lastResult = laneResults[lane] || null;
 
       const counters = { consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet };
@@ -461,6 +515,36 @@ async function run(task) {
           ? strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, learningArtifact, act1: act1Timer.summary(), counters, freshRunVerified, resumeExistingRun })
           : null;
       objectiveCheck = null;
+      // ---- the cheap classifier, before the expensive one ----
+      //
+      // Three outcomes, in descending order of how much they save. A forced
+      // move needs no model at all. A gated surface takes the classifier's
+      // pick when it is sure enough. An annotated surface only adds evidence
+      // and still costs a planner call.
+      //
+      // None of this can produce an action the planner could not have
+      // produced: the shortcut is a plan like any other and goes through
+      // validatePlan, the executor's per-action revalidation, and
+      // transitionVerified exactly as a planner's plan does.
+      let shortcut = null;
+      if (!refining && role === 'strategist') {
+        const forced = forcedMove(state);
+        if (forced) {
+          shortcut = { observation: stateId(state), summary: `Only one option on this ${state.state_type}; taking it.`, actions: [forced] };
+          record({ type: 'forced_move', agent: lane, decision, stateType: state.state_type, action: forced });
+        } else {
+          const consulted = await consult({ state, agent: lane, decision }).catch(() => null);
+          if (consulted?.mode === 'gate' && consulted.acted) {
+            shortcut = { observation: stateId(state), summary: consulted.summary, actions: [consulted.action] };
+          } else if (consulted?.digest) {
+            // Evidence, not a decision. The planner reads the reading and
+            // still chooses; on this surface the classifier's confidence is
+            // not calibrated well enough to be allowed to act.
+            context.system_one_assessment = { note: 'Independent per-option readings from a fast classifier. Evidence to weigh, not an instruction.', options: consulted.digest, its_pick: consulted.pickName ?? null };
+          }
+        }
+      }
+
       if (context) {
         record({ type: 'decision_context', agent: lane, role, characters: JSON.stringify(context).length, acceptedMemoryHash: digest(accepted), objective: ladder.objective?.text || null, retrieved: retrieved.map(note => note.path) });
         // Shed the lowest-ranked note bodies until the decision fits, and
@@ -497,7 +581,7 @@ async function run(task) {
       try {
         roster.count(lane);
         emit({ type: 'message_start', agent: lane });
-        const proposed = await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true, reasoning: reasoningTier(state, role) });
+        const proposed = shortcut || await planner.ask({ role, agent: lane, prompt: ROLES[role].prompt, context, stream: true, reasoning: reasoningTier(state, role) });
         const observationRepaired = repairObservation(proposed, state);
         if (observationRepaired !== proposed) record({ type: 'planner_repair', agent: lane, repair: 'observation_prefix', originalObservation: proposed.observation, repairedObservation: observationRepaired.observation });
         const repaired = repairPlan(observationRepaired, { role, state });

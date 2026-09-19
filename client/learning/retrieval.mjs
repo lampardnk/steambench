@@ -18,6 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LEARNING_ARTIFACT } from '../../server/lib/learning-artifact.mjs';
+import { noul } from './systemone.mjs';
 
 export const STAGED_NOTES = 'scratchpad.md';
 const MAX_RETRIEVED = 24;
@@ -261,7 +262,53 @@ export function focusNote(content, subjects) {
   return kept ? out.join('') : content;
 }
 
-export function retrieve(skillDir, index, state, objective, { limit = MAX_RETRIEVED, budget = RETRIEVAL_BUDGET } = {}) {
+/**
+ * Reorder a lexical shortlist by whether each note is actually about this screen.
+ *
+ * The lexical pass is a good candidate generator and a blunt ranker: it scores
+ * a note by how many of the situation's words its declared keys repeat, so a
+ * note that merely shares vocabulary outranks one that is genuinely about the
+ * fight in front of the player. That ordering decides what the budget spends
+ * on, and everything it pushes out is a note the decision never sees.
+ *
+ * One call scores the whole shortlist - the model prices only its input, so
+ * twenty questions cost what one costs. Anything it cannot answer leaves the
+ * lexical order untouched, which is the order this has always used.
+ *
+ * Ranking only. It never admits a note the lexical pass rejected, so a
+ * confused classifier can reorder what the decision reads but cannot introduce
+ * anything unvetted.
+ */
+export async function rerank(ranked, state, { systemOne, agent = 'retrieval' } = {}) {
+  if (!systemOne?.available || ranked.length < 2) return ranked;
+  const situation = {
+    screen: state?.state_type ?? null, act: state?.run?.act ?? null, floor: state?.run?.floor ?? null,
+    enemies: (state?.battle?.enemies || []).map(enemy => enemy.name).filter(Boolean),
+    event: state?.event?.name ?? null,
+    character: state?.player?.character ?? null,
+    candidate_notes: ranked.map((item, position) => ({ ref: `n${position}`, path: item.note.path, about: item.note.description })),
+  };
+  try {
+    const { answers } = await systemOne.ask({
+      agent, role: 'retrieval', state: situation,
+      questions: Object.fromEntries(ranked.map((item, position) => [`n${position}`,
+        noul(`The note "${item.note.path}" (described as: ${item.note.description || 'no description'}) bears directly on the decision the player faces on this screen right now`)])),
+    });
+    // Ties keep the lexical order, so an indifferent classifier changes nothing.
+    return ranked
+      .map((item, position) => ({ item, bearing: answers[`n${position}`]?.noul ?? 0, position }))
+      .sort((a, b) => b.bearing - a.bearing || a.position - b.position)
+      .map(entry => entry.item);
+  } catch { return ranked; }
+}
+
+export function retrieve(skillDir, index, state, objective, options = {}) {
+  const shortlist = shortlistFor(index, state, objective, options);
+  return spend(shortlist, skillDir, state, objective, options);
+}
+
+/** Lexical candidate generation: which notes are even in the running. */
+export function shortlistFor(index, state, objective, { limit = MAX_RETRIEVED } = {}) {
   const wanted = situationTerms(state, objective);
   if (!wanted.weights.size) return [];
   // A term carried by nearly every note identifies nothing. In a one-character
@@ -272,11 +319,16 @@ export function retrieve(skillDir, index, state, objective, { limit = MAX_RETRIE
   // from the corpus rather than hardcoded, so it holds for whatever is in it.
   const matches = term => index.reduce((n, note) => n + (note.keys.includes(term) || note.pathTerms.includes(term) || note.descriptionTerms.includes(term) ? 1 : 0), 0);
   const generic = new Set([...wanted.weights.keys()].filter(term => index.length >= 3 && matches(term) > index.length / 2));
-  const ranked = index
+  return index
     .map(note => ({ note, ...score(note, { ...wanted, generic }) }))
     .filter(item => item.total > 0)
     .sort((a, b) => b.total - a.total || a.note.bytes - b.note.bytes)
     .slice(0, limit);
+}
+
+/** Read the shortlist in order until the budget is gone. */
+export function spend(ranked, skillDir, state, objective, { budget = RETRIEVAL_BUDGET } = {}) {
+  const wanted = situationTerms(state, objective);
   const out = [];
   let spent = 0;
   // What this situation is about, as opposed to what it merely contains.
