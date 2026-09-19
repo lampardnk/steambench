@@ -1,4 +1,4 @@
-import { PROFILE, normalizePlayerKind } from './learning-profile.mjs';
+import { PROFILE, SYSTEM_ONE, normalizePlayerKind } from './learning-profile.mjs';
 import { learningReadiness } from './readiness.mjs';
 // Room lifecycle. One room = one Wolf lobby (Steam + game in a container with
 // its own virtual display and audio sink) + one observer stream session
@@ -767,7 +767,13 @@ export class Room extends EventEmitter {
     this.setDetail('starting the player');
     const agent = new PiAgent({
       name: `steambench-player-${this.id}`, image: this.playerImage,
-      env: { [PROFILE.apiKeyEnv]: this.cfg.learningKey, STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id },
+      env: {
+        [PROFILE.apiKeyEnv]: this.cfg.learningKey,
+        // Omitted rather than passed empty: the player treats an absent key as
+        // "no System One model" and runs the planner-only path it always ran.
+        ...(this.cfg.systemOneKey ? { [SYSTEM_ONE.apiKeyEnv]: this.cfg.systemOneKey } : {}),
+        STEAMBENCH_PROCESS_GATEWAY: this.cfg.gatewayForAgents, STEAMBENCH_PROCESS_TOKEN: this.token, STEAMBENCH_PLAYER_MODE: 'rpc', STEAMBENCH_ROOM_ID: this.id,
+      },
       mounts: [`${this.hostHome}/skills:/workspace/skills`],
     });
     this.agent = agent;
