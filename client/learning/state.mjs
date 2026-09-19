@@ -318,6 +318,7 @@ export function plannerGuidance(message) {
   if (STANDALONE_PLAN.test(message || '')) return 'A standalone gameplay action was combined with another gameplay action. Return either the deterministic card-play prefix only, or exactly one standalone action; never include end_turn with play_card or another mutation.';
   if (/combat_confirm_selection requires an active hand_select/i.test(message || '')) return 'The current observation explicitly has hand_select: null, so there is no combat selection to confirm. Do not repeat combat_confirm_selection or carry selection state forward from an earlier observation; plan only from the cards, resources, and enemies in the current observation.';
   if (/card reward cannot be skipped|select_card_reward\.card|unknown card reward/i.test(message || '')) return 'Match the action to state_type. For card_select, use select_card with one observed numeric instance_id, or cancel_selection when can_cancel is true. Use select_card_reward/skip_card_reward only for card_reward.';
+  if (/potion belt is full/i.test(message || '')) return 'Every potion slot is occupied, so claiming this potion would do nothing. Either discard_potion the least useful one first and then claim, or proceed and leave this potion behind. Nothing was dispatched.';
   if (UNKNOWN_IDENTITY.test(message || '')) return 'That action named an identity the screen never published. Copy the semantic_id of the observed item exactly as it appears, character for character; never rebuild it from the item\'s name, shorten it, or carry one over from an earlier screen. No gameplay action was dispatched; answer again from the SAME observation using an identity you can see in it.';
   return 'The plan was rejected before any gameplay action was dispatched. Fix exactly what this message names and answer again from the same observation.';
 }
@@ -453,7 +454,19 @@ export function validatePlan(plan, state, { role = null, allowContinue = false }
       if (state.hand_select.can_confirm !== true) throw new Error('combat_confirm_selection requires hand_select.can_confirm to be true');
     }
     else if (action.type === 'end_turn' && (!isCombat(state) || !ready(state))) throw new Error('turn cannot be ended from the current state');
-    else if (action.type === 'claim_reward') { string(action.reward, 'claim_reward.reward'); if (!(state.rewards?.items || []).some(item => semanticIdentity('reward', item) === action.reward)) throw new Error('unknown reward'); }
+    else if (action.type === 'claim_reward') {
+      string(action.reward, 'claim_reward.reward');
+      const reward = (state.rewards?.items || []).find(item => semanticIdentity('reward', item) === action.reward);
+      if (!reward) throw new Error('unknown reward');
+      // Claiming a potion with no free slot is accepted by STS2MCP and then
+      // silently does nothing, so the executor sees no transition and pauses
+      // the whole run for an operator. The screen publishes max_potion_slots,
+      // so this is knowable before anything is dispatched: refuse it here and
+      // the agent gets a refinement round instead of a halt.
+      if (reward.type === 'potion' && (state.player?.potions?.length || 0) >= (state.player?.max_potion_slots ?? Infinity)) {
+        throw new Error('the potion belt is full, so this potion cannot be claimed');
+      }
+    }
     else if (action.type === 'select_card_reward') { string(action.card, 'select_card_reward.card'); if (!(state.card_reward?.cards || []).some(item => semanticIdentity('card_reward', item) === action.card)) throw new Error('unknown card reward'); }
     else if (action.type === 'skip_card_reward' && state.card_reward?.can_skip !== true) throw new Error('card reward cannot be skipped');
     else if (action.type === 'proceed') { const screen = state.rewards || state.rest_site || state.shop || state.fake_merchant?.shop || state.treasure; if (screen?.can_proceed !== true) throw new Error('cannot proceed from the current state'); }
