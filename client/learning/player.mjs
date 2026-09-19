@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import gateway from '../gateway_client.js';
 import { Planner } from './planner.mjs';
 import { Executor, learnedFiles } from './executor.mjs';
-import { VERSION, assertCompatibleSensor, compactState, digest, forcedMove, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, refinementResult, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
+import { SelectionMemory, VERSION, assertCompatibleSensor, compactState, digest, forcedMove, hasVerifiedProgress, planIdentity, plannerGuidance, plannerResult, reasoningTier, recoverableSuffixFailure, refinementResult, repairObservation, repairPlan, situationId, stallReason, transientUpstream, stateDiff, stateId, validatePlan } from './state.mjs';
 import { LANE, ROLES, Roster, encounterLane, encounterTitle } from './agents.mjs';
 import { briefing, combatContext, encounterKind, encounterOver, strategistContext } from './context.mjs';
 import { ObservationCatalog, acceptedLessons, compatibility } from './memory.mjs';
@@ -114,6 +114,8 @@ const planner = new Planner({ emit, record });
 // choices rather than reasoning. Absent a key it reports unavailable and every
 // caller below falls through to the planner, which is the pre-existing path.
 const systemOne = new SystemOne({ emit, record });
+// What the runtime has clicked on a selection screen the game will not describe.
+const selection = new SelectionMemory();
 let active = false;
 let abortRun;
 // Older checkpoints stored plain strings; every instruction now carries the decision it arrived at
@@ -447,6 +449,7 @@ async function run(task) {
         record({ type: 'resume_rearmed', decision, reason: 'the game restarted mid-run and is offering to continue' });
       }
       if (resumeExistingRun && state.state_type !== 'menu') resumeExistingRun = false;
+      selection.observe(state);
       const combatMemory = encounter.observe(state);
       fs.writeFileSync(path.join(directory, 'encounter.json'), JSON.stringify(combatMemory));
       const compact = compactState(state);
@@ -525,9 +528,9 @@ async function run(task) {
 
       const counters = { consecutive_no_progress: unchanged, consecutive_notes_without_acting: quiet };
       const context = role === 'combat'
-        ? combatContext({ state, briefing: fight.briefing, scratchpad: combatMemory, retrieved, lastResult, instructions, notes, learningArtifact, counters })
+        ? combatContext({ state, briefing: fight.briefing, scratchpad: combatMemory, retrieved, lastResult, instructions, notes, learningArtifact, counters, selection: selection.report(state) })
         : role === 'strategist'
-          ? strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, learningArtifact, act1: act1Timer.summary(), counters, freshRunVerified, resumeExistingRun })
+          ? strategistContext({ state, task, ladder, objectiveCheck, retrieved, lastResult, lastEncounter, instructions, strategy, accepted, notes, learningArtifact, act1: act1Timer.summary(), counters, freshRunVerified, resumeExistingRun, selection: selection.report(state) })
           : null;
       objectiveCheck = null;
       // ---- the cheap classifier, before the expensive one ----
@@ -684,6 +687,9 @@ async function run(task) {
       executionMetrics.screenshots++;
       beforeImage = await gateway.call({ op: 'screenshot', format: 'jpeg' }).catch(() => null);
       const result = await executor.execute(plan, state, { allowContinue: role === 'strategist' && resumeExistingRun && freshRunVerified, agent: lane, role, decision });
+      for (const done of result.completed || []) {
+        if (done?.action?.type === 'select_card') selection.clicked(done.action.card);
+      }
       executionMetrics.batches++;
       executionMetrics.completedActions += result.completed.length;
       record({ type: 'decision_result', agent: lane, plan, completed: result.completed, error: result.error, latencyMs: Date.now() - batchStarted, sensorCalls: executionMetrics.sensors - batchSensors, actions: executor.actions - batchActions });

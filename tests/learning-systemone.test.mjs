@@ -325,3 +325,38 @@ test('asking for the crystal sphere tool already selected is satisfied, not fail
   const stuck = await run(sphere('small'), 'big');
   assert.match(String(stuck.error), /transition was not observed/);
 });
+
+test('the runtime remembers what it clicked on a screen that will not say', async () => {
+  // Room 024de76b decisions 306-308: Inflame+, Impervious, then Inflame+
+  // again - which toggles the first back off - on "Choose up to 2 cards".
+  // Nothing observable changes, so the agent could not tell.
+  const { SelectionMemory } = await import('../client/learning/state.mjs');
+  const card = (instance_id, name, extra = {}) => ({ instance_id, index: instance_id, name, ...extra });
+  const screen = (cards) => ({
+    state_type: 'card_select',
+    card_select: { cards, screen_type: 'NCombatPileCardSelectScreen', can_confirm: true, prompt: 'Choose up to 2 cards to put into your Hand.' },
+  });
+  const cards = [card(14, 'Inflame+'), card(9, 'Impervious'), card(6, 'Strike')];
+  const state = screen(cards);
+  const memory = new SelectionMemory().observe(state);
+
+  memory.clicked(14); memory.clicked(9);
+  let report = memory.report(state);
+  assert.deepEqual(report.selected.map(c => c.name), ['Inflame+', 'Impervious']);
+  assert.match(report.note, /REMOVES it/);
+
+  // Clicking a selected card removes it, as the game does.
+  memory.clicked(14);
+  assert.deepEqual(memory.report(state).selected.map(c => c.name), ['Impervious']);
+
+  // A different screen wipes it; a selection cannot outlive its cards.
+  const other = screen([card(1, 'Bash'), card(2, 'Defend')]);
+  assert.equal(memory.observe(other).report(other).count, 0);
+  assert.equal(memory.observe({ state_type: 'map' }).report({ state_type: 'map' }), null);
+
+  // Once the mod publishes selection state, this guesswork stands aside.
+  const published = screen([card(14, 'Inflame+', { selected: true }), card(9, 'Impervious', { selected: false })]);
+  const informed = new SelectionMemory().observe(published);
+  informed.clicked(14);
+  assert.equal(informed.report(published), null, 'published selection state must win');
+});
